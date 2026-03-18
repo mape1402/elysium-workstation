@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Elysium.WorkStation/Elysium.WorkStation.csproj">
+      <Deploy Solution="Debug|*" />
+    </Project>
+  </Folder>
+</Solution>
