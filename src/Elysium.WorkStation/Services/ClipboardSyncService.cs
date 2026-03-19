@@ -8,6 +8,7 @@ namespace Elysium.WorkStation.Services
     {
         private HubConnection _connection;
         private readonly INotificationService _notificationService;
+        private readonly INotificationRepository _notificationRepository;
 
         public ObservableCollection<ClipboardEntry> History { get; } = new();
 
@@ -15,9 +16,10 @@ namespace Elysium.WorkStation.Services
 
         public event EventHandler ConnectionStateChanged;
 
-        public ClipboardSyncService(INotificationService notificationService)
+        public ClipboardSyncService(INotificationService notificationService, INotificationRepository notificationRepository)
         {
             _notificationService = notificationService;
+            _notificationRepository = notificationRepository;
         }
 
         public async Task StartAsync(string hubUrl)
@@ -40,10 +42,20 @@ namespace Elysium.WorkStation.Services
                 };
 
                 string preview = text.Length > 60 ? text[..60] + "…" : text;
+                const string title = "📋 Portapapeles recibido";
+                string message = $"{sender}: {preview}";
+
+                _ = _notificationRepository.SaveAsync(new NotificationEntry
+                {
+                    Title = title,
+                    Message = message,
+                    Timestamp = DateTime.Now
+                });
+
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
                     History.Insert(0, entry);
-                    _notificationService.Notify("📋 Portapapeles recibido", $"{sender}: {preview}");
+                    _notificationService.Notify(title, message);
                 });
             });
 

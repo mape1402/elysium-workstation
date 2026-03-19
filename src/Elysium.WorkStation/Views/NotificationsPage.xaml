@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:Elysium.WorkStation.Models"
+             x:Class="Elysium.WorkStation.Views.NotificationsPage"
+             x:Name="thisPage"
+             Title="Notificaciones">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Header: conteo + botón limpiar -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="*,Auto"
+              Padding="16,10,16,6">
+            <Label Grid.Column="0"
+                   Text="{Binding CountText}"
+                   FontFamily="OpenSansSemibold"
+                   FontSize="13"
+                   TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}"
+                   VerticalOptions="Center" />
+            <Button Grid.Column="1"
+                    Text="Limpiar todo"
+                    Command="{Binding ClearCommand}"
+                    FontFamily="OpenSansSemibold"
+                    FontSize="12"
+                    CornerRadius="8"
+                    HeightRequest="32"
+                    Padding="12,0"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
+                    TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray200}}" />
+        </Grid>
+
+        <!-- Lista de notificaciones -->
+        <CollectionView Grid.Row="1"
+                        ItemsSource="{Binding Notifications}"
+                        Margin="16,0,16,12">
+
+            <CollectionView.EmptyView>
+                <VerticalStackLayout HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Spacing="10"
+                                     Margin="0,80,0,0">
+                    <Label Text="🔔"
+                           FontSize="52"
+                           HorizontalOptions="Center" />
+                    <Label Text="Sin notificaciones recientes"
+                           FontFamily="OpenSansRegular"
+                           FontSize="14"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemsLayout>
+                <LinearItemsLayout Orientation="Vertical" ItemSpacing="8" />
+            </CollectionView.ItemsLayout>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:NotificationEntry">
+                    <Border Padding="14,12"
+                            StrokeShape="RoundRectangle 12"
+                            Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
+                            StrokeThickness="1"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Offset="0,1" Radius="6" Opacity="0.06" />
+                        </Border.Shadow>
+                        <Grid ColumnDefinitions="*,Auto"
+                              RowDefinitions="Auto,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="3">
+                            <Label Grid.Row="0" Grid.Column="0"
+                                   Text="{Binding Title}"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
+                                   LineBreakMode="TailTruncation" />
+                            <Label Grid.Row="0" Grid.Column="1"
+                                   Text="{Binding TimeDisplay}"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="11"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
+                                   VerticalOptions="Start" />
+                            <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                   Text="{Binding Message}"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}"
+                                   LineBreakMode="TailTruncation" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+
+        </CollectionView>
+
+    </Grid>
+
+</ContentPage>

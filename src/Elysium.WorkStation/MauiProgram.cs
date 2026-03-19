@@ -1,5 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
 
+using Elysium.WorkStation.Data;
+using Microsoft.EntityFrameworkCore;
+
 namespace Elysium.WorkStation
 {
     public static class MauiProgram
@@ -20,8 +23,12 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.ISettingsService,      Services.SettingsService>();
             builder.Services.AddSingleton<Services.IClipboardSyncService,  Services.ClipboardSyncService>();
             builder.Services.AddSingleton<Services.IFileTransferService,   Services.FileTransferService>();
+            builder.Services.AddDbContextFactory<AppDbContext>(opts =>
+                opts.UseSqlite($"Data Source={Path.Combine(FileSystem.AppDataDirectory, "elysium.db")}"));
+            builder.Services.AddSingleton<Services.INotificationRepository, Services.NotificationRepository>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
+            builder.Services.AddTransient<Views.NotificationsPage>();
             builder.Services.AddTransient<Views.SettingsPage>();
 
 #if WINDOWS
@@ -39,7 +46,14 @@ namespace Elysium.WorkStation
             builder.Logging.AddDebug();
 #endif
 
-            return builder.Build();
+            var mauiApp = builder.Build();
+
+            using (var db = mauiApp.Services
+                       .GetRequiredService<IDbContextFactory<AppDbContext>>()
+                       .CreateDbContext())
+                db.Database.EnsureCreated();
+
+            return mauiApp;
         }
     }
 }

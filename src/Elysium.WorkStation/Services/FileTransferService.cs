@@ -13,15 +13,17 @@ namespace Elysium.WorkStation.Services
         private HubConnection _connection;
         private string _baseUrl = string.Empty;
         private readonly INotificationService _notificationService;
+        private readonly INotificationRepository _notificationRepository;
 
         public ObservableCollection<FileEntry> History { get; } = [];
 
         public bool IsConnected => _connection?.State == HubConnectionState.Connected;
         public event EventHandler ConnectionStateChanged;
 
-        public FileTransferService(INotificationService notificationService)
+        public FileTransferService(INotificationService notificationService, INotificationRepository notificationRepository)
         {
             _notificationService = notificationService;
+            _notificationRepository = notificationRepository;
         }
 
         public async Task StartAsync(string hubUrl)
@@ -37,6 +39,17 @@ namespace Elysium.WorkStation.Services
 
             _connection.On<string, string, long, string>("ReceiveFileAnnouncement",
                 (fileId, fileName, fileSize, senderName) =>
+                {
+                    const string title = "📂 Archivo recibido";
+                    string message = $"{senderName} envió «{fileName}»";
+
+                    _ = _notificationRepository.SaveAsync(new NotificationEntry
+                    {
+                        Title = title,
+                        Message = message,
+                        Timestamp = DateTime.Now
+                    });
+
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         History.Insert(0, new FileEntry
@@ -48,8 +61,9 @@ namespace Elysium.WorkStation.Services
                             IsFromSelf = false,
                             Timestamp  = DateTime.Now
                         });
-                        _notificationService.Notify("📂 Archivo recibido", $"{senderName} envió «{fileName}»");
-                    }));
+                        _notificationService.Notify(title, message);
+                    });
+                });
 
             _connection.Closed      += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
             _connection.Reconnected += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
