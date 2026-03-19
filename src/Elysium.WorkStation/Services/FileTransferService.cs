@@ -14,16 +14,21 @@ namespace Elysium.WorkStation.Services
         private string _baseUrl = string.Empty;
         private readonly INotificationService _notificationService;
         private readonly INotificationRepository _notificationRepository;
+        private readonly IFileRepository _fileRepository;
 
         public ObservableCollection<FileEntry> History { get; } = [];
 
         public bool IsConnected => _connection?.State == HubConnectionState.Connected;
         public event EventHandler ConnectionStateChanged;
 
-        public FileTransferService(INotificationService notificationService, INotificationRepository notificationRepository)
+        public FileTransferService(
+            INotificationService notificationService,
+            INotificationRepository notificationRepository,
+            IFileRepository fileRepository)
         {
-            _notificationService = notificationService;
+            _notificationService    = notificationService;
             _notificationRepository = notificationRepository;
+            _fileRepository         = fileRepository;
         }
 
         public async Task StartAsync(string hubUrl)
@@ -31,6 +36,13 @@ namespace Elysium.WorkStation.Services
             if (_connection is not null) return;
 
             _baseUrl = hubUrl[..hubUrl.LastIndexOf("/hubs/", StringComparison.Ordinal)];
+
+            var history = await _fileRepository.GetRecentAsync();
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                foreach (var item in history)
+                    History.Add(item);
+            });
 
             _connection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
@@ -50,17 +62,20 @@ namespace Elysium.WorkStation.Services
                         Timestamp = DateTime.Now
                     });
 
+                    var fileEntry = new FileEntry
+                    {
+                        FileId     = fileId,
+                        FileName   = fileName,
+                        FileSize   = fileSize,
+                        SenderName = senderName,
+                        IsFromSelf = false,
+                        Timestamp  = DateTime.Now
+                    };
+                    _ = _fileRepository.SaveAsync(fileEntry);
+
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
-                        History.Insert(0, new FileEntry
-                        {
-                            FileId     = fileId,
-                            FileName   = fileName,
-                            FileSize   = fileSize,
-                            SenderName = senderName,
-                            IsFromSelf = false,
-                            Timestamp  = DateTime.Now
-                        });
+                        History.Insert(0, fileEntry);
                         _notificationService.Notify(title, message);
                     });
                 });
@@ -104,21 +119,36 @@ namespace Elysium.WorkStation.Services
 
                 await _connection.InvokeAsync("AnnounceFile", result.FileId, info.Name, info.Length, senderName);
 
-                MainThread.BeginInvokeOnMainThread(() =>
-                    History.Insert(0, new FileEntry
-                    {
-                        FileId     = result.FileId,
-                        FileName   = info.Name,
-                        FileSize   = info.Length,
-                        SenderName = senderName,
-                        IsFromSelf = true,
-                        Timestamp  = DateTime.Now
-                    }));
+                var sent = new FileEntry
+                {
+                    FileId     = result.FileId,
+                    FileName   = info.Name,
+                    FileSize   = info.Length,
+                    SenderName = senderName,
+                    IsFromSelf = true,
+                    Timestamp  = DateTime.Now,
+                    SourcePath = path
+                };
+                _ = _fileRepository.SaveAsync(sent);
+                MainThread.BeginInvokeOnMainThread(() => History.Insert(0, sent));
             }
         }
 
         public async Task DownloadFileAsync(FileEntry entry, string destinationPath)
         {
+            if (entry.IsFromSelf)
+            {
+                if (string.IsNullOrEmpty(entry.SourcePath) || !File.Exists(entry.SourcePath))
+                    throw new FileNotFoundException(
+                        "El archivo de origen ya no existe en la ruta original.", entry.SourcePath);
+
+                await using var source = File.OpenRead(entry.SourcePath);
+                await using var dest = File.Create(destinationPath);
+                await source.CopyToAsync(dest);
+                await dest.FlushAsync();
+                return;
+            }
+
             using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
             using var response = await client.GetAsync(
                 $"{_baseUrl}/api/files/{entry.FileId}",

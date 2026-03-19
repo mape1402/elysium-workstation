@@ -60,6 +60,15 @@ namespace Elysium.WorkStation.Views
                     await _fileTransferService.DownloadFileAsync(entry, destPath);
                     await DisplayAlert("Descargado", $"Archivo guardado en:\n{destPath}", "Aceptar");
                 }
+                catch (FileNotFoundException ex)
+                {
+                    await DisplayAlert("Archivo no encontrado",
+                        $"El archivo de origen ya no existe en la ruta original:\n{ex.FileName}", "Aceptar");
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    await DisplayAlert("Archivo no disponible", "El archivo ya no está disponible en el servidor.", "Aceptar");
+                }
                 catch (Exception ex)
                 {
                     await DisplayAlert("Error", $"No se pudo descargar el archivo:\n{ex.Message}", "Aceptar");

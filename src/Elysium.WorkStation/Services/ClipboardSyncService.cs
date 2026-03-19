@@ -9,6 +9,7 @@ namespace Elysium.WorkStation.Services
         private HubConnection _connection;
         private readonly INotificationService _notificationService;
         private readonly INotificationRepository _notificationRepository;
+        private readonly IClipboardRepository _clipboardRepository;
 
         public ObservableCollection<ClipboardEntry> History { get; } = new();
 
@@ -16,15 +17,26 @@ namespace Elysium.WorkStation.Services
 
         public event EventHandler ConnectionStateChanged;
 
-        public ClipboardSyncService(INotificationService notificationService, INotificationRepository notificationRepository)
+        public ClipboardSyncService(
+            INotificationService notificationService,
+            INotificationRepository notificationRepository,
+            IClipboardRepository clipboardRepository)
         {
-            _notificationService = notificationService;
-            _notificationRepository = notificationRepository;
+            _notificationService        = notificationService;
+            _notificationRepository     = notificationRepository;
+            _clipboardRepository        = clipboardRepository;
         }
 
         public async Task StartAsync(string hubUrl)
         {
             if (_connection is not null) return;
+
+            var history = await _clipboardRepository.GetRecentAsync();
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                foreach (var item in history)
+                    History.Add(item);
+            });
 
             _connection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
@@ -51,6 +63,7 @@ namespace Elysium.WorkStation.Services
                     Message = message,
                     Timestamp = DateTime.Now
                 });
+                _ = _clipboardRepository.SaveAsync(entry);
 
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
@@ -88,11 +101,12 @@ namespace Elysium.WorkStation.Services
 
             var entry = new ClipboardEntry
             {
-                Text = text,
+                Text       = text,
                 SenderName = Environment.MachineName,
-                Timestamp = DateTime.Now,
+                Timestamp  = DateTime.Now,
                 IsFromSelf = true
             };
+            _ = _clipboardRepository.SaveAsync(entry);
             MainThread.BeginInvokeOnMainThread(() => History.Insert(0, entry));
 
             if (_connection?.State == HubConnectionState.Connected)

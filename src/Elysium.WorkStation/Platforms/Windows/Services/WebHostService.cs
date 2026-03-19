@@ -50,7 +50,7 @@ namespace Elysium.WorkStation.Services
                 Time    = DateTime.UtcNow
             }));
 
-            var filesDir = Path.Combine(Path.GetTempPath(), "ElysiumWorkStation", "files");
+            var filesDir = Path.Combine(FileSystem.AppDataDirectory, "files");
             Directory.CreateDirectory(filesDir);
 
             _host.MapPost("/api/files", async (HttpRequest request) =>

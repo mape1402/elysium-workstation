@@ -184,10 +184,9 @@
                                         </Label>
                                     </VerticalStackLayout>
 
-                                    <!-- Download Button (received only) -->
+                                    <!-- Download Button -->
                                     <Button Grid.Column="2"
                                             Text="Descargar"
-                                            IsVisible="True"
                                             Command="{Binding Source={x:Reference thisPage}, Path=DownloadCommand}"
                                             CommandParameter="{Binding .}"
                                             FontFamily="OpenSansSemibold"
@@ -196,15 +195,7 @@
                                             HeightRequest="32"
                                             WidthRequest="88"
                                             Padding="4,0"
-                                            VerticalOptions="Center">
-                                        <Button.Triggers>
-                                            <DataTrigger TargetType="Button"
-                                                         Binding="{Binding IsFromSelf}"
-                                                         Value="True">
-                                                <Setter Property="IsVisible" Value="False" />
-                                            </DataTrigger>
-                                        </Button.Triggers>
-                                    </Button>
+                                            VerticalOptions="Center" />
 
                                 </Grid>
                             </Border>

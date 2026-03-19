@@ -26,6 +26,8 @@ namespace Elysium.WorkStation
             builder.Services.AddDbContextFactory<AppDbContext>(opts =>
                 opts.UseSqlite($"Data Source={Path.Combine(FileSystem.AppDataDirectory, "elysium.db")}"));
             builder.Services.AddSingleton<Services.INotificationRepository, Services.NotificationRepository>();
+            builder.Services.AddSingleton<Services.IClipboardRepository,    Services.ClipboardRepository>();
+            builder.Services.AddSingleton<Services.IFileRepository,         Services.FileRepository>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
             builder.Services.AddTransient<Views.NotificationsPage>();
@@ -51,7 +53,7 @@ namespace Elysium.WorkStation
             using (var db = mauiApp.Services
                        .GetRequiredService<IDbContextFactory<AppDbContext>>()
                        .CreateDbContext())
-                db.Database.EnsureCreated();
+                DatabaseInitializer.Initialize(db);
 
             return mauiApp;
         }
