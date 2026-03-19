@@ -7,6 +7,8 @@ namespace Elysium.WorkStation.Views
         private readonly ISettingsService _settingsService;
         private string _serverUrl;
         private int _fileRetentionHours;
+        private int _clipboardRetentionHours;
+        private int _notificationRetentionHours;
 
         public string ServerUrl
         {
@@ -28,6 +30,26 @@ namespace Elysium.WorkStation.Views
             }
         }
 
+        public int ClipboardRetentionHours
+        {
+            get => _clipboardRetentionHours;
+            set
+            {
+                _clipboardRetentionHours = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int NotificationRetentionHours
+        {
+            get => _notificationRetentionHours;
+            set
+            {
+                _notificationRetentionHours = value;
+                OnPropertyChanged();
+            }
+        }
+
         public string FeedbackText { get; private set; } = string.Empty;
         public Color FeedbackColor { get; private set; } = Colors.Transparent;
         public bool HasFeedback { get; private set; }
@@ -40,6 +62,8 @@ namespace Elysium.WorkStation.Views
             _settingsService = settingsService;
             _serverUrl = settingsService.ServerUrl;
             _fileRetentionHours = settingsService.FileRetentionHours;
+            _clipboardRetentionHours = settingsService.ClipboardRetentionHours;
+            _notificationRetentionHours = settingsService.NotificationRetentionHours;
 
             SaveCommand = new Command(async () =>
             {
@@ -50,6 +74,8 @@ namespace Elysium.WorkStation.Views
                 }
                 _settingsService.ServerUrl = ServerUrl;
                 _settingsService.FileRetentionHours = FileRetentionHours;
+                _settingsService.ClipboardRetentionHours = ClipboardRetentionHours;
+                _settingsService.NotificationRetentionHours = NotificationRetentionHours;
                 ShowFeedback("✅  Configuración guardada correctamente.", Color.FromArgb("#1B5E20"));
                 await Task.Delay(600);
                 await Shell.Current.GoToAsync("..");

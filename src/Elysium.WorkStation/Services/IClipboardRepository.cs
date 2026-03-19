@@ -6,5 +6,6 @@ namespace Elysium.WorkStation.Services
     {
         Task SaveAsync(ClipboardEntry entry);
         Task<List<ClipboardEntry>> GetRecentAsync(int count = 100);
+        Task<List<ClipboardEntry>> DeleteOlderThanAsync(DateTime cutoff);
     }
 }

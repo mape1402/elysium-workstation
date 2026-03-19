@@ -28,5 +28,21 @@ namespace Elysium.WorkStation.Services
                 .Take(count)
                 .ToListAsync();
         }
+
+        public async Task<List<ClipboardEntry>> DeleteOlderThanAsync(DateTime cutoff)
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            var old = await db.ClipboardHistory
+                .Where(e => e.Timestamp < cutoff)
+                .ToListAsync();
+
+            if (old.Count > 0)
+            {
+                db.ClipboardHistory.RemoveRange(old);
+                await db.SaveChangesAsync();
+            }
+
+            return old;
+        }
     }
 }

@@ -1,24 +1,33 @@
 namespace Elysium.WorkStation.Services
 {
-    public class FileCleanupService : IFileCleanupService
+    public class CleanupService : ICleanupService
     {
         private readonly IFileRepository _fileRepository;
         private readonly IFileTransferService _fileTransferService;
+        private readonly INotificationRepository _notificationRepository;
+        private readonly IClipboardRepository _clipboardRepository;
+        private readonly IClipboardSyncService _clipboardSyncService;
         private readonly ISettingsService _settingsService;
         private readonly string _serverFilesDir;
 
         private CancellationTokenSource _cts;
         private Task _backgroundTask;
 
-        public FileCleanupService(
+        public CleanupService(
             IFileRepository fileRepository,
             IFileTransferService fileTransferService,
+            INotificationRepository notificationRepository,
+            IClipboardRepository clipboardRepository,
+            IClipboardSyncService clipboardSyncService,
             ISettingsService settingsService)
         {
-            _fileRepository      = fileRepository;
-            _fileTransferService = fileTransferService;
-            _settingsService     = settingsService;
-            _serverFilesDir      = Path.Combine(FileSystem.AppDataDirectory, "files");
+            _fileRepository         = fileRepository;
+            _fileTransferService    = fileTransferService;
+            _notificationRepository = notificationRepository;
+            _clipboardRepository    = clipboardRepository;
+            _clipboardSyncService   = clipboardSyncService;
+            _settingsService        = settingsService;
+            _serverFilesDir         = Path.Combine(FileSystem.AppDataDirectory, "files");
         }
 
         public Task StartAsync()
@@ -46,7 +55,6 @@ namespace Elysium.WorkStation.Services
 
         private async Task RunAsync(CancellationToken ct)
         {
-            // Initial cleanup on start.
             await CleanupAsync();
 
             using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
@@ -56,14 +64,18 @@ namespace Elysium.WorkStation.Services
 
         private async Task CleanupAsync()
         {
+            await CleanupFilesAsync(DateTime.Now.AddHours(-_settingsService.FileRetentionHours));
+            await CleanupNotificationsAsync(DateTime.Now.AddHours(-_settingsService.NotificationRetentionHours));
+            await CleanupClipboardAsync(DateTime.Now.AddHours(-_settingsService.ClipboardRetentionHours));
+        }
+
+        private async Task CleanupFilesAsync(DateTime cutoff)
+        {
             try
             {
-                var cutoff = DateTime.Now.AddHours(-_settingsService.FileRetentionHours);
                 var deleted = await _fileRepository.DeleteOlderThanAsync(cutoff);
-
                 if (deleted.Count == 0) return;
 
-                // Remove physical files stored by the server.
                 foreach (var entry in deleted)
                 {
                     var fileDir = Path.Combine(_serverFilesDir, entry.FileId);
@@ -74,7 +86,6 @@ namespace Elysium.WorkStation.Services
                     }
                 }
 
-                // Keep the in-memory History collection in sync.
                 var deletedIds = deleted.Select(e => e.FileId).ToHashSet();
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
@@ -86,10 +97,37 @@ namespace Elysium.WorkStation.Services
                     }
                 });
             }
-            catch
+            catch { /* non-critical */ }
+        }
+
+        private async Task CleanupNotificationsAsync(DateTime cutoff)
+        {
+            try
             {
-                // Non-critical background task; swallow exceptions to keep the timer alive.
+                await _notificationRepository.DeleteOlderThanAsync(cutoff);
             }
+            catch { /* non-critical */ }
+        }
+
+        private async Task CleanupClipboardAsync(DateTime cutoff)
+        {
+            try
+            {
+                var deleted = await _clipboardRepository.DeleteOlderThanAsync(cutoff);
+                if (deleted.Count == 0) return;
+
+                var deletedIds = deleted.Select(e => e.Id).ToHashSet();
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    var history = _clipboardSyncService.History;
+                    for (int i = history.Count - 1; i >= 0; i--)
+                    {
+                        if (deletedIds.Contains(history[i].Id))
+                            history.RemoveAt(i);
+                    }
+                });
+            }
+            catch { /* non-critical */ }
         }
     }
 }

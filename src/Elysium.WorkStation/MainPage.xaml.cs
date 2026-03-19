@@ -13,7 +13,7 @@ namespace Elysium.WorkStation
         private readonly IClipboardSyncService _clipboardSyncService;
         private readonly ISettingsService _settingsService;
         private readonly IFileTransferService _fileTransferService;
-        private readonly IFileCleanupService _fileCleanupService;
+        private readonly ICleanupService _cleanupService;
 
         public List<MenuItemModel> MenuItems { get; } =
         [
@@ -45,13 +45,13 @@ namespace Elysium.WorkStation
             _              => Color.FromArgb("#424242")
         };
 
-        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService, ISettingsService settingsService, IFileTransferService fileTransferService, IFileCleanupService fileCleanupService)
+        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService, ISettingsService settingsService, IFileTransferService fileTransferService, ICleanupService cleanupService)
         {
             _roleService = roleService;
             _clipboardSyncService = clipboardSyncService;
             _settingsService = settingsService;
             _fileTransferService = fileTransferService;
-            _fileCleanupService = fileCleanupService;
+            _cleanupService = cleanupService;
 
             NavigateCommand = new Command<MenuItemModel>(async (item) =>
             {
@@ -73,10 +73,15 @@ namespace Elysium.WorkStation
             base.OnAppearing();
 
             // On Windows, DisplayAlert uses ContentDialog which requires XamlRoot.
-            // XamlRoot is only available once the page is attached to the visual tree,
-            // which happens after OnAppearing is first called. Wait until Window is set.
-            while (Window is null)
-                await Task.Delay(16);
+            // XamlRoot is only available once the page is fully in the visual tree.
+            // OnAppearing fires before Loaded on Windows, so we must wait for it.
+            if (!IsLoaded)
+            {
+                var tcs = new TaskCompletionSource();
+                void handler(object s, EventArgs e) { Loaded -= handler; tcs.TrySetResult(); }
+                Loaded += handler;
+                await tcs.Task;
+            }
 
             if (!_settingsService.IsConfigured)
             {
@@ -112,7 +117,7 @@ namespace Elysium.WorkStation
 
             await _clipboardSyncService.StartAsync(hubUrl);
             await _fileTransferService.StartAsync(hubUrl);
-            await _fileCleanupService.StartAsync();
+            await _cleanupService.StartAsync();
         }
 
         protected override void OnSizeAllocated(double width, double height)

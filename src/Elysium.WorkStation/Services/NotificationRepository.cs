@@ -33,5 +33,13 @@ namespace Elysium.WorkStation.Services
             await using var db = await _factory.CreateDbContextAsync();
             await db.Notifications.ExecuteDeleteAsync();
         }
+
+        public async Task<int> DeleteOlderThanAsync(DateTime cutoff)
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            return await db.Notifications
+                .Where(n => n.Timestamp < cutoff)
+                .ExecuteDeleteAsync();
+        }
     }
 }

@@ -1,6 +1,6 @@
 namespace Elysium.WorkStation.Services
 {
-    public interface IFileCleanupService
+    public interface ICleanupService
     {
         Task StartAsync();
         Task StopAsync();

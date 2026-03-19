@@ -45,24 +45,59 @@
                 <Border.Shadow>
                     <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
                 </Border.Shadow>
-                <VerticalStackLayout Spacing="12">
+                <VerticalStackLayout Spacing="16">
 
-                    <Label Text="🗑️  Retención de archivos"
+                    <Label Text="🗑️  Retención de datos"
                            FontFamily="OpenSansSemibold"
                            FontSize="15"
                            TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
 
-                    <Label Text="Tiempo en horas tras el cual se eliminan automáticamente los archivos compartidos y su historial."
+                    <Label Text="Tiempo en horas tras el cual se eliminan automáticamente los datos de cada categoría."
                            FontFamily="OpenSansRegular"
                            FontSize="12"
                            TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
 
-                    <Entry Text="{Binding FileRetentionHours}"
-                           Placeholder="72"
-                           FontFamily="OpenSansRegular"
-                           FontSize="14"
-                           Keyboard="Numeric"
-                           ClearButtonVisibility="WhileEditing" />
+                    <!-- Files -->
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="📂  Archivos compartidos"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Entry Text="{Binding FileRetentionHours}"
+                               Placeholder="72"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               Keyboard="Numeric"
+                               ClearButtonVisibility="WhileEditing" />
+                    </VerticalStackLayout>
+
+                    <!-- Clipboard -->
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="📋  Historial del portapapeles"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Entry Text="{Binding ClipboardRetentionHours}"
+                               Placeholder="72"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               Keyboard="Numeric"
+                               ClearButtonVisibility="WhileEditing" />
+                    </VerticalStackLayout>
+
+                    <!-- Notifications -->
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="🔔  Notificaciones"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Entry Text="{Binding NotificationRetentionHours}"
+                               Placeholder="72"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               Keyboard="Numeric"
+                               ClearButtonVisibility="WhileEditing" />
+                    </VerticalStackLayout>
 
                 </VerticalStackLayout>
             </Border>

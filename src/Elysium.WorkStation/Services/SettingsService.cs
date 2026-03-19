@@ -4,7 +4,9 @@ namespace Elysium.WorkStation.Services
     {
         private const string ServerUrlKey = "server_url";
         private const string FileRetentionHoursKey = "file_retention_hours";
-        private const int DefaultFileRetentionHours = 72;
+        private const string ClipboardRetentionHoursKey = "clipboard_retention_hours";
+        private const string NotificationRetentionHoursKey = "notification_retention_hours";
+        private const int DefaultRetentionHours = 72;
 
         public string ServerUrl
         {
@@ -22,8 +24,20 @@ namespace Elysium.WorkStation.Services
 
         public int FileRetentionHours
         {
-            get => Preferences.Default.Get(FileRetentionHoursKey, DefaultFileRetentionHours);
+            get => Preferences.Default.Get(FileRetentionHoursKey, DefaultRetentionHours);
             set => Preferences.Default.Set(FileRetentionHoursKey, Math.Max(1, value));
+        }
+
+        public int ClipboardRetentionHours
+        {
+            get => Preferences.Default.Get(ClipboardRetentionHoursKey, DefaultRetentionHours);
+            set => Preferences.Default.Set(ClipboardRetentionHoursKey, Math.Max(1, value));
+        }
+
+        public int NotificationRetentionHours
+        {
+            get => Preferences.Default.Get(NotificationRetentionHoursKey, DefaultRetentionHours);
+            set => Preferences.Default.Set(NotificationRetentionHoursKey, Math.Max(1, value));
         }
     }
 }

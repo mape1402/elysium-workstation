@@ -8,5 +8,7 @@ namespace Elysium.WorkStation.Services
         bool IsConfigured { get; }
         int ServerPort { get; }
         int FileRetentionHours { get; set; }
+        int ClipboardRetentionHours { get; set; }
+        int NotificationRetentionHours { get; set; }
     }
 }
