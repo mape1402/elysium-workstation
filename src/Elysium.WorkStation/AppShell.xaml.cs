@@ -6,6 +6,7 @@
         {
             InitializeComponent();
             HomeContent.Content = mainPage;
+            Routing.RegisterRoute("clipboard-history", typeof(Views.ClipboardHistoryPage));
         }
     }
 }

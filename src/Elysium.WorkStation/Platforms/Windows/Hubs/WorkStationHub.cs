@@ -9,5 +9,8 @@ namespace Elysium.WorkStation.Hubs
 
         public async Task Broadcast(string eventName, object payload)
             => await Clients.All.SendAsync(eventName, payload);
+
+        public async Task ClipboardSync(string text, string senderName)
+            => await Clients.Others.SendAsync("ReceiveClipboard", text, senderName);
     }
 }

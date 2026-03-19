@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFrameworks>net9.0-android;net9.0-windows10.0.19041.0</TargetFrameworks>
@@ -51,8 +51,19 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.9" />
 	</ItemGroup>
 
+	<ItemGroup Condition="!$(TargetFramework.Contains('windows'))">
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
+	</ItemGroup>
+
 	<ItemGroup Condition="$(TargetFramework.Contains('windows'))">
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <MauiXaml Update="Views\ClipboardHistoryPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	</ItemGroup>
 
 </Project>

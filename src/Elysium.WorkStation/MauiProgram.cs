@@ -17,6 +17,8 @@ namespace Elysium.WorkStation
 
             builder.Services.AddSingleton<AppShell>();
             builder.Services.AddSingleton<MainPage>();
+            builder.Services.AddSingleton<Services.IClipboardSyncService, Services.ClipboardSyncService>();
+            builder.Services.AddTransient<Views.ClipboardHistoryPage>();
 
 #if WINDOWS
             builder.Services.AddSingleton<Services.IWebHostService, Services.WebHostService>();

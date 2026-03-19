@@ -10,6 +10,7 @@ namespace Elysium.WorkStation
         private const double _minCardSize = 160;
 
         private readonly IRoleService _roleService;
+        private readonly IClipboardSyncService _clipboardSyncService;
 
         public List<MenuItemModel> MenuItems { get; } =
         [
@@ -19,6 +20,7 @@ namespace Elysium.WorkStation
             new() { Icon = "🔔", Title = "Notificaciones", Description = "Alertas y mensajes recientes",     Route = "notifications" },
             new() { Icon = "👤", Title = "Perfil",         Description = "Administra tu cuenta",             Route = "profile" },
             new() { Icon = "⚙️", Title = "Configuración",  Description = "Ajusta las opciones de la app",   Route = "settings" },
+            new() { Icon = "📋", Title = "Portapapeles",    Description = "Historial de textos sincronizados", Route = "clipboard-history" },
         ];
 
         public Command<MenuItemModel> NavigateCommand { get; }
@@ -39,9 +41,17 @@ namespace Elysium.WorkStation
             _              => Color.FromArgb("#424242")
         };
 
-        public MainPage(IRoleService roleService)
+        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService)
         {
             _roleService = roleService;
+            _clipboardSyncService = clipboardSyncService;
+
+            NavigateCommand = new Command<MenuItemModel>(async (item) =>
+            {
+                if (!string.IsNullOrEmpty(item?.Route))
+                    await Shell.Current.GoToAsync(item.Route);
+            });
+
             _roleService.RoleChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() =>
             {
                 OnPropertyChanged(nameof(RoleStatusText));
@@ -49,12 +59,6 @@ namespace Elysium.WorkStation
             });
             InitializeComponent();
             BindingContext = this;
-
-            NavigateCommand = new Command<MenuItemModel>(async (item) =>
-            {
-                if (!string.IsNullOrEmpty(item?.Route))
-                    await Shell.Current.GoToAsync(item.Route);
-            });
         }
 
         protected override async void OnAppearing()
@@ -66,6 +70,7 @@ namespace Elysium.WorkStation
             if (serverRunning)
             {
                 _roleService.SetClientRole();
+                await _clipboardSyncService.StartAsync("http://localhost:5050/hubs/workstation");
                 return;
             }
 
@@ -79,6 +84,8 @@ namespace Elysium.WorkStation
                 await _roleService.ActivateServerAsync();
             else
                 _roleService.SetClientRole();
+
+            await _clipboardSyncService.StartAsync("http://localhost:5050/hubs/workstation");
         }
 
         protected override void OnSizeAllocated(double width, double height)
