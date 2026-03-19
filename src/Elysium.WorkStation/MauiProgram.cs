@@ -15,10 +15,16 @@ namespace Elysium.WorkStation
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
+            builder.Services.AddSingleton<AppShell>();
+            builder.Services.AddSingleton<MainPage>();
+
 #if WINDOWS
             builder.Services.AddSingleton<Services.IWebHostService, Services.WebHostService>();
             builder.Services.AddSingleton<Services.IMouseService,   Services.MouseService>();
             builder.Services.AddSingleton<Services.ITrayService,    Services.TrayService>();
+            builder.Services.AddSingleton<Services.IRoleService,    Services.RoleService>();
+#else
+            builder.Services.AddSingleton<Services.IRoleService,    Services.DefaultRoleService>();
 #endif
 
 #if DEBUG

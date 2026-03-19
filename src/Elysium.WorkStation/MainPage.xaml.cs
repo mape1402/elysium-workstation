@@ -1,4 +1,5 @@
 ﻿using Elysium.WorkStation.Models;
+using Elysium.WorkStation.Services;
 
 namespace Elysium.WorkStation
 {
@@ -7,6 +8,8 @@ namespace Elysium.WorkStation
         private const double _collectionMargin = 32; // 16 left + 16 right
         private const double _itemSpacing = 12;
         private const double _minCardSize = 160;
+
+        private readonly IRoleService _roleService;
 
         public List<MenuItemModel> MenuItems { get; } =
         [
@@ -22,8 +25,28 @@ namespace Elysium.WorkStation
 
         public double CardHeight { get; private set; } = _minCardSize;
 
-        public MainPage()
+        public string RoleStatusText => _roleService.CurrentRole switch
         {
+            AppRole.Server => "🟢  Servidor activo · http://localhost:5050",
+            AppRole.Client => "🔵  Modo cliente",
+            _              => "⚪  Detectando rol..."
+        };
+
+        public Color RoleStatusColor => _roleService.CurrentRole switch
+        {
+            AppRole.Server => Color.FromArgb("#1B5E20"),
+            AppRole.Client => Color.FromArgb("#0D47A1"),
+            _              => Color.FromArgb("#424242")
+        };
+
+        public MainPage(IRoleService roleService)
+        {
+            _roleService = roleService;
+            _roleService.RoleChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                OnPropertyChanged(nameof(RoleStatusText));
+                OnPropertyChanged(nameof(RoleStatusColor));
+            });
             InitializeComponent();
             BindingContext = this;
 
@@ -32,6 +55,30 @@ namespace Elysium.WorkStation
                 if (!string.IsNullOrEmpty(item?.Route))
                     await Shell.Current.GoToAsync(item.Route);
             });
+        }
+
+        protected override async void OnAppearing()
+        {
+            base.OnAppearing();
+            if (_roleService.CurrentRole != AppRole.Undetermined) return;
+
+            bool serverRunning = await _roleService.IsServerRunningAsync();
+            if (serverRunning)
+            {
+                _roleService.SetClientRole();
+                return;
+            }
+
+            bool becomeServer = await DisplayAlert(
+                "Rol de instancia",
+                "No se detectó un servidor activo. ¿Deseas iniciar esta instancia como servidor?",
+                "Sí, iniciar servidor",
+                "No, modo cliente");
+
+            if (becomeServer)
+                await _roleService.ActivateServerAsync();
+            else
+                _roleService.SetClientRole();
         }
 
         protected override void OnSizeAllocated(double width, double height)

@@ -5,7 +5,20 @@
              x:Class="Elysium.WorkStation.MainPage"
              Title="Workspace">
 
-    <CollectionView x:Name="MenuCollectionView"
+    <Grid RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0"
+                BackgroundColor="{Binding RoleStatusColor}"
+                Padding="12,6">
+            <Label Text="{Binding RoleStatusText}"
+                   FontFamily="OpenSansRegular"
+                   FontSize="12"
+                   TextColor="White"
+                   HorizontalOptions="Center" />
+        </Border>
+
+        <CollectionView x:Name="MenuCollectionView"
+                    Grid.Row="1"
                     ItemsSource="{Binding MenuItems}"
                     Margin="16,12">
         <CollectionView.ItemsLayout>
@@ -54,6 +67,8 @@
                 </Border>
             </DataTemplate>
         </CollectionView.ItemTemplate>
-    </CollectionView>
+            </CollectionView>
 
-</ContentPage>
+        </Grid>
+
+    </ContentPage>

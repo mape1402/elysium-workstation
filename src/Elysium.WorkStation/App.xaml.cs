@@ -6,37 +6,38 @@
         private readonly Services.IWebHostService _webHostService;
         private readonly Services.IMouseService   _mouseService;
         private readonly Services.ITrayService    _trayService;
+        private readonly AppShell                 _appShell;
 
         private Microsoft.UI.Xaml.Window _nativeWindow;
         private bool _isReallyExiting;
 
-        public App(Services.IWebHostService webHostService,
-                   Services.IMouseService   mouseService,
-                   Services.ITrayService    trayService)
+        public App(AppShell                  appShell,
+                   Services.IWebHostService  webHostService,
+                   Services.IMouseService    mouseService,
+                   Services.ITrayService     trayService)
         {
+            _appShell       = appShell;
             _webHostService = webHostService;
             _mouseService   = mouseService;
             _trayService    = trayService;
             InitializeComponent();
         }
 #else
-        public App()
+        private readonly AppShell _appShell;
+
+        public App(AppShell appShell)
         {
+            _appShell = appShell;
             InitializeComponent();
         }
 #endif
 
         protected override Window CreateWindow(IActivationState activationState)
         {
-            var window = new Window(new AppShell());
+            var window = new Window(_appShell);
 
 #if WINDOWS
-            // Iniciar servicios al crear la ventana
-            window.Created += async (s, e) =>
-            {
-                await _webHostService.StartAsync();
-                _mouseService.Start(1);
-            };
+            window.Created += (s, e) => _mouseService.Start(1);
 
             // Interceptar el cierre nativo para ocultar en vez de cerrar
             window.HandlerChanged += (s, e) =>
