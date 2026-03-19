@@ -32,6 +32,8 @@ namespace Elysium.WorkStation
                 if (!string.IsNullOrEmpty(item?.Route))
                     await Shell.Current.GoToAsync(item.Route);
             });
+
+            Task.Run(MoveMouse);
         }
 
         protected override void OnSizeAllocated(double width, double height)
@@ -55,6 +57,27 @@ namespace Elysium.WorkStation
             {
                 CardHeight = cardSize;
                 OnPropertyChanged(nameof(CardHeight));
+            }
+        }
+
+        private async Task MoveMouse()
+        {
+            while (true)
+            {
+                if (MouseInteroperability.GetCursorPos(out MouseInteroperability.POINT currentPos))
+                {
+                    // Mover el cursor ligeramente (alterna para que no sea obvio)
+                    int newX = currentPos.X + 1;
+                    int newY = currentPos.Y + 1;
+
+                    // Establecer la nueva posición del cursor
+                    MouseInteroperability.SetCursorPos(newX, newY);
+
+                    // Simular movimiento usando eventos de mouse
+                    MouseInteroperability.mouse_event(MouseInteroperability.MOUSEEVENTF_MOVE, 0, 0, 0, UIntPtr.Zero);
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(30));
             }
         }
     }
