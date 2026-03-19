@@ -17,7 +17,8 @@ namespace Elysium.WorkStation
 
 #if WINDOWS
             builder.Services.AddSingleton<Services.IWebHostService, Services.WebHostService>();
-            builder.Services.AddSingleton<Services.IMouseService, Services.MouseService>();
+            builder.Services.AddSingleton<Services.IMouseService,   Services.MouseService>();
+            builder.Services.AddSingleton<Services.ITrayService,    Services.TrayService>();
 #endif
 
 #if DEBUG
