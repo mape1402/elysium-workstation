@@ -4,7 +4,7 @@ namespace Elysium.WorkStation.Services
     {
         string BaseUrl { get; }
         bool IsRunning { get; }
-        Task StartAsync(int port = 5050);
+        Task StartAsync();
         Task StopAsync();
     }
 }

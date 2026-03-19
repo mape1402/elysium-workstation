@@ -7,18 +7,26 @@ namespace Elysium.WorkStation.Services
 {
     public class WebHostService : IWebHostService
     {
+        private readonly ISettingsService _settingsService;
         private WebApplication _host;
 
         public string BaseUrl { get; private set; } = string.Empty;
         public bool IsRunning => _host is not null;
 
-        public async Task StartAsync(int port = 5050)
+        public WebHostService(ISettingsService settingsService)
+        {
+            _settingsService = settingsService;
+        }
+
+        public async Task StartAsync()
         {
             if (IsRunning) return;
 
+            int port = _settingsService.ServerPort;
+
             var builder = WebApplication.CreateBuilder();
 
-            builder.Services.Configure<KestrelServerOptions>(kestrel => kestrel.ListenLocalhost(port));
+            builder.Services.Configure<KestrelServerOptions>(kestrel => kestrel.ListenAnyIP(port));
 
             builder.Services.AddSignalR();
             builder.Services.AddCors(options =>
@@ -40,7 +48,7 @@ namespace Elysium.WorkStation.Services
 
             _host.MapHub<WorkStationHub>("/hubs/workstation");
 
-            BaseUrl = $"http://localhost:{port}";
+            BaseUrl = _settingsService.ServerUrl;
             await _host.StartAsync();
         }
 

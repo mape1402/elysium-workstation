@@ -11,6 +11,7 @@ namespace Elysium.WorkStation
 
         private readonly IRoleService _roleService;
         private readonly IClipboardSyncService _clipboardSyncService;
+        private readonly ISettingsService _settingsService;
 
         public List<MenuItemModel> MenuItems { get; } =
         [
@@ -29,7 +30,7 @@ namespace Elysium.WorkStation
 
         public string RoleStatusText => _roleService.CurrentRole switch
         {
-            AppRole.Server => "🟢  Servidor activo · http://localhost:5050",
+            AppRole.Server => $"🟢  Servidor activo · {_settingsService.ServerUrl}",
             AppRole.Client => "🔵  Modo cliente",
             _              => "⚪  Detectando rol..."
         };
@@ -41,10 +42,11 @@ namespace Elysium.WorkStation
             _              => Color.FromArgb("#424242")
         };
 
-        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService)
+        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService, ISettingsService settingsService)
         {
             _roleService = roleService;
             _clipboardSyncService = clipboardSyncService;
+            _settingsService = settingsService;
 
             NavigateCommand = new Command<MenuItemModel>(async (item) =>
             {
@@ -64,7 +66,6 @@ namespace Elysium.WorkStation
         protected override async void OnAppearing()
         {
             base.OnAppearing();
-            if (_roleService.CurrentRole != AppRole.Undetermined) return;
 
             // On Windows, DisplayAlert uses ContentDialog which requires XamlRoot.
             // XamlRoot is only available once the page is attached to the visual tree,
@@ -72,26 +73,39 @@ namespace Elysium.WorkStation
             while (Window is null)
                 await Task.Delay(16);
 
-            bool serverRunning = await _roleService.IsServerRunningAsync();
-            if (serverRunning)
+            if (!_settingsService.IsConfigured)
             {
-                _roleService.SetClientRole();
-                await _clipboardSyncService.StartAsync("http://localhost:5050/hubs/workstation");
+                await Shell.Current.GoToAsync("settings");
                 return;
             }
 
-            bool becomeServer = await DisplayAlert(
-                "Rol de instancia",
-                "No se detectó un servidor activo. ¿Deseas iniciar esta instancia como servidor?",
-                "Sí, iniciar servidor",
-                "No, modo cliente");
+            if (_roleService.CurrentRole == AppRole.Undetermined)
+            {
+                bool serverRunning = await _roleService.IsServerRunningAsync();
+                if (serverRunning)
+                {
+                    _roleService.SetClientRole();
+                }
+                else
+                {
+                    bool becomeServer = await DisplayAlert(
+                        "Rol de instancia",
+                        "No se detectó un servidor activo. ¿Deseas iniciar esta instancia como servidor?",
+                        "Sí, iniciar servidor",
+                        "No, modo cliente");
 
-            if (becomeServer)
-                await _roleService.ActivateServerAsync();
-            else
-                _roleService.SetClientRole();
+                    if (becomeServer)
+                        await _roleService.ActivateServerAsync();
+                    else
+                        _roleService.SetClientRole();
+                }
+            }
 
-            await _clipboardSyncService.StartAsync("http://localhost:5050/hubs/workstation");
+            string hubUrl = _roleService.CurrentRole == AppRole.Server
+                ? $"http://localhost:{_settingsService.ServerPort}/hubs/workstation"
+                : _settingsService.HubUrl;
+
+            await _clipboardSyncService.StartAsync(hubUrl);
         }
 
         protected override void OnSizeAllocated(double width, double height)
