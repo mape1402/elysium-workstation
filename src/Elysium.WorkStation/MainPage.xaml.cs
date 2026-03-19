@@ -66,6 +66,12 @@ namespace Elysium.WorkStation
             base.OnAppearing();
             if (_roleService.CurrentRole != AppRole.Undetermined) return;
 
+            // On Windows, DisplayAlert uses ContentDialog which requires XamlRoot.
+            // XamlRoot is only available once the page is attached to the visual tree,
+            // which happens after OnAppearing is first called. Wait until Window is set.
+            while (Window is null)
+                await Task.Delay(16);
+
             bool serverRunning = await _roleService.IsServerRunningAsync();
             if (serverRunning)
             {
