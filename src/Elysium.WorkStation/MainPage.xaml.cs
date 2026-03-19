@@ -1,24 +1,64 @@
-﻿namespace Elysium.WorkStation
+﻿using Elysium.WorkStation.Models;
+
+namespace Elysium.WorkStation
 {
     public partial class MainPage : ContentPage
     {
-        int count = 0;
+        private const double _collectionMargin = 32; // 16 left + 16 right
+        private const double _itemSpacing = 12;
+        private const double _minCardSize = 160;
+
+        public List<MenuItemModel> MenuItems { get; } =
+        [
+            new() { Icon = "📊", Title = "Dashboard",      Description = "Resumen de tu espacio de trabajo", Route = "dashboard" },
+            new() { Icon = "📁", Title = "Proyectos",      Description = "Gestiona tus proyectos activos",   Route = "projects" },
+            new() { Icon = "📈", Title = "Reportes",       Description = "Consulta estadísticas y análisis", Route = "reports" },
+            new() { Icon = "🔔", Title = "Notificaciones", Description = "Alertas y mensajes recientes",     Route = "notifications" },
+            new() { Icon = "👤", Title = "Perfil",         Description = "Administra tu cuenta",             Route = "profile" },
+            new() { Icon = "⚙️", Title = "Configuración",  Description = "Ajusta las opciones de la app",   Route = "settings" },
+        ];
+
+        public Command<MenuItemModel> NavigateCommand { get; }
+
+        public double CardHeight { get; private set; } = _minCardSize;
 
         public MainPage()
         {
             InitializeComponent();
+            BindingContext = this;
+
+            NavigateCommand = new Command<MenuItemModel>(async (item) =>
+            {
+                if (!string.IsNullOrEmpty(item?.Route))
+                    await Shell.Current.GoToAsync(item.Route);
+            });
         }
 
-        private void OnCounterClicked(object? sender, EventArgs e)
+        protected override void OnSizeAllocated(double width, double height)
         {
-            count++;
+            base.OnSizeAllocated(width, height);
+            UpdateCardLayout(width);
+        }
 
-            if (count == 1)
-                CounterBtn.Text = $"Clicked {count} time";
-            else
-                CounterBtn.Text = $"Clicked {count} times";
+        private void UpdateCardLayout(double width)
+        {
+            if (width <= 0) return;
 
-            SemanticScreenReader.Announce(CounterBtn.Text);
+            double available = width - _collectionMargin;
+            int span = Math.Max(2, (int)((available + _itemSpacing) / (_minCardSize + _itemSpacing)));
+            double cardSize = (available - (span - 1) * _itemSpacing) / span;
+
+            if (MenuCollectionView.ItemsLayout is GridItemsLayout grid && grid.Span != span)
+                grid.Span = span;
+
+            if (Math.Abs(CardHeight - cardSize) > 0.5)
+            {
+                CardHeight = cardSize;
+                OnPropertyChanged(nameof(CardHeight));
+            }
         }
     }
 }
+
+
+
