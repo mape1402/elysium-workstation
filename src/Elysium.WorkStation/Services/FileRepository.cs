@@ -29,5 +29,21 @@ namespace Elysium.WorkStation.Services
                 .Take(count)
                 .ToListAsync();
         }
+
+        public async Task<List<FileEntry>> DeleteOlderThanAsync(DateTime cutoff)
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            var old = await db.FileHistory
+                .Where(e => e.Timestamp < cutoff)
+                .ToListAsync();
+
+            if (old.Count > 0)
+            {
+                db.FileHistory.RemoveRange(old);
+                await db.SaveChangesAsync();
+            }
+
+            return old;
+        }
     }
 }

@@ -3,6 +3,8 @@ namespace Elysium.WorkStation.Services
     public class SettingsService : ISettingsService
     {
         private const string ServerUrlKey = "server_url";
+        private const string FileRetentionHoursKey = "file_retention_hours";
+        private const int DefaultFileRetentionHours = 72;
 
         public string ServerUrl
         {
@@ -17,5 +19,11 @@ namespace Elysium.WorkStation.Services
 
         public int ServerPort =>
             Uri.TryCreate(ServerUrl, UriKind.Absolute, out var uri) ? uri.Port : -1;
+
+        public int FileRetentionHours
+        {
+            get => Preferences.Default.Get(FileRetentionHoursKey, DefaultFileRetentionHours);
+            set => Preferences.Default.Set(FileRetentionHoursKey, Math.Max(1, value));
+        }
     }
 }

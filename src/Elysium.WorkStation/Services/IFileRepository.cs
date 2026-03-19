@@ -6,5 +6,6 @@ namespace Elysium.WorkStation.Services
     {
         Task SaveAsync(FileEntry entry);
         Task<List<FileEntry>> GetRecentAsync(int count = 100);
+        Task<List<FileEntry>> DeleteOlderThanAsync(DateTime cutoff);
     }
 }

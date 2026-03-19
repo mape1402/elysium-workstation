@@ -6,6 +6,7 @@ namespace Elysium.WorkStation.Views
     {
         private readonly ISettingsService _settingsService;
         private string _serverUrl;
+        private int _fileRetentionHours;
 
         public string ServerUrl
         {
@@ -13,6 +14,16 @@ namespace Elysium.WorkStation.Views
             set
             {
                 _serverUrl = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int FileRetentionHours
+        {
+            get => _fileRetentionHours;
+            set
+            {
+                _fileRetentionHours = value;
                 OnPropertyChanged();
             }
         }
@@ -28,6 +39,7 @@ namespace Elysium.WorkStation.Views
         {
             _settingsService = settingsService;
             _serverUrl = settingsService.ServerUrl;
+            _fileRetentionHours = settingsService.FileRetentionHours;
 
             SaveCommand = new Command(async () =>
             {
@@ -37,7 +49,8 @@ namespace Elysium.WorkStation.Views
                     return;
                 }
                 _settingsService.ServerUrl = ServerUrl;
-                ShowFeedback("✅  URL guardada correctamente.", Color.FromArgb("#1B5E20"));
+                _settingsService.FileRetentionHours = FileRetentionHours;
+                ShowFeedback("✅  Configuración guardada correctamente.", Color.FromArgb("#1B5E20"));
                 await Task.Delay(600);
                 await Shell.Current.GoToAsync("..");
             });

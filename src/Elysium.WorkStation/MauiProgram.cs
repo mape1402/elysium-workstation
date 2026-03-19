@@ -28,6 +28,7 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.INotificationRepository, Services.NotificationRepository>();
             builder.Services.AddSingleton<Services.IClipboardRepository,    Services.ClipboardRepository>();
             builder.Services.AddSingleton<Services.IFileRepository,         Services.FileRepository>();
+            builder.Services.AddSingleton<Services.IFileCleanupService,    Services.FileCleanupService>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
             builder.Services.AddTransient<Views.NotificationsPage>();

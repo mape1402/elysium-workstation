@@ -7,5 +7,6 @@ namespace Elysium.WorkStation.Services
         string StatusApiUrl { get; }
         bool IsConfigured { get; }
         int ServerPort { get; }
+        int FileRetentionHours { get; set; }
     }
 }
