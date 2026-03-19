@@ -15,8 +15,12 @@ namespace Elysium.WorkStation
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
+#if WINDOWS
+            builder.Services.AddSingleton<Services.IWebHostService, Services.WebHostService>();
+#endif
+
 #if DEBUG
-    		builder.Logging.AddDebug();
+            builder.Logging.AddDebug();
 #endif
 
             return builder.Build();
