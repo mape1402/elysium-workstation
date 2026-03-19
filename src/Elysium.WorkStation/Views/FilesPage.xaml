@@ -1,0 +1,221 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:Elysium.WorkStation.Models"
+             xmlns:local="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.FilesPage"
+             x:Name="thisPage"
+             Title="Archivos">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0"
+                BackgroundColor="{Binding StatusColor}"
+                Padding="12,6">
+            <Label Text="{Binding StatusText}"
+                   FontFamily="OpenSansRegular"
+                   FontSize="12"
+                   TextColor="White"
+                   HorizontalOptions="Center" />
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,12" Spacing="12">
+
+                <!-- Drop Zone -->
+                <Border x:Name="DropZone"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
+                        StrokeThickness="2"
+                        StrokeDashArray="6,3"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray900}}"
+                        Padding="20,16"
+                        MinimumHeightRequest="110">
+                    <VerticalStackLayout Spacing="8"
+                                         HorizontalOptions="Center"
+                                         VerticalOptions="Center">
+                        <Label Text="📂"
+                               FontSize="32"
+                               HorizontalOptions="Center" />
+                        <Label Text="Arrastra archivos aquí (Windows)"
+                               FontFamily="OpenSansRegular"
+                               FontSize="13"
+                               HorizontalOptions="Center"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                        <Button Text="Seleccionar archivos"
+                                Command="{Binding AddFilesCommand}"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="13"
+                                CornerRadius="8"
+                                HeightRequest="36"
+                                HorizontalOptions="Center"
+                                Padding="20,0" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Pending Files List -->
+                <Border IsVisible="{Binding HasPendingFiles}"
+                        StrokeShape="RoundRectangle 10"
+                        Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
+                        StrokeThickness="1"
+                        Padding="12,6">
+                    <CollectionView ItemsSource="{Binding PendingFiles}">
+                        <CollectionView.ItemsLayout>
+                            <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                        </CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="local:PendingFileItem">
+                                <Grid ColumnDefinitions="Auto,*,Auto"
+                                      ColumnSpacing="8"
+                                      Padding="2,3">
+                                    <Label Grid.Column="0"
+                                           Text="📎"
+                                           FontSize="14"
+                                           VerticalOptions="Center" />
+                                    <Label Grid.Column="1"
+                                           Text="{Binding FileName}"
+                                           FontFamily="OpenSansRegular"
+                                           FontSize="13"
+                                           LineBreakMode="TailTruncation"
+                                           VerticalOptions="Center"
+                                           TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+                                    <Button Grid.Column="2"
+                                            Text="✕"
+                                            Command="{Binding Source={x:Reference thisPage}, Path=RemovePendingCommand}"
+                                            CommandParameter="{Binding .}"
+                                            FontSize="11"
+                                            HeightRequest="28"
+                                            WidthRequest="28"
+                                            Padding="0"
+                                            CornerRadius="14"
+                                            BackgroundColor="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
+                                            TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </Border>
+
+                <!-- Send Button -->
+                <Button Text="📤  Enviar archivos"
+                        IsVisible="{Binding HasPendingFiles}"
+                        Command="{Binding SendCommand}"
+                        FontFamily="OpenSansSemibold"
+                        FontSize="14"
+                        CornerRadius="12"
+                        HorizontalOptions="Fill" />
+
+                <!-- History Header -->
+                <Label Text="Historial de transferencias"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="15"
+                       Margin="2,4,0,0"
+                       TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+
+                <!-- History List -->
+                <CollectionView ItemsSource="{Binding History}"
+                                Margin="0,0,0,16">
+
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout VerticalOptions="Center"
+                                             HorizontalOptions="Center"
+                                             Spacing="6"
+                                             Margin="0,16">
+                            <Label Text="📭"
+                                   FontSize="36"
+                                   HorizontalOptions="Center" />
+                            <Label Text="Sin transferencias aún"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="14"
+                                   HorizontalOptions="Center"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="8" />
+                    </CollectionView.ItemsLayout>
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:FileEntry">
+                            <Border Padding="14,10"
+                                    StrokeShape="RoundRectangle 12"
+                                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                                    StrokeThickness="1"
+                                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                                <Border.Shadow>
+                                    <Shadow Brush="Black" Offset="0,1" Radius="6" Opacity="0.06" />
+                                </Border.Shadow>
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+
+                                    <!-- Direction Icon -->
+                                    <Label Grid.Column="0"
+                                           Text="📥"
+                                           FontSize="22"
+                                           VerticalOptions="Center">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label"
+                                                         Binding="{Binding IsFromSelf}"
+                                                         Value="True">
+                                                <Setter Property="Text" Value="📤" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+
+                                    <!-- File Info -->
+                                    <VerticalStackLayout Grid.Column="1"
+                                                         Spacing="2"
+                                                         VerticalOptions="Center">
+                                        <Label Text="{Binding FileName}"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="13"
+                                               LineBreakMode="TailTruncation"
+                                               TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+                                        <Label FontFamily="OpenSansRegular"
+                                               FontSize="11"
+                                               TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding SizeDisplay}" />
+                                                    <Span Text="  ·  " />
+                                                    <Span Text="{Binding SenderDisplay}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                        </Label>
+                                    </VerticalStackLayout>
+
+                                    <!-- Download Button (received only) -->
+                                    <Button Grid.Column="2"
+                                            Text="Descargar"
+                                            IsVisible="True"
+                                            Command="{Binding Source={x:Reference thisPage}, Path=DownloadCommand}"
+                                            CommandParameter="{Binding .}"
+                                            FontFamily="OpenSansSemibold"
+                                            FontSize="11"
+                                            CornerRadius="8"
+                                            HeightRequest="32"
+                                            WidthRequest="88"
+                                            Padding="4,0"
+                                            VerticalOptions="Center">
+                                        <Button.Triggers>
+                                            <DataTrigger TargetType="Button"
+                                                         Binding="{Binding IsFromSelf}"
+                                                         Value="True">
+                                                <Setter Property="IsVisible" Value="False" />
+                                            </DataTrigger>
+                                        </Button.Triggers>
+                                    </Button>
+
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+
+                </CollectionView>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+    </Grid>
+
+</ContentPage>

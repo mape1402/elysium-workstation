@@ -12,5 +12,8 @@ namespace Elysium.WorkStation.Hubs
 
         public async Task ClipboardSync(string text, string senderName)
             => await Clients.Others.SendAsync("ReceiveClipboard", text, senderName);
+
+        public async Task AnnounceFile(string fileId, string fileName, long fileSize, string senderName)
+            => await Clients.Others.SendAsync("ReceiveFileAnnouncement", fileId, fileName, fileSize, senderName);
     }
 }

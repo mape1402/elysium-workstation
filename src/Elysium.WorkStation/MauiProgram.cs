@@ -17,9 +17,11 @@ namespace Elysium.WorkStation
 
             builder.Services.AddSingleton<AppShell>();
             builder.Services.AddSingleton<MainPage>();
-            builder.Services.AddSingleton<Services.ISettingsService,     Services.SettingsService>();
-            builder.Services.AddSingleton<Services.IClipboardSyncService, Services.ClipboardSyncService>();
+            builder.Services.AddSingleton<Services.ISettingsService,      Services.SettingsService>();
+            builder.Services.AddSingleton<Services.IClipboardSyncService,  Services.ClipboardSyncService>();
+            builder.Services.AddSingleton<Services.IFileTransferService,   Services.FileTransferService>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
+            builder.Services.AddTransient<Views.FilesPage>();
             builder.Services.AddTransient<Views.SettingsPage>();
 
 #if WINDOWS

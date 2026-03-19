@@ -7,7 +7,8 @@
             InitializeComponent();
             HomeContent.Content = mainPage;
             Routing.RegisterRoute("clipboard-history", typeof(Views.ClipboardHistoryPage));
-            Routing.RegisterRoute("settings", typeof(Views.SettingsPage));
+            Routing.RegisterRoute("files",             typeof(Views.FilesPage));
+            Routing.RegisterRoute("settings",          typeof(Views.SettingsPage));
         }
     }
 }

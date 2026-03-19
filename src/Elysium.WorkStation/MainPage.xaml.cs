@@ -12,6 +12,7 @@ namespace Elysium.WorkStation
         private readonly IRoleService _roleService;
         private readonly IClipboardSyncService _clipboardSyncService;
         private readonly ISettingsService _settingsService;
+        private readonly IFileTransferService _fileTransferService;
 
         public List<MenuItemModel> MenuItems { get; } =
         [
@@ -22,6 +23,7 @@ namespace Elysium.WorkStation
             new() { Icon = "👤", Title = "Perfil",         Description = "Administra tu cuenta",             Route = "profile" },
             new() { Icon = "⚙️", Title = "Configuración",  Description = "Ajusta las opciones de la app",   Route = "settings" },
             new() { Icon = "📋", Title = "Portapapeles",    Description = "Historial de textos sincronizados", Route = "clipboard-history" },
+            new() { Icon = "📂", Title = "Archivos",         Description = "Env\u00eda y recibe archivos en la red",  Route = "files" },
         ];
 
         public Command<MenuItemModel> NavigateCommand { get; }
@@ -42,11 +44,12 @@ namespace Elysium.WorkStation
             _              => Color.FromArgb("#424242")
         };
 
-        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService, ISettingsService settingsService)
+        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService, ISettingsService settingsService, IFileTransferService fileTransferService)
         {
             _roleService = roleService;
             _clipboardSyncService = clipboardSyncService;
             _settingsService = settingsService;
+            _fileTransferService = fileTransferService;
 
             NavigateCommand = new Command<MenuItemModel>(async (item) =>
             {
@@ -106,6 +109,7 @@ namespace Elysium.WorkStation
                 : _settingsService.HubUrl;
 
             await _clipboardSyncService.StartAsync(hubUrl);
+            await _fileTransferService.StartAsync(hubUrl);
         }
 
         protected override void OnSizeAllocated(double width, double height)
