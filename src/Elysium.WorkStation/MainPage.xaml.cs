@@ -143,6 +143,22 @@ namespace Elysium.WorkStation
                 OnPropertyChanged(nameof(CardHeight));
             }
         }
+
+        private async void OnCardPointerEntered(object sender, PointerEventArgs e)
+        {
+            if (sender is View view)
+            {
+                await view.TranslateTo(0, -6, 150, Easing.CubicOut);
+            }
+        }
+
+        private async void OnCardPointerExited(object sender, PointerEventArgs e)
+        {
+            if (sender is View view)
+            {
+                await view.TranslateTo(0, 0, 150, Easing.CubicOut);
+            }
+        }
     }
 }
 

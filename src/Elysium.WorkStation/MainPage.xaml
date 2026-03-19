@@ -39,6 +39,9 @@
                         <TapGestureRecognizer
                             Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=NavigateCommand}"
                             CommandParameter="{Binding .}" />
+                        <PointerGestureRecognizer
+                            PointerEntered="OnCardPointerEntered"
+                            PointerExited="OnCardPointerExited" />
                     </Border.GestureRecognizers>
                     <Border.Shadow>
                         <Shadow Brush="Black"
