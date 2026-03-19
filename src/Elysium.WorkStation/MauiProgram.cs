@@ -29,8 +29,10 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.IMouseService,   Services.MouseService>();
             builder.Services.AddSingleton<Services.ITrayService,    Services.TrayService>();
             builder.Services.AddSingleton<Services.IRoleService,    Services.RoleService>();
+            builder.Services.AddSingleton<Services.INotificationService, Services.NotificationService>();
 #else
             builder.Services.AddSingleton<Services.IRoleService,    Services.DefaultRoleService>();
+            builder.Services.AddSingleton<Services.INotificationService, Services.NullNotificationService>();
 #endif
 
 #if DEBUG

@@ -12,11 +12,17 @@ namespace Elysium.WorkStation.Services
 
         private HubConnection _connection;
         private string _baseUrl = string.Empty;
+        private readonly INotificationService _notificationService;
 
         public ObservableCollection<FileEntry> History { get; } = [];
 
         public bool IsConnected => _connection?.State == HubConnectionState.Connected;
         public event EventHandler ConnectionStateChanged;
+
+        public FileTransferService(INotificationService notificationService)
+        {
+            _notificationService = notificationService;
+        }
 
         public async Task StartAsync(string hubUrl)
         {
@@ -32,6 +38,7 @@ namespace Elysium.WorkStation.Services
             _connection.On<string, string, long, string>("ReceiveFileAnnouncement",
                 (fileId, fileName, fileSize, senderName) =>
                     MainThread.BeginInvokeOnMainThread(() =>
+                    {
                         History.Insert(0, new FileEntry
                         {
                             FileId     = fileId,
@@ -40,7 +47,9 @@ namespace Elysium.WorkStation.Services
                             SenderName = senderName,
                             IsFromSelf = false,
                             Timestamp  = DateTime.Now
-                        })));
+                        });
+                        _notificationService.Notify("📂 Archivo recibido", $"{senderName} envió «{fileName}»");
+                    }));
 
             _connection.Closed      += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
             _connection.Reconnected += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };

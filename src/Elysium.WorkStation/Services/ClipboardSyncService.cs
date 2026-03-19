@@ -7,12 +7,18 @@ namespace Elysium.WorkStation.Services
     public class ClipboardSyncService : IClipboardSyncService, IAsyncDisposable
     {
         private HubConnection _connection;
+        private readonly INotificationService _notificationService;
 
         public ObservableCollection<ClipboardEntry> History { get; } = new();
 
         public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
         public event EventHandler ConnectionStateChanged;
+
+        public ClipboardSyncService(INotificationService notificationService)
+        {
+            _notificationService = notificationService;
+        }
 
         public async Task StartAsync(string hubUrl)
         {
@@ -32,7 +38,13 @@ namespace Elysium.WorkStation.Services
                     Timestamp = DateTime.Now,
                     IsFromSelf = false
                 };
-                MainThread.BeginInvokeOnMainThread(() => History.Insert(0, entry));
+
+                string preview = text.Length > 60 ? text[..60] + "…" : text;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    History.Insert(0, entry);
+                    _notificationService.Notify("📋 Portapapeles recibido", $"{sender}: {preview}");
+                });
             });
 
             _connection.Reconnected  += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };

@@ -90,10 +90,13 @@ namespace Elysium.WorkStation.Services
         private const uint WM_USER          = 0x0400;
         private const uint WM_TRAYICON      = WM_USER + 1;
         private const uint NIM_ADD          = 0;
+        private const uint NIM_MODIFY       = 1;
         private const uint NIM_DELETE       = 2;
         private const uint NIF_MESSAGE      = 0x01;
         private const uint NIF_ICON         = 0x02;
         private const uint NIF_TIP          = 0x04;
+        private const uint NIF_INFO         = 0x10;
+        private const uint NIIF_INFO        = 0x01;
         private const uint MF_STRING        = 0x00;
         private const uint MF_SEPARATOR     = 0x800;
         private const uint TPM_RIGHTBUTTON  = 0x0002;
@@ -226,6 +229,24 @@ namespace Elysium.WorkStation.Services
                 MainThread.BeginInvokeOnMainThread(() => _onShow?.Invoke());
             else if (cmd == IDM_EXIT)
                 MainThread.BeginInvokeOnMainThread(() => _onExit?.Invoke());
+        }
+
+        public void ShowBalloon(string title, string message)
+        {
+            if (_hwnd == IntPtr.Zero) return;
+
+            var nid = new NOTIFYICONDATA
+            {
+                cbSize      = Marshal.SizeOf<NOTIFYICONDATA>(),
+                hWnd        = _hwnd,
+                uID         = 1,
+                uFlags      = NIF_INFO,
+                szInfoTitle = title.Length > 63   ? title[..63]     : title,
+                szInfo      = message.Length > 255 ? message[..255]  : message,
+                dwInfoFlags = NIIF_INFO
+            };
+
+            Shell_NotifyIcon(NIM_MODIFY, ref nid);
         }
 
         public void Dispose()
