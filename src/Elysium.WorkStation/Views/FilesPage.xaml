@@ -4,6 +4,7 @@
              xmlns:models="clr-namespace:Elysium.WorkStation.Models"
              xmlns:local="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.FilesPage"
+             x:DataType="local:FilesPage"
              x:Name="thisPage"
              Title="Archivos">
 

@@ -11,7 +11,7 @@ namespace Elysium.WorkStation.Models
         public string SenderName { get; set; } = string.Empty;
         public bool IsFromSelf { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.Now;
-        public string? SourcePath { get; set; }
+        public string SourcePath { get; set; }
 
         [NotMapped]
         public string SizeDisplay => FileSize < 1_048_576
