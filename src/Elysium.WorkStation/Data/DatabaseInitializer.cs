@@ -19,6 +19,7 @@ namespace Elysium.WorkStation.Data
             EnsureNotificationsTable(db);
             EnsureClipboardHistoryTable(db);
             EnsureFileHistoryTable(db);
+            EnsureNotesTable(db);
         }
 
         private static void EnsureNotificationsTable(AppDbContext db) =>
@@ -119,6 +120,46 @@ namespace Elysium.WorkStation.Data
                 {
                     using var alter = conn.CreateCommand();
                     alter.CommandText = """ALTER TABLE "FileHistory" ADD COLUMN "SourcePath" TEXT""";
+                    alter.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                if (shouldClose) conn.Close();
+            }
+        }
+
+        private static void EnsureNotesTable(AppDbContext db)
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "Notes" (
+                    "Id"        INTEGER NOT NULL CONSTRAINT "PK_Notes" PRIMARY KEY AUTOINCREMENT,
+                    "Title"     TEXT    NOT NULL,
+                    "Text"      TEXT    NOT NULL,
+                    "ColorHex"  TEXT    NOT NULL DEFAULT '#FFF9C4',
+                    "Timestamp" TEXT    NOT NULL
+                )
+                """);
+
+            AddNotesColorColumnIfMissing(db);
+        }
+
+        private static void AddNotesColorColumnIfMissing(AppDbContext db)
+        {
+            var conn = db.Database.GetDbConnection();
+            bool shouldClose = conn.State != ConnectionState.Open;
+            if (shouldClose) conn.Open();
+
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Notes') WHERE name = 'ColorHex'";
+                bool hasColumn = Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+
+                if (!hasColumn)
+                {
+                    using var alter = conn.CreateCommand();
+                    alter.CommandText = """ALTER TABLE "Notes" ADD COLUMN "ColorHex" TEXT NOT NULL DEFAULT '#FFF9C4'""";
                     alter.ExecuteNonQuery();
                 }
             }

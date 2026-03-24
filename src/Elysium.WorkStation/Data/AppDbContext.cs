@@ -10,5 +10,6 @@ namespace Elysium.WorkStation.Data
         public DbSet<NotificationEntry> Notifications  => Set<NotificationEntry>();
         public DbSet<ClipboardEntry>    ClipboardHistory => Set<ClipboardEntry>();
         public DbSet<FileEntry>         FileHistory      => Set<FileEntry>();
+        public DbSet<NoteEntry>         Notes            => Set<NoteEntry>();
     }
 }

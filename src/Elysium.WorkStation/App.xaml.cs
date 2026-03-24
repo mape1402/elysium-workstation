@@ -63,6 +63,11 @@
                     _mouseService.Stop();
                     _ = _webHostService.StopAsync();
                     Application.Current?.Quit();
+                },
+                onQuickNote: () =>
+                {
+                    _nativeWindow?.AppWindow.Show(true);
+                    _ = Shell.Current.GoToAsync("note-editor");
                 }
             );
 #endif

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.NoteEditorPage"
+             x:DataType="views:NoteEditorPage"
+             Title="Nueva nota"
+             Shell.PresentationMode="ModalAnimated">
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="20,16">
+
+        <!-- Color picker -->
+        <CollectionView Grid.Row="0"
+                        ItemsSource="{Binding AvailableColors}"
+                        HeightRequest="44"
+                        Margin="0,0,0,12">
+            <CollectionView.ItemsLayout>
+                <LinearItemsLayout Orientation="Horizontal" ItemSpacing="8" />
+            </CollectionView.ItemsLayout>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                    <Border WidthRequest="32"
+                            HeightRequest="32"
+                            StrokeShape="RoundRectangle 16"
+                            StrokeThickness="2"
+                            BackgroundColor="{Binding .}"
+                            Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding Source={RelativeSource AncestorType={x:Type views:NoteEditorPage}}, Path=SelectColorCommand}"
+                                CommandParameter="{Binding .}" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Post-it notepad area -->
+        <Border Grid.Row="1"
+                BackgroundColor="{Binding SelectedColor}"
+                StrokeShape="RoundRectangle 12"
+                StrokeThickness="0"
+                Padding="20,16">
+            <Border.Shadow>
+                <Shadow Brush="Black" Offset="2,4" Radius="12" Opacity="0.15" />
+            </Border.Shadow>
+            <Grid RowDefinitions="Auto,1,*" RowSpacing="8">
+
+                <!-- Title -->
+                <Entry Grid.Row="0"
+                       Text="{Binding NoteTitle, Mode=TwoWay}"
+                       Placeholder="Título de la nota..."
+                       FontFamily="OpenSansSemibold"
+                       FontSize="20"
+                       TextColor="#3E2723"
+                       PlaceholderColor="#8D6E63"
+                       BackgroundColor="Transparent" />
+
+                <!-- Separator line -->
+                <BoxView Grid.Row="1"
+                         Color="#D7CCC8"
+                         HeightRequest="1"
+                         HorizontalOptions="Fill" />
+
+                <!-- Text editor -->
+                <Editor Grid.Row="2"
+                        Text="{Binding NoteText, Mode=TwoWay}"
+                        Placeholder="Escribe tu nota aquí..."
+                        FontFamily="OpenSansRegular"
+                        FontSize="15"
+                        TextColor="#4E342E"
+                        PlaceholderColor="#A1887F"
+                        BackgroundColor="Transparent"
+                        AutoSize="Disabled" />
+
+            </Grid>
+        </Border>
+
+        <!-- Action buttons -->
+        <Grid Grid.Row="2"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="12"
+              Margin="0,16,0,0">
+            <Button Grid.Column="0"
+                    Text="Cancelar"
+                    Command="{Binding CancelCommand}"
+                    FontFamily="OpenSansSemibold"
+                    FontSize="14"
+                    CornerRadius="12"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
+                    TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+            <Button Grid.Column="1"
+                    Text="💾  Guardar"
+                    Command="{Binding SaveCommand}"
+                    FontFamily="OpenSansSemibold"
+                    FontSize="14"
+                    CornerRadius="12" />
+        </Grid>
+
+    </Grid>
+
+</ContentPage>

@@ -103,6 +103,7 @@ namespace Elysium.WorkStation.Services
         private const uint TPM_RETURNCMD   = 0x0100;
         private const uint IDM_SHOW         = 1001;
         private const uint IDM_EXIT         = 1002;
+        private const uint IDM_QUICKNOTE    = 1003;
 
         private const string WndClass = "ElysiumTrayWnd";
 #pragma warning restore IDE1006 // Naming Styles
@@ -115,11 +116,13 @@ namespace Elysium.WorkStation.Services
         private WndProcDelegate _wndProcRef;   // Prevent GC collection
         private Action          _onShow;
         private Action          _onExit;
+        private Action          _onQuickNote;
 
-        public void Initialize(Action onShow, Action onExit)
+        public void Initialize(Action onShow, Action onExit, Action onQuickNote)
         {
             _onShow = onShow;
             _onExit = onExit;
+            _onQuickNote = onQuickNote;
 
             _thread = new Thread(MessageLoop)
             {
@@ -214,9 +217,10 @@ namespace Elysium.WorkStation.Services
         private void ShowContextMenu(IntPtr hWnd)
         {
             var menu = CreatePopupMenu();
-            AppendMenu(menu, MF_STRING,    IDM_SHOW, "Mostrar");
-            AppendMenu(menu, MF_SEPARATOR, 0,        string.Empty);
-            AppendMenu(menu, MF_STRING,    IDM_EXIT, "Salir");
+            AppendMenu(menu, MF_STRING,    IDM_SHOW,      "Mostrar");
+            AppendMenu(menu, MF_STRING,    IDM_QUICKNOTE, "📝 Nota rápida");
+            AppendMenu(menu, MF_SEPARATOR, 0,              string.Empty);
+            AppendMenu(menu, MF_STRING,    IDM_EXIT,      "Salir");
 
             SetForegroundWindow(hWnd);
             GetCursorPos(out var pt);
@@ -227,6 +231,8 @@ namespace Elysium.WorkStation.Services
 
             if (cmd == IDM_SHOW)
                 MainThread.BeginInvokeOnMainThread(() => _onShow?.Invoke());
+            else if (cmd == IDM_QUICKNOTE)
+                MainThread.BeginInvokeOnMainThread(() => _onQuickNote?.Invoke());
             else if (cmd == IDM_EXIT)
                 MainThread.BeginInvokeOnMainThread(() => _onExit?.Invoke());
         }
