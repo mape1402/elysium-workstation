@@ -7,6 +7,7 @@ namespace Elysium.WorkStation.Views
     public partial class ClipboardHistoryPage : ContentPage
     {
         private readonly IClipboardSyncService _clipboardSyncService;
+        private readonly IToastService _toastService;
 
         public ObservableCollection<ClipboardEntry> History => _clipboardSyncService.History;
 
@@ -21,15 +22,16 @@ namespace Elysium.WorkStation.Views
             ? Color.FromArgb("#1B5E20")
             : Color.FromArgb("#B71C1C");
 
-        public ClipboardHistoryPage(IClipboardSyncService clipboardSyncService)
+        public ClipboardHistoryPage(IClipboardSyncService clipboardSyncService, IToastService toastService)
         {
             _clipboardSyncService = clipboardSyncService;
+            _toastService = toastService;
 
             CopyCommand = new Command<ClipboardEntry>(async (entry) =>
             {
                 if (entry is null) return;
                 await Clipboard.Default.SetTextAsync(entry.Text);
-                await ShowToastAsync("📋 Copiado al portapapeles");
+                await _toastService.ShowAsync("📋 Copiado al portapapeles");
             });
 
             SendCommand = new Command(async () =>
@@ -44,16 +46,6 @@ namespace Elysium.WorkStation.Views
                     OnPropertyChanged(nameof(StatusText));
                     OnPropertyChanged(nameof(StatusColor));
                 });
-        }
-
-        private async Task ShowToastAsync(string message, int durationMs = 2000)
-        {
-            ToastLabel.Text = message;
-            ToastBorder.IsVisible = true;
-            await ToastBorder.FadeTo(1, 200, Easing.CubicIn);
-            await Task.Delay(durationMs);
-            await ToastBorder.FadeTo(0, 300, Easing.CubicOut);
-            ToastBorder.IsVisible = false;
         }
     }
 }

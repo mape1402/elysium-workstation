@@ -7,8 +7,6 @@
              x:DataType="views:NotesPage"
              Title="Notas rápidas">
 
-    <Grid>
-
     <Grid RowDefinitions="Auto,*">
 
         <!-- Header -->
@@ -165,26 +163,6 @@
             </CollectionView.ItemTemplate>
 
         </CollectionView>
-
-    </Grid>
-
-    <!-- In-app toast -->
-    <Border x:Name="ToastBorder"
-            IsVisible="False"
-            Opacity="0"
-            BackgroundColor="#E0333333"
-            StrokeThickness="0"
-            StrokeShape="RoundRectangle 12"
-            Padding="18,10"
-            HorizontalOptions="Center"
-            VerticalOptions="End"
-            Margin="0,0,0,24">
-        <Label x:Name="ToastLabel"
-               TextColor="White"
-               FontFamily="OpenSansSemibold"
-               FontSize="13"
-               HorizontalTextAlignment="Center" />
-    </Border>
 
     </Grid>
 

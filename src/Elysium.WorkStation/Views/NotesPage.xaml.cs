@@ -7,6 +7,7 @@ namespace Elysium.WorkStation.Views
     public partial class NotesPage : ContentPage
     {
         private readonly INoteRepository _noteRepository;
+        private readonly IToastService _toastService;
 
         public ObservableCollection<NoteEntry> Notes { get; } = [];
 
@@ -20,9 +21,10 @@ namespace Elysium.WorkStation.Views
         public Command<NoteEntry> EditCommand { get; }
         public Command<NoteEntry> CopyCommand { get; }
 
-        public NotesPage(INoteRepository noteRepository)
+        public NotesPage(INoteRepository noteRepository, IToastService toastService)
         {
             _noteRepository = noteRepository;
+            _toastService = toastService;
 
             AddCommand = new Command(async () => await Shell.Current.GoToAsync("note-editor"));
             ClearCommand = new Command(async () => await ClearNotesAsync());
@@ -36,7 +38,7 @@ namespace Elysium.WorkStation.Views
             {
                 if (note is null) return;
                 await Clipboard.Default.SetTextAsync(note.Text);
-                await ShowToastAsync("📋 Copiado al portapapeles");
+                await _toastService.ShowAsync("📋 Copiado al portapapeles");
             });
 
             InitializeComponent();
@@ -80,16 +82,6 @@ namespace Elysium.WorkStation.Views
             await _noteRepository.DeleteAllAsync();
             Notes.Clear();
             OnPropertyChanged(nameof(CountText));
-        }
-
-        private async Task ShowToastAsync(string message, int durationMs = 2000)
-        {
-            ToastLabel.Text = message;
-            ToastBorder.IsVisible = true;
-            await ToastBorder.FadeTo(1, 200, Easing.CubicIn);
-            await Task.Delay(durationMs);
-            await ToastBorder.FadeTo(0, 300, Easing.CubicOut);
-            ToastBorder.IsVisible = false;
         }
     }
 }
