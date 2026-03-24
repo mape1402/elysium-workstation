@@ -26,6 +26,7 @@ namespace Elysium.WorkStation
             new() { Icon = "📋", Title = "Portapapeles",    Description = "Historial de textos sincronizados", Route = "clipboard-history" },
             new() { Icon = "📂", Title = "Archivos",         Description = "Env\u00eda y recibe archivos en la red",  Route = "files" },
             new() { Icon = "📝", Title = "Notas rápidas",     Description = "Crea notas tipo post-it",                Route = "notes" },
+            new() { Icon = "📌", Title = "Kanban",             Description = "Tablero de tareas con estatus",          Route = "kanban" },
         ];
 
         public Command<MenuItemModel> NavigateCommand { get; }

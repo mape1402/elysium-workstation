@@ -30,12 +30,14 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.IFileRepository,         Services.FileRepository>();
             builder.Services.AddSingleton<Services.ICleanupService,        Services.CleanupService>();
             builder.Services.AddSingleton<Services.INoteRepository,         Services.NoteRepository>();
+            builder.Services.AddSingleton<Services.IKanbanTaskRepository,   Services.KanbanTaskRepository>();
             builder.Services.AddSingleton<Services.IToastService,            Services.ToastService>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
             builder.Services.AddTransient<Views.NotificationsPage>();
             builder.Services.AddTransient<Views.NotesPage>();
             builder.Services.AddTransient<Views.NoteEditorPage>();
+            builder.Services.AddTransient<Views.KanbanPage>();
             builder.Services.AddTransient<Views.SettingsPage>();
 
 #if WINDOWS

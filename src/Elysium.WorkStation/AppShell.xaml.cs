@@ -12,6 +12,7 @@
             Routing.RegisterRoute("settings",          typeof(Views.SettingsPage));
             Routing.RegisterRoute("notes",             typeof(Views.NotesPage));
             Routing.RegisterRoute("note-editor",      typeof(Views.NoteEditorPage));
+            Routing.RegisterRoute("kanban",            typeof(Views.KanbanPage));
         }
     }
 }

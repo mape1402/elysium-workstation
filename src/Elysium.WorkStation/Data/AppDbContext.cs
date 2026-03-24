@@ -11,5 +11,6 @@ namespace Elysium.WorkStation.Data
         public DbSet<ClipboardEntry>    ClipboardHistory => Set<ClipboardEntry>();
         public DbSet<FileEntry>         FileHistory      => Set<FileEntry>();
         public DbSet<NoteEntry>         Notes            => Set<NoteEntry>();
+        public DbSet<KanbanTask>        KanbanTasks      => Set<KanbanTask>();
     }
 }

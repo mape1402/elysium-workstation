@@ -20,6 +20,7 @@ namespace Elysium.WorkStation.Data
             EnsureClipboardHistoryTable(db);
             EnsureFileHistoryTable(db);
             EnsureNotesTable(db);
+            EnsureKanbanTasksTable(db);
         }
 
         private static void EnsureNotificationsTable(AppDbContext db) =>
@@ -168,5 +169,17 @@ namespace Elysium.WorkStation.Data
                 if (shouldClose) conn.Close();
             }
         }
+
+        private static void EnsureKanbanTasksTable(AppDbContext db) =>
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "KanbanTasks" (
+                    "Id"          INTEGER NOT NULL CONSTRAINT "PK_KanbanTasks" PRIMARY KEY AUTOINCREMENT,
+                    "Title"       TEXT    NOT NULL,
+                    "Description" TEXT    NOT NULL DEFAULT '',
+                    "Status"      INTEGER NOT NULL DEFAULT 0,
+                    "SortOrder"   INTEGER NOT NULL DEFAULT 0,
+                    "CreatedAt"   TEXT    NOT NULL
+                )
+                """);
     }
 }
