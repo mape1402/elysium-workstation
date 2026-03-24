@@ -10,5 +10,11 @@ namespace Elysium.WorkStation.Services
         int FileRetentionHours { get; set; }
         int ClipboardRetentionHours { get; set; }
         int NotificationRetentionHours { get; set; }
+
+        bool MouseEnabled { get; set; }
+        bool MouseUseGeneralSchedule { get; set; }
+        TimeSpan MouseGeneralStartTime { get; set; }
+        TimeSpan MouseGeneralEndTime { get; set; }
+        List<Models.MouseScheduleEntry> MouseDaySchedules { get; set; }
     }
 }

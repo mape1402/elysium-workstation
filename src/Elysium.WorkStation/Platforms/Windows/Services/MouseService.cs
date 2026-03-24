@@ -4,6 +4,7 @@ namespace Elysium.WorkStation.Services
 
     public class MouseService : IMouseService
     {
+        private readonly ISettingsService _settings;
         private bool _isRunning;
         private CancellationTokenSource _cts;
 
@@ -27,6 +28,11 @@ namespace Elysium.WorkStation.Services
             public int Y;
         }
 
+        public MouseService(ISettingsService settings)
+        {
+            _settings = settings;
+        }
+
         public void Start(int intervalSeconds = 30)
         {
             if (_isRunning)
@@ -39,24 +45,41 @@ namespace Elysium.WorkStation.Services
 
         public void Stop()
         {
-            _cts.Cancel();
+            _cts?.Cancel();
             _isRunning = false;
+        }
+
+        private bool IsWithinSchedule()
+        {
+            if (!_settings.MouseEnabled)
+                return false;
+
+            var now = DateTime.Now;
+            var currentTime = now.TimeOfDay;
+
+            if (_settings.MouseUseGeneralSchedule)
+                return currentTime >= _settings.MouseGeneralStartTime
+                    && currentTime <= _settings.MouseGeneralEndTime;
+
+            var daySchedule = _settings.MouseDaySchedules
+                .Find(d => d.Day == now.DayOfWeek);
+
+            if (daySchedule is null || !daySchedule.IsEnabled)
+                return false;
+
+            return currentTime >= daySchedule.StartTime
+                && currentTime <= daySchedule.EndTime;
         }
 
         private async Task MoveMouse(TimeSpan interval, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (GetCursorPos(out POINT currentPos))
+                if (IsWithinSchedule() && GetCursorPos(out POINT currentPos))
                 {
-                    // Mover el cursor ligeramente (alterna para que no sea obvio)
                     int newX = currentPos.X + 1;
                     int newY = currentPos.Y + 1;
-
-                    // Establecer la nueva posición del cursor
                     SetCursorPos(newX, newY);
-
-                    // Simular movimiento usando eventos de mouse
                     mouse_event(MOUSEEVENTF_MOVE, 0, 0, 0, UIntPtr.Zero);
                 }
 

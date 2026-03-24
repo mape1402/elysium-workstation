@@ -1,7 +1,51 @@
+using Elysium.WorkStation.Models;
 using Elysium.WorkStation.Services;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 
 namespace Elysium.WorkStation.Views
 {
+    public class DayScheduleViewModel : INotifyPropertyChanged
+    {
+        private static readonly Dictionary<DayOfWeek, string> DayNames = new()
+        {
+            [DayOfWeek.Monday]    = "Lunes",
+            [DayOfWeek.Tuesday]   = "Martes",
+            [DayOfWeek.Wednesday] = "Miércoles",
+            [DayOfWeek.Thursday]  = "Jueves",
+            [DayOfWeek.Friday]    = "Viernes",
+            [DayOfWeek.Saturday]  = "Sábado",
+            [DayOfWeek.Sunday]    = "Domingo",
+        };
+
+        private bool _isEnabled;
+        private TimeSpan _startTime;
+        private TimeSpan _endTime;
+
+        public DayOfWeek Day { get; init; }
+        public string DayName => DayNames.TryGetValue(Day, out var n) ? n : Day.ToString();
+
+        public bool IsEnabled
+        {
+            get => _isEnabled;
+            set { _isEnabled = value; PropertyChanged?.Invoke(this, new(nameof(IsEnabled))); }
+        }
+
+        public TimeSpan StartTime
+        {
+            get => _startTime;
+            set { _startTime = value; PropertyChanged?.Invoke(this, new(nameof(StartTime))); }
+        }
+
+        public TimeSpan EndTime
+        {
+            get => _endTime;
+            set { _endTime = value; PropertyChanged?.Invoke(this, new(nameof(EndTime))); }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+    }
+
     public partial class SettingsPage : ContentPage
     {
         private readonly ISettingsService _settingsService;
@@ -54,6 +98,51 @@ namespace Elysium.WorkStation.Views
         public Color FeedbackColor { get; private set; } = Colors.Transparent;
         public bool HasFeedback { get; private set; }
 
+        private bool _mouseEnabled;
+        public bool MouseEnabled
+        {
+            get => _mouseEnabled;
+            set
+            {
+                _mouseEnabled = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ShowGeneralSchedule));
+                OnPropertyChanged(nameof(ShowDaySchedule));
+            }
+        }
+
+        private bool _mouseUseGeneralSchedule;
+        public bool MouseUseGeneralSchedule
+        {
+            get => _mouseUseGeneralSchedule;
+            set
+            {
+                _mouseUseGeneralSchedule = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ShowGeneralSchedule));
+                OnPropertyChanged(nameof(ShowDaySchedule));
+            }
+        }
+
+        private TimeSpan _mouseGeneralStartTime;
+        public TimeSpan MouseGeneralStartTime
+        {
+            get => _mouseGeneralStartTime;
+            set { _mouseGeneralStartTime = value; OnPropertyChanged(); }
+        }
+
+        private TimeSpan _mouseGeneralEndTime;
+        public TimeSpan MouseGeneralEndTime
+        {
+            get => _mouseGeneralEndTime;
+            set { _mouseGeneralEndTime = value; OnPropertyChanged(); }
+        }
+
+        public bool ShowGeneralSchedule => MouseEnabled && MouseUseGeneralSchedule;
+        public bool ShowDaySchedule => MouseEnabled && !MouseUseGeneralSchedule;
+
+        public ObservableCollection<DayScheduleViewModel> MouseDaySchedules { get; } = [];
+
         public Command SaveCommand { get; }
         public Command TestCommand { get; }
 
@@ -64,6 +153,20 @@ namespace Elysium.WorkStation.Views
             _fileRetentionHours = settingsService.FileRetentionHours;
             _clipboardRetentionHours = settingsService.ClipboardRetentionHours;
             _notificationRetentionHours = settingsService.NotificationRetentionHours;
+
+            _mouseEnabled = settingsService.MouseEnabled;
+            _mouseUseGeneralSchedule = settingsService.MouseUseGeneralSchedule;
+            _mouseGeneralStartTime = settingsService.MouseGeneralStartTime;
+            _mouseGeneralEndTime = settingsService.MouseGeneralEndTime;
+
+            foreach (var entry in settingsService.MouseDaySchedules)
+                MouseDaySchedules.Add(new DayScheduleViewModel
+                {
+                    Day = entry.Day,
+                    IsEnabled = entry.IsEnabled,
+                    StartTime = entry.StartTime,
+                    EndTime = entry.EndTime
+                });
 
             SaveCommand = new Command(async () =>
             {
@@ -76,6 +179,20 @@ namespace Elysium.WorkStation.Views
                 _settingsService.FileRetentionHours = FileRetentionHours;
                 _settingsService.ClipboardRetentionHours = ClipboardRetentionHours;
                 _settingsService.NotificationRetentionHours = NotificationRetentionHours;
+
+                _settingsService.MouseEnabled = MouseEnabled;
+                _settingsService.MouseUseGeneralSchedule = MouseUseGeneralSchedule;
+                _settingsService.MouseGeneralStartTime = MouseGeneralStartTime;
+                _settingsService.MouseGeneralEndTime = MouseGeneralEndTime;
+                _settingsService.MouseDaySchedules = MouseDaySchedules
+                    .Select(d => new MouseScheduleEntry
+                    {
+                        Day = d.Day,
+                        IsEnabled = d.IsEnabled,
+                        StartTime = d.StartTime,
+                        EndTime = d.EndTime
+                    }).ToList();
+
                 ShowFeedback("✅  Configuración guardada correctamente.", Color.FromArgb("#1B5E20"));
                 await Task.Delay(600);
                 await Shell.Current.GoToAsync("..");

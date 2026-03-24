@@ -104,6 +104,135 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- Mouse schedule -->
+            <Border Padding="20,16"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeThickness="1"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="14">
+
+                    <Label Text="🖱️  Movimiento del mouse"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="15"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+
+                    <Label Text="Simula actividad moviendo el mouse automáticamente dentro del horario configurado."
+                           FontFamily="OpenSansRegular"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+
+                    <!-- Enabled toggle -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0"
+                               Text="Activar movimiento automático"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding MouseEnabled}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Schedule mode toggle -->
+                    <Grid ColumnDefinitions="*,Auto"
+                          IsVisible="{Binding MouseEnabled}">
+                        <Label Grid.Column="0"
+                               Text="Usar horario general (todos los días)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding MouseUseGeneralSchedule}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- General schedule -->
+                    <Grid ColumnDefinitions="*,*"
+                          ColumnSpacing="12"
+                          IsVisible="{Binding ShowGeneralSchedule}">
+                        <VerticalStackLayout Grid.Column="0" Spacing="4">
+                            <Label Text="Hora inicio"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="11"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                            <TimePicker Time="{Binding MouseGeneralStartTime}"
+                                        FontFamily="OpenSansRegular"
+                                        FontSize="14"
+                                        Format="HH:mm" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="4">
+                            <Label Text="Hora fin"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="11"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                            <TimePicker Time="{Binding MouseGeneralEndTime}"
+                                        FontFamily="OpenSansRegular"
+                                        FontSize="14"
+                                        Format="HH:mm" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <!-- Per-day schedule -->
+                    <VerticalStackLayout Spacing="8"
+                                         IsVisible="{Binding ShowDaySchedule}">
+                        <Label Text="Horario por día"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+
+                        <CollectionView ItemsSource="{Binding MouseDaySchedules}"
+                                        x:DataType="views:SettingsPage">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="views:DayScheduleViewModel">
+                                    <Border Padding="12,8"
+                                            StrokeShape="RoundRectangle 10"
+                                            Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                                            StrokeThickness="1"
+                                            BackgroundColor="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray900}}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                                              ColumnSpacing="10"
+                                              RowDefinitions="Auto"
+                                              VerticalOptions="Center">
+                                            <Switch Grid.Column="0"
+                                                    IsToggled="{Binding IsEnabled}"
+                                                    VerticalOptions="Center" />
+                                            <Label Grid.Column="1"
+                                                   Text="{Binding DayName}"
+                                                   FontFamily="OpenSansSemibold"
+                                                   FontSize="13"
+                                                   VerticalOptions="Center"
+                                                   TextColor="{AppThemeBinding Light={StaticResource Gray800}, Dark={StaticResource Gray200}}" />
+                                            <TimePicker Grid.Column="2"
+                                                        Time="{Binding StartTime}"
+                                                        FontFamily="OpenSansRegular"
+                                                        FontSize="13"
+                                                        Format="HH:mm"
+                                                        IsEnabled="{Binding IsEnabled}" />
+                                            <TimePicker Grid.Column="3"
+                                                        Time="{Binding EndTime}"
+                                                        FontFamily="OpenSansRegular"
+                                                        FontSize="13"
+                                                        Format="HH:mm"
+                                                        IsEnabled="{Binding IsEnabled}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+
+                </VerticalStackLayout>
+            </Border>
+
             <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                 <Button Grid.Column="0"
                         Text="💾  Guardar"
