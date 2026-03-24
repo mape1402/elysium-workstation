@@ -11,6 +11,11 @@ namespace Elysium.WorkStation.Views
         public string TaskDescription { get; set; }
         public KanbanStatus Status { get; }
 
+        public List<KanbanPriority> PriorityOptions { get; } =
+            [KanbanPriority.Low, KanbanPriority.Medium, KanbanPriority.High, KanbanPriority.Critical];
+
+        public KanbanPriority SelectedPriority { get; set; }
+
         public string StatusBadgeText => Status switch
         {
             KanbanStatus.Pending    => "⏳ Pendiente",
@@ -32,12 +37,13 @@ namespace Elysium.WorkStation.Views
         public Command SaveCommand { get; }
         public Command CancelCommand { get; }
 
-        public KanbanTaskEditorPage(KanbanStatus status, string? existingTitle = null, string? existingDescription = null)
+        public KanbanTaskEditorPage(KanbanStatus status, string? existingTitle = null, string? existingDescription = null, KanbanPriority priority = KanbanPriority.Medium)
         {
             Status = status;
             PageTitle = existingTitle is null ? "Nueva tarea" : "Editar tarea";
             TaskTitle = existingTitle ?? string.Empty;
             TaskDescription = existingDescription ?? string.Empty;
+            SelectedPriority = priority;
 
             SaveCommand = new Command(OnSave);
             CancelCommand = new Command(async () => await OnCancel());
@@ -56,7 +62,7 @@ namespace Elysium.WorkStation.Views
                 return;
             }
 
-            _tcs.TrySetResult(new KanbanTaskEditorResult(TaskTitle.Trim(), TaskDescription?.Trim() ?? string.Empty));
+            _tcs.TrySetResult(new KanbanTaskEditorResult(TaskTitle.Trim(), TaskDescription?.Trim() ?? string.Empty, SelectedPriority));
             await Navigation.PopModalAsync();
         }
 
@@ -73,5 +79,5 @@ namespace Elysium.WorkStation.Views
         }
     }
 
-    public record KanbanTaskEditorResult(string Title, string Description);
+    public record KanbanTaskEditorResult(string Title, string Description, KanbanPriority Priority);
 }

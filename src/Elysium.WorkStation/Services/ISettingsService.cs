@@ -11,6 +11,9 @@ namespace Elysium.WorkStation.Services
         int ClipboardRetentionHours { get; set; }
         int NotificationRetentionHours { get; set; }
 
+        int KanbanCleanupRetentionDays { get; set; }
+        int KanbanCleanupIntervalHours { get; set; }
+
         bool MouseEnabled { get; set; }
         bool MouseUseGeneralSchedule { get; set; }
         TimeSpan MouseGeneralStartTime { get; set; }

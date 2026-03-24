@@ -9,5 +9,6 @@ namespace Elysium.WorkStation.Services
         Task SaveAsync(KanbanTask task);
         Task UpdateAsync(KanbanTask task);
         Task DeleteAsync(int id);
+        Task HideCompletedOlderThanAsync(DateTime cutoff);
     }
 }

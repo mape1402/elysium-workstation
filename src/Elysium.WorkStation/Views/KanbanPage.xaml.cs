@@ -207,11 +207,12 @@ namespace Elysium.WorkStation.Views
                 Title = result.Title,
                 Description = result.Description,
                 Status = status,
+                Priority = result.Priority,
                 SortOrder = collection.Count
             };
 
             await _repository.SaveAsync(task);
-            collection.Add(task);
+            InsertSorted(collection, task);
             OnPropertyChanged(nameof(CountText));
             await _toastService.ShowAsync("✅ Tarea creada");
         }
@@ -220,7 +221,7 @@ namespace Elysium.WorkStation.Views
         {
             if (task is null) return;
 
-            var editor = new KanbanTaskEditorPage(task.Status, task.Title, task.Description);
+            var editor = new KanbanTaskEditorPage(task.Status, task.Title, task.Description, task.Priority);
             await Navigation.PushModalAsync(editor);
             var result = await editor.GetResultAsync();
 
@@ -228,6 +229,7 @@ namespace Elysium.WorkStation.Views
 
             task.Title = result.Title;
             task.Description = result.Description;
+            task.Priority = result.Priority;
             await _repository.UpdateAsync(task);
             await LoadTasksAsync();
             await _toastService.ShowAsync("💾 Tarea actualizada");
@@ -255,14 +257,23 @@ namespace Elysium.WorkStation.Views
         {
             var oldCollection = GetCollection(task.Status);
             task.Status = newStatus;
+            task.CompletedOn = newStatus == KanbanStatus.Done ? DateTime.Now : null;
             task.SortOrder = GetCollection(newStatus).Count;
             await _repository.UpdateAsync(task);
 
             oldCollection.Remove(task);
-            GetCollection(newStatus).Add(task);
+            InsertSorted(GetCollection(newStatus), task);
             OnPropertyChanged(nameof(CountText));
 
             await _toastService.ShowAsync($"Movida a {task.StatusDisplay}");
+        }
+
+        private static void InsertSorted(ObservableCollection<KanbanTask> collection, KanbanTask task)
+        {
+            int index = 0;
+            while (index < collection.Count && collection[index].Priority >= task.Priority)
+                index++;
+            collection.Insert(index, task);
         }
     }
 }

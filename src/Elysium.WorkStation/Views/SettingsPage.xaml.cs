@@ -54,6 +54,8 @@ namespace Elysium.WorkStation.Views
         private int _fileRetentionHours;
         private int _clipboardRetentionHours;
         private int _notificationRetentionHours;
+        private int _kanbanCleanupRetentionDays;
+        private int _kanbanCleanupIntervalHours;
 
         public string ServerUrl
         {
@@ -91,6 +93,26 @@ namespace Elysium.WorkStation.Views
             set
             {
                 _notificationRetentionHours = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int KanbanCleanupRetentionDays
+        {
+            get => _kanbanCleanupRetentionDays;
+            set
+            {
+                _kanbanCleanupRetentionDays = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int KanbanCleanupIntervalHours
+        {
+            get => _kanbanCleanupIntervalHours;
+            set
+            {
+                _kanbanCleanupIntervalHours = value;
                 OnPropertyChanged();
             }
         }
@@ -162,6 +184,8 @@ namespace Elysium.WorkStation.Views
             _fileRetentionHours = settingsService.FileRetentionHours;
             _clipboardRetentionHours = settingsService.ClipboardRetentionHours;
             _notificationRetentionHours = settingsService.NotificationRetentionHours;
+            _kanbanCleanupRetentionDays = settingsService.KanbanCleanupRetentionDays;
+            _kanbanCleanupIntervalHours = settingsService.KanbanCleanupIntervalHours;
             _startWithWindows = startupService.IsEnabled;
 
             _mouseEnabled = settingsService.MouseEnabled;
@@ -189,6 +213,8 @@ namespace Elysium.WorkStation.Views
                 _settingsService.FileRetentionHours = FileRetentionHours;
                 _settingsService.ClipboardRetentionHours = ClipboardRetentionHours;
                 _settingsService.NotificationRetentionHours = NotificationRetentionHours;
+                _settingsService.KanbanCleanupRetentionDays = KanbanCleanupRetentionDays;
+                _settingsService.KanbanCleanupIntervalHours = KanbanCleanupIntervalHours;
 
                 _settingsService.MouseEnabled = MouseEnabled;
                 _settingsService.MouseUseGeneralSchedule = MouseUseGeneralSchedule;

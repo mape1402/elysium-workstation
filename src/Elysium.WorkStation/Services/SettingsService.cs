@@ -9,12 +9,16 @@ namespace Elysium.WorkStation.Services
         private const string FileRetentionHoursKey = "file_retention_hours";
         private const string ClipboardRetentionHoursKey = "clipboard_retention_hours";
         private const string NotificationRetentionHoursKey = "notification_retention_hours";
+        private const string KanbanCleanupRetentionDaysKey = "kanban_cleanup_retention_days";
+        private const string KanbanCleanupIntervalHoursKey = "kanban_cleanup_interval_hours";
         private const string MouseEnabledKey = "mouse_enabled";
         private const string MouseUseGeneralScheduleKey = "mouse_use_general_schedule";
         private const string MouseGeneralStartKey = "mouse_general_start";
         private const string MouseGeneralEndKey = "mouse_general_end";
         private const string MouseDaySchedulesKey = "mouse_day_schedules";
         private const int DefaultRetentionHours = 72;
+        private const int DefaultKanbanCleanupRetentionDays = 7;
+        private const int DefaultKanbanCleanupIntervalHours = 1;
 
         public string ServerUrl
         {
@@ -46,6 +50,18 @@ namespace Elysium.WorkStation.Services
         {
             get => Preferences.Default.Get(NotificationRetentionHoursKey, DefaultRetentionHours);
             set => Preferences.Default.Set(NotificationRetentionHoursKey, Math.Max(1, value));
+        }
+
+        public int KanbanCleanupRetentionDays
+        {
+            get => Preferences.Default.Get(KanbanCleanupRetentionDaysKey, DefaultKanbanCleanupRetentionDays);
+            set => Preferences.Default.Set(KanbanCleanupRetentionDaysKey, Math.Max(1, value));
+        }
+
+        public int KanbanCleanupIntervalHours
+        {
+            get => Preferences.Default.Get(KanbanCleanupIntervalHoursKey, DefaultKanbanCleanupIntervalHours);
+            set => Preferences.Default.Set(KanbanCleanupIntervalHoursKey, Math.Max(1, value));
         }
 
         public bool MouseEnabled

@@ -14,6 +14,7 @@ namespace Elysium.WorkStation
         private readonly ISettingsService _settingsService;
         private readonly IFileTransferService _fileTransferService;
         private readonly ICleanupService _cleanupService;
+        private readonly IKanbanCleanupService _kanbanCleanupService;
 
         public List<MenuItemModel> MenuItems { get; } =
         [
@@ -47,13 +48,14 @@ namespace Elysium.WorkStation
             _              => Color.FromArgb("#424242")
         };
 
-        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService, ISettingsService settingsService, IFileTransferService fileTransferService, ICleanupService cleanupService)
+        public MainPage(IRoleService roleService, IClipboardSyncService clipboardSyncService, ISettingsService settingsService, IFileTransferService fileTransferService, ICleanupService cleanupService, IKanbanCleanupService kanbanCleanupService)
         {
             _roleService = roleService;
             _clipboardSyncService = clipboardSyncService;
             _settingsService = settingsService;
             _fileTransferService = fileTransferService;
             _cleanupService = cleanupService;
+            _kanbanCleanupService = kanbanCleanupService;
 
             NavigateCommand = new Command<MenuItemModel>(async (item) =>
             {
@@ -120,6 +122,7 @@ namespace Elysium.WorkStation
             await _clipboardSyncService.StartAsync(hubUrl);
             await _fileTransferService.StartAsync(hubUrl);
             await _cleanupService.StartAsync();
+            await _kanbanCleanupService.StartAsync();
         }
 
         protected override void OnSizeAllocated(double width, double height)

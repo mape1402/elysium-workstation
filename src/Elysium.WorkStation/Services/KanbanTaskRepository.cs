@@ -17,7 +17,9 @@ namespace Elysium.WorkStation.Services
         {
             await using var db = await _factory.CreateDbContextAsync();
             return await db.KanbanTasks
-                .OrderBy(t => t.SortOrder)
+                .Where(t => t.Visible)
+                .OrderByDescending(t => t.Priority)
+                .ThenBy(t => t.SortOrder)
                 .ThenByDescending(t => t.CreatedAt)
                 .ToListAsync();
         }
@@ -26,8 +28,9 @@ namespace Elysium.WorkStation.Services
         {
             await using var db = await _factory.CreateDbContextAsync();
             return await db.KanbanTasks
-                .Where(t => t.Status == status)
-                .OrderBy(t => t.SortOrder)
+                .Where(t => t.Status == status && t.Visible)
+                .OrderByDescending(t => t.Priority)
+                .ThenBy(t => t.SortOrder)
                 .ThenByDescending(t => t.CreatedAt)
                 .ToListAsync();
         }
@@ -52,6 +55,17 @@ namespace Elysium.WorkStation.Services
             await db.KanbanTasks
                 .Where(t => t.Id == id)
                 .ExecuteDeleteAsync();
+        }
+
+        public async Task HideCompletedOlderThanAsync(DateTime cutoff)
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            await db.KanbanTasks
+                .Where(t => t.Status == KanbanStatus.Done
+                         && t.Visible
+                         && t.CompletedOn != null
+                         && t.CompletedOn < cutoff)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.Visible, false));
         }
     }
 }

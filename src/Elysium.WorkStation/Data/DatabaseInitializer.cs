@@ -170,16 +170,50 @@ namespace Elysium.WorkStation.Data
             }
         }
 
-        private static void EnsureKanbanTasksTable(AppDbContext db) =>
+        private static void EnsureKanbanTasksTable(AppDbContext db)
+        {
             db.Database.ExecuteSqlRaw("""
                 CREATE TABLE IF NOT EXISTS "KanbanTasks" (
                     "Id"          INTEGER NOT NULL CONSTRAINT "PK_KanbanTasks" PRIMARY KEY AUTOINCREMENT,
                     "Title"       TEXT    NOT NULL,
                     "Description" TEXT    NOT NULL DEFAULT '',
                     "Status"      INTEGER NOT NULL DEFAULT 0,
+                    "Priority"    INTEGER NOT NULL DEFAULT 1,
+                    "Visible"     INTEGER NOT NULL DEFAULT 1,
+                    "CompletedOn" TEXT,
                     "SortOrder"   INTEGER NOT NULL DEFAULT 0,
                     "CreatedAt"   TEXT    NOT NULL
                 )
                 """);
+
+            AddKanbanColumnIfMissing(db, "Priority",    "INTEGER NOT NULL DEFAULT 1");
+            AddKanbanColumnIfMissing(db, "Visible",     "INTEGER NOT NULL DEFAULT 1");
+            AddKanbanColumnIfMissing(db, "CompletedOn", "TEXT");
+        }
+
+        private static void AddKanbanColumnIfMissing(AppDbContext db, string column, string definition)
+        {
+            var conn = db.Database.GetDbConnection();
+            bool shouldClose = conn.State != System.Data.ConnectionState.Open;
+            if (shouldClose) conn.Open();
+
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('KanbanTasks') WHERE name = '{column}'";
+                bool hasColumn = Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+
+                if (!hasColumn)
+                {
+                    using var alter = conn.CreateCommand();
+                    alter.CommandText = $"""ALTER TABLE "KanbanTasks" ADD COLUMN "{column}" {definition}""";
+                    alter.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                if (shouldClose) conn.Close();
+            }
+        }
     }
 }

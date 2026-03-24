@@ -103,6 +103,33 @@
                                ClearButtonVisibility="WhileEditing" />
                     </VerticalStackLayout>
 
+                    <!-- Kanban cleanup -->
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="📋  Kanban – Retención (días)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Entry Text="{Binding KanbanCleanupRetentionDays}"
+                               Placeholder="7"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               Keyboard="Numeric"
+                               ClearButtonVisibility="WhileEditing" />
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="⏱️  Kanban – Intervalo de limpieza (horas)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Entry Text="{Binding KanbanCleanupIntervalHours}"
+                               Placeholder="1"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               Keyboard="Numeric"
+                               ClearButtonVisibility="WhileEditing" />
+                    </VerticalStackLayout>
+
                 </VerticalStackLayout>
             </Border>
 

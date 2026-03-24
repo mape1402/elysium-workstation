@@ -71,6 +71,25 @@
                     </Border>
                 </VerticalStackLayout>
 
+                <!-- Priority -->
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Prioridad"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="11"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                    <Border StrokeShape="RoundRectangle 8"
+                            Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
+                            StrokeThickness="1"
+                            Padding="4"
+                            BackgroundColor="{AppThemeBinding Light=White, Dark=#2A2A2A}">
+                        <Picker ItemsSource="{Binding PriorityOptions}"
+                                SelectedItem="{Binding SelectedPriority, Mode=TwoWay}"
+                                FontFamily="OpenSansRegular"
+                                FontSize="14"
+                                TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+                    </Border>
+                </VerticalStackLayout>
+
             </VerticalStackLayout>
         </ScrollView>
 

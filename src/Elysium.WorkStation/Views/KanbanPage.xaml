@@ -105,10 +105,20 @@
                                                        LineBreakMode="TailTruncation"
                                                        TextColor="{AppThemeBinding Light=#757575, Dark=#BDBDBD}"
                                                        IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Label Text="{Binding TimeDisplay}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="10"
-                                                       TextColor="{AppThemeBinding Light=#9E9E9E, Dark=#757575}" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Label Grid.Column="0"
+                                                           Text="{Binding PriorityDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{Binding PriorityColor}"
+                                                           VerticalOptions="End" />
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding TimeDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{AppThemeBinding Light=#9E9E9E, Dark=#757575}"
+                                                           VerticalOptions="End" />
+                                                </Grid>
                                             </VerticalStackLayout>
                                             <Border HeightRequest="20" WidthRequest="20"
                                                     StrokeShape="Ellipse"
@@ -228,10 +238,20 @@
                                                        LineBreakMode="TailTruncation"
                                                        TextColor="{AppThemeBinding Light=#5472A0, Dark=#7DA5CC}"
                                                        IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Label Text="{Binding TimeDisplay}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="10"
-                                                       TextColor="{AppThemeBinding Light=#90A4AE, Dark=#607D8B}" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Label Grid.Column="0"
+                                                           Text="{Binding PriorityDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{Binding PriorityColor}"
+                                                           VerticalOptions="End" />
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding TimeDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{AppThemeBinding Light=#90A4AE, Dark=#607D8B}"
+                                                           VerticalOptions="End" />
+                                                </Grid>
                                             </VerticalStackLayout>
                                             <Border HeightRequest="20" WidthRequest="20"
                                                     StrokeShape="Ellipse"
@@ -351,10 +371,20 @@
                                                        LineBreakMode="TailTruncation"
                                                        TextColor="{AppThemeBinding Light=#A1887F, Dark=#BCAAA4}"
                                                        IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Label Text="{Binding TimeDisplay}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="10"
-                                                       TextColor="{AppThemeBinding Light=#BCAAA4, Dark=#8D6E63}" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Label Grid.Column="0"
+                                                           Text="{Binding PriorityDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{Binding PriorityColor}"
+                                                           VerticalOptions="End" />
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding TimeDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{AppThemeBinding Light=#BCAAA4, Dark=#8D6E63}"
+                                                           VerticalOptions="End" />
+                                                </Grid>
                                             </VerticalStackLayout>
                                             <Border HeightRequest="20" WidthRequest="20"
                                                     StrokeShape="Ellipse"
@@ -475,10 +505,20 @@
                                                        LineBreakMode="TailTruncation"
                                                        TextColor="{AppThemeBinding Light=#A5D6A7, Dark=#4E6E4E}"
                                                        IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Label Text="{Binding TimeDisplay}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="10"
-                                                       TextColor="{AppThemeBinding Light=#A5D6A7, Dark=#4E6E4E}" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Label Grid.Column="0"
+                                                           Text="{Binding PriorityDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{Binding PriorityColor}"
+                                                           VerticalOptions="End" />
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding TimeDisplay}"
+                                                           FontFamily="OpenSansRegular"
+                                                           FontSize="10"
+                                                           TextColor="{AppThemeBinding Light=#A5D6A7, Dark=#4E6E4E}"
+                                                           VerticalOptions="End" />
+                                                </Grid>
                                             </VerticalStackLayout>
                                             <Border HeightRequest="20" WidthRequest="20"
                                                     StrokeShape="Ellipse"
