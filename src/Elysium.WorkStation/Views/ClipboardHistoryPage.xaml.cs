@@ -29,7 +29,7 @@ namespace Elysium.WorkStation.Views
             {
                 if (entry is null) return;
                 await Clipboard.Default.SetTextAsync(entry.Text);
-                await DisplayAlert("Copiado", "Texto copiado al portapapeles.", "Aceptar");
+                await ShowToastAsync("📋 Copiado al portapapeles");
             });
 
             SendCommand = new Command(async () =>
@@ -44,6 +44,16 @@ namespace Elysium.WorkStation.Views
                     OnPropertyChanged(nameof(StatusText));
                     OnPropertyChanged(nameof(StatusColor));
                 });
+        }
+
+        private async Task ShowToastAsync(string message, int durationMs = 2000)
+        {
+            ToastLabel.Text = message;
+            ToastBorder.IsVisible = true;
+            await ToastBorder.FadeTo(1, 200, Easing.CubicIn);
+            await Task.Delay(durationMs);
+            await ToastBorder.FadeTo(0, 300, Easing.CubicOut);
+            ToastBorder.IsVisible = false;
         }
     }
 }
