@@ -1,20 +1,38 @@
 using Elysium.WorkStation.Models;
 using Elysium.WorkStation.Services;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 
 namespace Elysium.WorkStation.Views
 {
-    public partial class KanbanPage : ContentPage
+    // Priority filter removed — no related types here anymore.
+
+public partial class KanbanPage : ContentPage, INotifyPropertyChanged
     {
         private readonly IKanbanTaskRepository _repository;
         private readonly IToastService _toastService;
 
         private KanbanTask? _draggedTask;
+        private List<KanbanTask> _allTasks = [];
 
         public ObservableCollection<KanbanTask> PendingTasks { get; } = [];
         public ObservableCollection<KanbanTask> InProgressTasks { get; } = [];
         public ObservableCollection<KanbanTask> BlockedTasks { get; } = [];
         public ObservableCollection<KanbanTask> DoneTasks { get; } = [];
+
+        // Priority filters removed
+
+        private string _searchText = string.Empty;
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                _searchText = value;
+                OnPropertyChanged();
+                ApplyFilters();
+            }
+        }
 
         public string CountText
         {
@@ -31,6 +49,14 @@ namespace Elysium.WorkStation.Views
         public Command<KanbanTask> EditCommand { get; }
         public Command<KanbanTask> DeleteCommand { get; }
 
+        // Priority filter state removed
+
+        // Priority helper methods removed
+
+        // Priority UI handlers removed
+
+        // Priority overlay handler removed
+
         public KanbanPage(IKanbanTaskRepository repository, IToastService toastService)
         {
             _repository = repository;
@@ -39,7 +65,7 @@ namespace Elysium.WorkStation.Views
             AddCommand = new Command<string>(async (s) => await AddTaskAsync(s));
             EditCommand = new Command<KanbanTask>(async (t) => await EditTaskAsync(t));
             DeleteCommand = new Command<KanbanTask>(async (t) => await DeleteTaskAsync(t));
-
+            // Priority commands removed
             InitializeComponent();
             BindingContext = this;
         }
@@ -52,17 +78,31 @@ namespace Elysium.WorkStation.Views
 
         private async Task LoadTasksAsync()
         {
-            var all = await _repository.GetAllAsync();
+            _allTasks = await _repository.GetAllAsync();
+            ApplyFilters();
+        }
+
+        private void ApplyFilters()
+        {
+            var filtered = _allTasks.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                var term = SearchText.Trim();
+                filtered = filtered.Where(t =>
+                    t.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    t.Description.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Priority filtering removed — only search filter remains
 
             PendingTasks.Clear();
             InProgressTasks.Clear();
             BlockedTasks.Clear();
             DoneTasks.Clear();
 
-            foreach (var task in all)
-            {
-                GetCollection(task.Status).Add(task);
-            }
+            foreach (var task in filtered)
+                InsertSorted(GetCollection(task.Status), task);
 
             OnPropertyChanged(nameof(CountText));
         }
@@ -200,20 +240,18 @@ namespace Elysium.WorkStation.Views
 
             if (result is null) return;
 
-            var collection = GetCollection(status);
-
             var task = new KanbanTask
             {
                 Title = result.Title,
                 Description = result.Description,
                 Status = status,
                 Priority = result.Priority,
-                SortOrder = collection.Count
+                SortOrder = GetCollection(status).Count
             };
 
             await _repository.SaveAsync(task);
-            InsertSorted(collection, task);
-            OnPropertyChanged(nameof(CountText));
+            _allTasks.Add(task);
+            ApplyFilters();
             await _toastService.ShowAsync("✅ Tarea creada");
         }
 
@@ -248,22 +286,18 @@ namespace Elysium.WorkStation.Views
             if (!confirm) return;
 
             await _repository.DeleteAsync(task.Id);
-            GetCollection(task.Status).Remove(task);
-            OnPropertyChanged(nameof(CountText));
+            _allTasks.Remove(task);
+            ApplyFilters();
             await _toastService.ShowAsync("🗑️ Tarea eliminada");
         }
 
         private async Task MoveTaskAsync(KanbanTask task, KanbanStatus newStatus)
         {
-            var oldCollection = GetCollection(task.Status);
             task.Status = newStatus;
             task.CompletedOn = newStatus == KanbanStatus.Done ? DateTime.Now : null;
             task.SortOrder = GetCollection(newStatus).Count;
             await _repository.UpdateAsync(task);
-
-            oldCollection.Remove(task);
-            InsertSorted(GetCollection(newStatus), task);
-            OnPropertyChanged(nameof(CountText));
+            ApplyFilters();
 
             await _toastService.ShowAsync($"Movida a {task.StatusDisplay}");
         }

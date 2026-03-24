@@ -7,7 +7,29 @@
              x:DataType="views:KanbanPage"
              Title="Kanban">
 
-    <ScrollView Orientation="Horizontal">
+    <Grid RowDefinitions="Auto,*" RowSpacing="0">
+
+        <!-- ═══ Barra de filtros (Search) ═══ -->
+        <Grid Grid.Row="0" Padding="12,8,12,4">
+            <Border Padding="6,0"
+                    StrokeShape="RoundRectangle 8"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeThickness="1"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray900}}"
+                    HeightRequest="36"
+                    VerticalOptions="Center"
+                    HorizontalOptions="FillAndExpand">
+                <Entry Text="{Binding SearchText}"
+                       Placeholder="🔍 Buscar por título o descripción…"
+                       FontFamily="OpenSansRegular"
+                       FontSize="12"
+                       VerticalOptions="Center"
+                       ClearButtonVisibility="WhileEditing" />
+            </Border>
+        </Grid>
+
+        <!-- ═══ Columnas Kanban ═══ -->
+        <ScrollView Grid.Row="1" Orientation="Horizontal">
         <Grid ColumnDefinitions="*,*,*,*"
               ColumnSpacing="8"
               Padding="12,8,12,12"
@@ -548,5 +570,7 @@
 
                     </Grid>
                 </ScrollView>
+
+            </Grid>
 
             </ContentPage>
