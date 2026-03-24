@@ -6,7 +6,9 @@
              x:DataType="views:SettingsPage"
              Title="Configuración">
 
-    <ScrollView>
+    <Grid RowDefinitions="*,Auto,Auto" RowSpacing="0">
+
+    <ScrollView Grid.Row="0">
         <VerticalStackLayout Padding="24,20" Spacing="24">
 
             <Border Padding="20,16"
@@ -269,7 +271,10 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+        </VerticalStackLayout>
+    </ScrollView>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12" Padding="24,12,24,0">
                 <Button Grid.Column="0"
                         Text="💾  Guardar"
                         Command="{Binding SaveCommand}"
@@ -286,9 +291,11 @@
                         TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
             </Grid>
 
-            <Border IsVisible="{Binding HasFeedback}"
+            <Border Grid.Row="2"
+                    IsVisible="{Binding HasFeedback}"
                     BackgroundColor="{Binding FeedbackColor}"
                     Padding="14,10"
+                    Margin="24,8,24,16"
                     StrokeShape="RoundRectangle 10"
                     StrokeThickness="0">
                 <Label Text="{Binding FeedbackText}"
@@ -299,7 +306,6 @@
                        HorizontalTextAlignment="Center" />
             </Border>
 
-        </VerticalStackLayout>
-    </ScrollView>
+    </Grid>
 
 </ContentPage>
