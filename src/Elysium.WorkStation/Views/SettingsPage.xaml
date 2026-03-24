@@ -130,6 +130,23 @@
                                ClearButtonVisibility="WhileEditing" />
                     </VerticalStackLayout>
 
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="🔁  SignalR – Reintentos (minutos)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Label Text="Minutos entre reintentos de conexión automática a SignalR." 
+                               FontFamily="OpenSansRegular"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                        <Entry Text="{Binding SignalRReconnectMinutes}"
+                               Placeholder="1"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               Keyboard="Numeric"
+                               ClearButtonVisibility="WhileEditing" />
+                    </VerticalStackLayout>
+
                 </VerticalStackLayout>
             </Border>
 

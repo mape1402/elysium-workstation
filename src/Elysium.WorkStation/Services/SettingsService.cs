@@ -19,6 +19,8 @@ namespace Elysium.WorkStation.Services
         private const int DefaultRetentionHours = 72;
         private const int DefaultKanbanCleanupRetentionDays = 7;
         private const int DefaultKanbanCleanupIntervalHours = 1;
+        private const string SignalRReconnectMinutesKey = "signalr_reconnect_minutes";
+        private const int DefaultSignalRReconnectMinutes = 1;
 
         public string ServerUrl
         {
@@ -87,6 +89,15 @@ namespace Elysium.WorkStation.Services
             get => TimeSpan.TryParse(Preferences.Default.Get(MouseGeneralEndKey, "18:00"), out var t) ? t : new(18, 0, 0);
             set => Preferences.Default.Set(MouseGeneralEndKey, value.ToString(@"hh\:mm"));
         }
+
+        // SignalR reconnect delay in minutes (used by client retry policies)
+        public int SignalRReconnectMinutes
+        {
+            get => Preferences.Default.Get(SignalRReconnectMinutesKey, DefaultSignalRReconnectMinutes);
+            set => Preferences.Default.Set(SignalRReconnectMinutesKey, Math.Max(1, value));
+        }
+
+        public TimeSpan SignalRReconnectDelay => TimeSpan.FromMinutes(SignalRReconnectMinutes);
 
         public List<MouseScheduleEntry> MouseDaySchedules
         {

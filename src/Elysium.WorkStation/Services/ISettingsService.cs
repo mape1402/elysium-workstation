@@ -19,5 +19,8 @@ namespace Elysium.WorkStation.Services
         TimeSpan MouseGeneralStartTime { get; set; }
         TimeSpan MouseGeneralEndTime { get; set; }
         List<Models.MouseScheduleEntry> MouseDaySchedules { get; set; }
+        // SignalR reconnect settings
+        int SignalRReconnectMinutes { get; set; }
+        TimeSpan SignalRReconnectDelay { get; }
     }
 }

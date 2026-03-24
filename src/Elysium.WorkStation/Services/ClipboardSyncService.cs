@@ -7,9 +7,11 @@ namespace Elysium.WorkStation.Services
     public class ClipboardSyncService : IClipboardSyncService, IAsyncDisposable
     {
         private HubConnection _connection;
+        private CancellationTokenSource? _startRetryCts;
         private readonly INotificationService _notificationService;
         private readonly INotificationRepository _notificationRepository;
         private readonly IClipboardRepository _clipboardRepository;
+        private readonly ISettingsService _settingsService;
 
         public ObservableCollection<ClipboardEntry> History { get; } = new();
 
@@ -20,11 +22,13 @@ namespace Elysium.WorkStation.Services
         public ClipboardSyncService(
             INotificationService notificationService,
             INotificationRepository notificationRepository,
-            IClipboardRepository clipboardRepository)
+            IClipboardRepository clipboardRepository,
+            ISettingsService settingsService)
         {
-            _notificationService        = notificationService;
-            _notificationRepository     = notificationRepository;
-            _clipboardRepository        = clipboardRepository;
+            _notificationService    = notificationService;
+            _notificationRepository = notificationRepository;
+            _clipboardRepository    = clipboardRepository;
+            _settingsService        = settingsService;
         }
 
         public async Task StartAsync(string hubUrl)
@@ -38,9 +42,11 @@ namespace Elysium.WorkStation.Services
                     History.Add(item);
             });
 
+            // Reconnect policy: use centralized MinuteRetryPolicy configured from settings
+            var retryDelay = _settingsService?.SignalRReconnectDelay ?? TimeSpan.FromMinutes(1);
             _connection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
-                .WithAutomaticReconnect()
+                .WithAutomaticReconnect(new MinuteRetryPolicy(retryDelay))
                 .Build();
 
             _connection.On<string, string>("ReceiveClipboard", (text, sender) =>
@@ -76,18 +82,21 @@ namespace Elysium.WorkStation.Services
             _connection.Reconnecting += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
             _connection.Closed       += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
 
-            for (int attempt = 0; attempt < 10; attempt++)
+            // Try to start the connection. If the server is not available, retry every minute
+            _startRetryCts = new CancellationTokenSource();
+            var ct = _startRetryCts.Token;
+            while (!ct.IsCancellationRequested)
             {
                 try
                 {
-                    await _connection.StartAsync();
+                    await _connection.StartAsync(ct);
                     ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
                     break;
                 }
                 catch
                 {
-                    if (attempt == 9) break;
-                    await Task.Delay(1000);
+                    // Wait one minute before retrying unless cancelled
+                    try { await Task.Delay(TimeSpan.FromMinutes(1), ct); } catch (TaskCanceledException) { break; }
                 }
             }
         }
@@ -120,6 +129,11 @@ namespace Elysium.WorkStation.Services
         {
             if (_connection is not null)
             {
+                // cancel any pending start retries
+                _startRetryCts?.Cancel();
+                _startRetryCts?.Dispose();
+                _startRetryCts = null;
+
                 await _connection.StopAsync();
                 await _connection.DisposeAsync();
                 _connection = null;
@@ -127,5 +141,7 @@ namespace Elysium.WorkStation.Services
         }
 
         public async ValueTask DisposeAsync() => await StopAsync();
+
+        // Retry policy centralized in Services/RetryPolicies.cs
     }
 }

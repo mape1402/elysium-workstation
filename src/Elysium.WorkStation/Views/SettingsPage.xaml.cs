@@ -56,6 +56,7 @@ namespace Elysium.WorkStation.Views
         private int _notificationRetentionHours;
         private int _kanbanCleanupRetentionDays;
         private int _kanbanCleanupIntervalHours;
+        private int _signalRReconnectMinutes;
 
         public string ServerUrl
         {
@@ -115,6 +116,12 @@ namespace Elysium.WorkStation.Views
                 _kanbanCleanupIntervalHours = value;
                 OnPropertyChanged();
             }
+        }
+
+        public int SignalRReconnectMinutes
+        {
+            get => _signalRReconnectMinutes;
+            set { _signalRReconnectMinutes = value; OnPropertyChanged(); }
         }
 
         public string FeedbackText { get; private set; } = string.Empty;
@@ -186,6 +193,7 @@ namespace Elysium.WorkStation.Views
             _notificationRetentionHours = settingsService.NotificationRetentionHours;
             _kanbanCleanupRetentionDays = settingsService.KanbanCleanupRetentionDays;
             _kanbanCleanupIntervalHours = settingsService.KanbanCleanupIntervalHours;
+            _signalRReconnectMinutes = settingsService.SignalRReconnectMinutes;
             _startWithWindows = startupService.IsEnabled;
 
             _mouseEnabled = settingsService.MouseEnabled;
@@ -215,6 +223,7 @@ namespace Elysium.WorkStation.Views
                 _settingsService.NotificationRetentionHours = NotificationRetentionHours;
                 _settingsService.KanbanCleanupRetentionDays = KanbanCleanupRetentionDays;
                 _settingsService.KanbanCleanupIntervalHours = KanbanCleanupIntervalHours;
+                _settingsService.SignalRReconnectMinutes = SignalRReconnectMinutes;
 
                 _settingsService.MouseEnabled = MouseEnabled;
                 _settingsService.MouseUseGeneralSchedule = MouseUseGeneralSchedule;

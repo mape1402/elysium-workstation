@@ -9,12 +9,13 @@ namespace Elysium.WorkStation.Services
     public class FileTransferService : IFileTransferService
     {
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         private HubConnection _connection;
+        private CancellationTokenSource? _startRetryCts;
         private string _baseUrl = string.Empty;
         private readonly INotificationService _notificationService;
         private readonly INotificationRepository _notificationRepository;
         private readonly IFileRepository _fileRepository;
+       private readonly ISettingsService _settingsService;
 
         public ObservableCollection<FileEntry> History { get; } = [];
 
@@ -24,11 +25,13 @@ namespace Elysium.WorkStation.Services
         public FileTransferService(
             INotificationService notificationService,
             INotificationRepository notificationRepository,
-            IFileRepository fileRepository)
+            IFileRepository fileRepository,
+            ISettingsService settingsService)
         {
             _notificationService    = notificationService;
             _notificationRepository = notificationRepository;
             _fileRepository         = fileRepository;
+            _settingsService        = settingsService;
         }
 
         public async Task StartAsync(string hubUrl)
@@ -44,9 +47,10 @@ namespace Elysium.WorkStation.Services
                     History.Add(item);
             });
 
+            var retryDelay = _settingsService?.SignalRReconnectDelay ?? TimeSpan.FromMinutes(1);
             _connection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
-                .WithAutomaticReconnect()
+                .WithAutomaticReconnect(new MinuteRetryPolicy(retryDelay))
                 .Build();
 
             _connection.On<string, string, long, string>("ReceiveFileAnnouncement",
@@ -80,18 +84,25 @@ namespace Elysium.WorkStation.Services
                     });
                 });
 
-            _connection.Closed      += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
             _connection.Reconnected += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
+            _connection.Reconnecting += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
+            _connection.Closed      += _ => { ConnectionStateChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; };
 
-            for (int i = 0; i < 10; i++)
+            // Try to start; if server unavailable, retry every minute until connected or cancelled
+            _startRetryCts = new CancellationTokenSource();
+            var ct = _startRetryCts.Token;
+            while (!ct.IsCancellationRequested)
             {
                 try
                 {
-                    await _connection.StartAsync();
+                    await _connection.StartAsync(ct);
                     ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
-                    return;
+                    break;
                 }
-                catch { await Task.Delay(2000); }
+                catch
+                {
+                    try { await Task.Delay(TimeSpan.FromMinutes(1), ct); } catch (TaskCanceledException) { break; }
+                }
             }
         }
 
@@ -164,11 +175,18 @@ namespace Elysium.WorkStation.Services
         public async Task StopAsync()
         {
             if (_connection is null) return;
+            // cancel any pending start retries
+            _startRetryCts?.Cancel();
+            _startRetryCts?.Dispose();
+            _startRetryCts = null;
+
             await _connection.StopAsync();
             await _connection.DisposeAsync();
             _connection = null;
         }
 
         private record FileUploadResult(string FileId, string FileName, long FileSize);
+
+        // Retry policy centralized in Services/RetryPolicies.cs
     }
 }
