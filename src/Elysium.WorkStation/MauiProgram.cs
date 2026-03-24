@@ -44,6 +44,7 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.ITrayService,    Services.TrayService>();
             builder.Services.AddSingleton<Services.IRoleService,    Services.RoleService>();
             builder.Services.AddSingleton<Services.INotificationService, Services.NotificationService>();
+            builder.Services.AddSingleton<Services.IStartupService, Services.StartupService>();
 #else
             builder.Services.AddSingleton<Services.IRoleService,    Services.DefaultRoleService>();
             builder.Services.AddSingleton<Services.INotificationService, Services.NullNotificationService>();

@@ -49,6 +49,7 @@ namespace Elysium.WorkStation.Views
     public partial class SettingsPage : ContentPage
     {
         private readonly ISettingsService _settingsService;
+        private readonly IStartupService _startupService;
         private string _serverUrl;
         private int _fileRetentionHours;
         private int _clipboardRetentionHours;
@@ -143,16 +144,25 @@ namespace Elysium.WorkStation.Views
 
         public ObservableCollection<DayScheduleViewModel> MouseDaySchedules { get; } = [];
 
+        private bool _startWithWindows;
+        public bool StartWithWindows
+        {
+            get => _startWithWindows;
+            set { _startWithWindows = value; OnPropertyChanged(); }
+        }
+
         public Command SaveCommand { get; }
         public Command TestCommand { get; }
 
-        public SettingsPage(ISettingsService settingsService)
+        public SettingsPage(ISettingsService settingsService, IStartupService startupService)
         {
             _settingsService = settingsService;
+            _startupService = startupService;
             _serverUrl = settingsService.ServerUrl;
             _fileRetentionHours = settingsService.FileRetentionHours;
             _clipboardRetentionHours = settingsService.ClipboardRetentionHours;
             _notificationRetentionHours = settingsService.NotificationRetentionHours;
+            _startWithWindows = startupService.IsEnabled;
 
             _mouseEnabled = settingsService.MouseEnabled;
             _mouseUseGeneralSchedule = settingsService.MouseUseGeneralSchedule;
@@ -192,6 +202,11 @@ namespace Elysium.WorkStation.Views
                         StartTime = d.StartTime,
                         EndTime = d.EndTime
                     }).ToList();
+
+                if (StartWithWindows)
+                    _startupService.Enable();
+                else
+                    _startupService.Disable();
 
                 ShowFeedback("✅  Configuración guardada correctamente.", Color.FromArgb("#1B5E20"));
                 await Task.Delay(600);

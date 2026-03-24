@@ -104,6 +104,42 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- Startup with Windows -->
+            <Border Padding="20,16"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeThickness="1"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="12">
+
+                    <Label Text="🚀  Inicio con Windows"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="15"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+
+                    <Label Text="Permite que la aplicación se inicie automáticamente al encender el equipo."
+                           FontFamily="OpenSansRegular"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0"
+                               Text="Iniciar con Windows"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding StartWithWindows}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Mouse schedule -->
             <Border Padding="20,16"
                     StrokeShape="RoundRectangle 16"
