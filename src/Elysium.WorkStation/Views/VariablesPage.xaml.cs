@@ -246,26 +246,33 @@ namespace Elysium.WorkStation.Views
             var editorResult = await ShowVariableEditorAsync();
             if (editorResult is null) return;
 
-            string value = editorResult.IsSecret ? SecretMask : editorResult.Value;
-            string encrypted = editorResult.IsSecret ? editorResult.EncryptedValue : string.Empty;
-
-            var variable = await _repository.SaveVariableAsync(new WorkVariable
+            try
             {
-                GroupId = SelectedGroup.Id,
-                VariableKey = editorResult.Key,
-                Description = editorResult.Description,
-                IsSecret = editorResult.IsSecret,
-                Value = editorResult.IsSecret ? SecretMask : value,
-                EncryptedValue = encrypted
-            });
-            variable.Description = NormalizeDescription(variable.Description);
+                string value = editorResult.IsSecret ? SecretMask : editorResult.Value;
+                string encrypted = editorResult.IsSecret ? editorResult.EncryptedValue : string.Empty;
 
-            if (variable.IsSecret)
-                variable.Value = SecretMask;
+                var variable = await _repository.SaveVariableAsync(new WorkVariable
+                {
+                    GroupId = SelectedGroup.Id,
+                    VariableKey = editorResult.Key,
+                    Description = NormalizeDescriptionForStorage(editorResult.Description),
+                    IsSecret = editorResult.IsSecret,
+                    Value = editorResult.IsSecret ? SecretMask : value,
+                    EncryptedValue = encrypted
+                });
+                variable.Description = NormalizeDescription(variable.Description);
 
-            Variables.Add(variable);
-            SortVariables();
-            OnPropertyChanged(nameof(VariableCountText));
+                if (variable.IsSecret)
+                    variable.Value = SecretMask;
+
+                Variables.Add(variable);
+                SortVariables();
+                OnPropertyChanged(nameof(VariableCountText));
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Variable", ex.Message, "OK");
+            }
         }
         private async Task EditVariableAsync(WorkVariable variable)
         {
@@ -290,16 +297,24 @@ namespace Elysium.WorkStation.Views
                 encrypted = string.Empty;
             }
 
-            variable.VariableKey = editorResult.Key;
-            variable.Description = NormalizeDescription(editorResult.Description);
-            variable.IsSecret = editorResult.IsSecret;
-            variable.Value = value;
-            variable.EncryptedValue = encrypted;
+            try
+            {
+                variable.VariableKey = editorResult.Key;
+                variable.Description = NormalizeDescriptionForStorage(editorResult.Description);
+                variable.IsSecret = editorResult.IsSecret;
+                variable.Value = value;
+                variable.EncryptedValue = encrypted;
 
-            await _repository.SaveVariableAsync(variable);
-            if (variable.IsSecret)
-                variable.Value = SecretMask;
-            SortVariables();
+                await _repository.SaveVariableAsync(variable);
+                variable.Description = NormalizeDescription(variable.Description);
+                if (variable.IsSecret)
+                    variable.Value = SecretMask;
+                SortVariables();
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Variable", ex.Message, "OK");
+            }
         }
 
         private async Task<VariableEditorResult?> ShowVariableEditorAsync(WorkVariable existingVariable = null)
@@ -404,8 +419,11 @@ namespace Elysium.WorkStation.Views
         }
         private async Task<bool> EnsureSecretAccessAsync()
         {
-            if (!await _secretVaultService.EnsurePinAsync(this)) return false;
             _secretVaultService.Lock();
+
+            if (!_secretVaultService.IsPinConfigured)
+                return await _secretVaultService.EnsurePinAsync(this);
+
             return await _secretVaultService.UnlockAsync(this);
         }
 
@@ -420,6 +438,11 @@ namespace Elysium.WorkStation.Views
         private static string NormalizeDescription(string description)
         {
             return string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        }
+
+        private static string NormalizeDescriptionForStorage(string description)
+        {
+            return string.IsNullOrWhiteSpace(description) ? string.Empty : description.Trim();
         }
     }
 }

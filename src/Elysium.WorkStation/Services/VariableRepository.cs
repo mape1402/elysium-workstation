@@ -59,6 +59,15 @@ namespace Elysium.WorkStation.Services
                 .ToListAsync();
         }
 
+        public async Task<List<WorkVariable>> GetSecretVariablesAsync()
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            return await db.WorkVariables
+                .Where(v => v.IsSecret)
+                .OrderBy(v => v.VariableKey)
+                .ToListAsync();
+        }
+
         public async Task<WorkVariable> SaveVariableAsync(WorkVariable variable)
         {
             await using var db = await _factory.CreateDbContextAsync();
@@ -88,6 +97,18 @@ namespace Elysium.WorkStation.Services
             await db.WorkVariables
                 .Where(v => v.Id == variableId)
                 .ExecuteDeleteAsync();
+        }
+
+        public async Task ResetSecretsAsync()
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            await db.WorkVariables
+                .Where(v => v.IsSecret)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(v => v.IsSecret, false)
+                    .SetProperty(v => v.Value, string.Empty)
+                    .SetProperty(v => v.EncryptedValue, string.Empty)
+                    .SetProperty(v => v.UpdatedAt, DateTime.Now));
         }
     }
 }

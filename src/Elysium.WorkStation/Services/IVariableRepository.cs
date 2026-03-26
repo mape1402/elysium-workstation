@@ -9,7 +9,9 @@ namespace Elysium.WorkStation.Services
         Task DeleteGroupAsync(int groupId);
 
         Task<List<WorkVariable>> GetByGroupAsync(int groupId);
+        Task<List<WorkVariable>> GetSecretVariablesAsync();
         Task<WorkVariable> SaveVariableAsync(WorkVariable variable);
         Task DeleteVariableAsync(int variableId);
+        Task ResetSecretsAsync();
     }
 }

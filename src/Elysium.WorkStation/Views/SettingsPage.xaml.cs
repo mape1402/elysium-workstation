@@ -50,6 +50,8 @@ namespace Elysium.WorkStation.Views
     {
         private readonly ISettingsService _settingsService;
         private readonly IStartupService _startupService;
+        private readonly ISecretVaultService _secretVaultService;
+        private readonly IVariableRepository _variableRepository;
         private string _serverUrl;
         private int _fileRetentionHours;
         private int _clipboardRetentionHours;
@@ -182,11 +184,18 @@ namespace Elysium.WorkStation.Views
 
         public Command SaveCommand { get; }
         public Command TestCommand { get; }
+        public Command ResetPinCommand { get; }
 
-        public SettingsPage(ISettingsService settingsService, IStartupService startupService)
+        public SettingsPage(
+            ISettingsService settingsService,
+            IStartupService startupService,
+            ISecretVaultService secretVaultService,
+            IVariableRepository variableRepository)
         {
             _settingsService = settingsService;
             _startupService = startupService;
+            _secretVaultService = secretVaultService;
+            _variableRepository = variableRepository;
             _serverUrl = settingsService.ServerUrl;
             _fileRetentionHours = settingsService.FileRetentionHours;
             _clipboardRetentionHours = settingsService.ClipboardRetentionHours;
@@ -271,6 +280,139 @@ namespace Elysium.WorkStation.Views
                 }
             });
 
+            ResetPinCommand = new Command(async () =>
+            {
+                var mode = await DisplayActionSheet(
+                    "Resetear PIN",
+                    "Cancelar",
+                    null,
+                    "Usar PIN anterior y conservar secretos",
+                    "No tengo PIN anterior");
+
+                if (string.IsNullOrWhiteSpace(mode) || mode == "Cancelar")
+                    return;
+
+                var resetWithoutOldPin = mode == "No tengo PIN anterior";
+                string oldPin = string.Empty;
+                if (!resetWithoutOldPin)
+                {
+                    if (!_secretVaultService.IsPinConfigured)
+                    {
+                        await DisplayAlert(
+                            "Reset PIN",
+                            "No hay PIN anterior configurado. Usa la opcion \"No tengo PIN anterior\".",
+                            "OK");
+                        return;
+                    }
+
+                    oldPin = await PromptPinAsync(
+                        "PIN anterior",
+                        "Ingresa el PIN actual para continuar.",
+                        "PIN actual");
+                    if (oldPin is null) return;
+                    oldPin = oldPin.Trim();
+
+                    if (!_secretVaultService.TryUnlockWithPin(oldPin))
+                    {
+                        await DisplayAlert("PIN", "El PIN anterior es incorrecto.", "OK");
+                        return;
+                    }
+                }
+                else
+                {
+                    var acceptLoss = await DisplayAlert(
+                        "Confirmar limpieza",
+                        "Si continuas sin PIN anterior, los secretos se convertiran en variables normales sin valor. Deseas continuar?",
+                        "Aceptar",
+                        "Cancelar");
+                    if (!acceptLoss) return;
+                }
+
+                var newPin = await PromptPinAsync(
+                    "Nuevo PIN",
+                    "Ingresa el nuevo PIN (minimo 4 digitos numericos).",
+                    "Nuevo PIN");
+                if (newPin is null) return;
+                newPin = newPin.Trim();
+
+                if (!_secretVaultService.IsValidPin(newPin))
+                {
+                    await DisplayAlert("PIN", "El nuevo PIN debe tener al menos 4 digitos numericos.", "OK");
+                    return;
+                }
+
+                var confirmPin = await PromptPinAsync(
+                    "Confirmar PIN",
+                    "Vuelve a ingresar el nuevo PIN.",
+                    "Nuevo PIN");
+                if (confirmPin is null) return;
+                confirmPin = confirmPin.Trim();
+
+                if (!string.Equals(newPin, confirmPin, StringComparison.Ordinal))
+                {
+                    await DisplayAlert("PIN", "Los PIN no coinciden.", "OK");
+                    return;
+                }
+
+                if (!resetWithoutOldPin)
+                {
+                    try
+                    {
+                        var secrets = await _variableRepository.GetSecretVariablesAsync();
+                        var plainById = new Dictionary<int, string>();
+
+                        foreach (var secret in secrets)
+                        {
+                            plainById[secret.Id] = string.IsNullOrWhiteSpace(secret.EncryptedValue)
+                                ? string.Empty
+                                : _secretVaultService.Decrypt(secret.EncryptedValue);
+                        }
+
+                        if (!_secretVaultService.SetPin(newPin))
+                        {
+                            await DisplayAlert("PIN", "No fue posible configurar el nuevo PIN.", "OK");
+                            return;
+                        }
+
+                        foreach (var secret in secrets)
+                        {
+                            secret.IsSecret = true;
+                            secret.Value = string.Empty;
+                            secret.EncryptedValue = _secretVaultService.Encrypt(plainById[secret.Id]);
+                            await _variableRepository.SaveVariableAsync(secret);
+                        }
+
+                        _secretVaultService.Lock();
+                        ShowFeedback("PIN actualizado y secretos recifrados correctamente.", Color.FromArgb("#1B5E20"));
+                    }
+                    catch (Exception ex)
+                    {
+                        _secretVaultService.Lock();
+                        await DisplayAlert("Reset PIN", $"No fue posible recifrar secretos: {ex.Message}", "OK");
+                    }
+
+                    return;
+                }
+
+                try
+                {
+                    await _variableRepository.ResetSecretsAsync();
+                    if (!_secretVaultService.SetPin(newPin))
+                    {
+                        await DisplayAlert("PIN", "No fue posible configurar el nuevo PIN.", "OK");
+                        return;
+                    }
+
+                    _secretVaultService.Lock();
+                    ShowFeedback("PIN actualizado. Los secretos quedaron vacios como variables normales.", Color.FromArgb("#E65100"));
+                }
+                catch (Exception ex)
+                {
+                    _secretVaultService.Lock();
+                    await DisplayAlert("Reset PIN", $"No fue posible aplicar el cambio: {ex.Message}", "OK");
+                }
+            });
+
             InitializeComponent();
             BindingContext = this;
         }
@@ -288,6 +430,13 @@ namespace Elysium.WorkStation.Views
             OnPropertyChanged(nameof(FeedbackText));
             OnPropertyChanged(nameof(FeedbackColor));
             OnPropertyChanged(nameof(HasFeedback));
+        }
+
+        private async Task<string?> PromptPinAsync(string title, string message, string placeholder)
+        {
+            var popup = new PinPromptPage(title, message, placeholder);
+            await Navigation.PushModalAsync(popup);
+            return await popup.ResultTask;
         }
     }
 }

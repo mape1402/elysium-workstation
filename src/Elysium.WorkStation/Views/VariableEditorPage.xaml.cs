@@ -119,15 +119,34 @@ namespace Elysium.WorkStation.Views
                                      _isSecretMode &&
                                      string.Equals(value, HiddenMask, StringComparison.Ordinal);
 
-            if (!_isEditMode && _isSecretMode && string.IsNullOrWhiteSpace(_encryptedValue))
+            if (_isSecretMode && !keepExistingSecret)
             {
-                await DisplayAlert("Variable", "Oculta el valor para cifrarlo antes de guardar.", "OK");
-                return;
+                var requiresEncryption = string.IsNullOrWhiteSpace(_encryptedValue) ||
+                                         !string.Equals(value, HiddenMask, StringComparison.Ordinal);
+
+                if (requiresEncryption)
+                {
+                    try
+                    {
+                        if (!await EnsureSecretAccessAsync()) return;
+
+                        var plain = string.Equals(value, HiddenMask, StringComparison.Ordinal)
+                            ? string.Empty
+                            : value;
+
+                        _encryptedValue = _secretVaultService.Encrypt(plain);
+                    }
+                    catch (Exception ex)
+                    {
+                        await DisplayAlert("Variable", $"No fue posible cifrar el valor: {ex.Message}", "OK");
+                        return;
+                    }
+                }
             }
 
             _resultSource.TrySetResult(new VariableEditorResult(
                 key,
-                value,
+                _isSecretMode ? HiddenMask : value,
                 DescriptionEditor.Text?.Trim() ?? string.Empty,
                 _isSecretMode,
                 _encryptedValue,
@@ -152,8 +171,11 @@ namespace Elysium.WorkStation.Views
 
         private async Task<bool> EnsureSecretAccessAsync()
         {
-            if (!await _secretVaultService.EnsurePinAsync(this)) return false;
             _secretVaultService.Lock();
+
+            if (!_secretVaultService.IsPinConfigured)
+                return await _secretVaultService.EnsurePinAsync(this);
+
             return await _secretVaultService.UnlockAsync(this);
         }
     }

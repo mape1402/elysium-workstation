@@ -4,6 +4,9 @@ namespace Elysium.WorkStation.Services
     {
         bool IsPinConfigured { get; }
         bool IsUnlocked { get; }
+        bool IsValidPin(string pin);
+        bool TryUnlockWithPin(string pin);
+        bool SetPin(string pin);
 
         Task<bool> EnsurePinAsync(Page page);
         Task<bool> UnlockAsync(Page page);

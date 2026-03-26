@@ -3,6 +3,7 @@ namespace Elysium.WorkStation.Views
     public partial class PinPromptPage : ContentPage
     {
         private readonly TaskCompletionSource<string?> _resultSource = new();
+        private bool _isClosing;
 
         public string TitleText { get; }
         public string MessageText { get; }
@@ -27,7 +28,8 @@ namespace Elysium.WorkStation.Views
 
         protected override void OnDisappearing()
         {
-            if (!_resultSource.Task.IsCompleted)
+            // Fallback: if the modal closes externally, cancel the prompt.
+            if (!_isClosing && !_resultSource.Task.IsCompleted)
                 _resultSource.TrySetResult(null);
 
             base.OnDisappearing();
@@ -35,14 +37,28 @@ namespace Elysium.WorkStation.Views
 
         private async void OnCancelClicked(object sender, EventArgs e)
         {
-            _resultSource.TrySetResult(null);
-            await Navigation.PopModalAsync();
+            await CloseAsync(null);
         }
 
         private async void OnAcceptClicked(object sender, EventArgs e)
         {
-            _resultSource.TrySetResult(PinEntry.Text?.Trim());
-            await Navigation.PopModalAsync();
+            await CloseAsync(PinEntry.Text?.Trim());
+        }
+
+        private async Task CloseAsync(string? result)
+        {
+            if (_isClosing) return;
+            _isClosing = true;
+
+            try
+            {
+                await Navigation.PopModalAsync();
+            }
+            finally
+            {
+                if (!_resultSource.Task.IsCompleted)
+                    _resultSource.TrySetResult(result);
+            }
         }
     }
 }

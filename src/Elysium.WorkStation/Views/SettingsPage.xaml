@@ -150,6 +150,35 @@
                 </VerticalStackLayout>
             </Border>
 
+            <Border Padding="20,16"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeThickness="1"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="🔐  Seguridad de secretos"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="15"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+
+                    <Label Text="Puedes resetear el PIN. Si ingresas PIN anterior, los secretos se recifran con el nuevo PIN. Si no, quedaran vacios como variables normales."
+                           FontFamily="OpenSansRegular"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+
+                    <Button Text="Resetear PIN"
+                            Command="{Binding ResetPinCommand}"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="13"
+                            CornerRadius="10"
+                            BackgroundColor="#C62828"
+                            TextColor="White" />
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Startup with Windows -->
             <Border Padding="20,16"
                     StrokeShape="RoundRectangle 16"

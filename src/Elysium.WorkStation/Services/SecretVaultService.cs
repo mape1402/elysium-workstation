@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Elysium.WorkStation.Views;
@@ -10,7 +10,7 @@ namespace Elysium.WorkStation.Services
         private const string PinSaltKey = "vault_pin_salt";
         private const string PinVerifierKey = "vault_pin_verifier";
         private const string VerifierText = "ElysiumSecretVault:v1";
-        private static readonly Regex PinRegex = new(@"^\d{6,}$", RegexOptions.Compiled);
+        private static readonly Regex PinRegex = new(@"^\d{4,}$", RegexOptions.Compiled);
         private byte[] _sessionKey;
 
         public bool IsPinConfigured =>
@@ -19,6 +19,53 @@ namespace Elysium.WorkStation.Services
 
         public bool IsUnlocked => _sessionKey is not null;
 
+        public bool IsValidPin(string pin)
+        {
+            return !string.IsNullOrWhiteSpace(pin) && PinRegex.IsMatch(pin.Trim());
+        }
+
+        public bool TryUnlockWithPin(string pin)
+        {
+            if (!IsPinConfigured) return false;
+            if (!IsValidPin(pin)) return false;
+
+            var saltText = Preferences.Default.Get(PinSaltKey, string.Empty);
+            var verifierText = Preferences.Default.Get(PinVerifierKey, string.Empty);
+            if (string.IsNullOrWhiteSpace(saltText) || string.IsNullOrWhiteSpace(verifierText))
+                return false;
+
+            try
+            {
+                var salt = Convert.FromBase64String(saltText);
+                var key = DeriveKey(pin.Trim(), salt);
+                var plain = DecryptWithKey(verifierText, key);
+                if (!string.Equals(plain, VerifierText, StringComparison.Ordinal))
+                    return false;
+
+                _sessionKey = key;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool SetPin(string pin)
+        {
+            if (!IsValidPin(pin)) return false;
+
+            var normalizedPin = pin.Trim();
+            var salt = RandomNumberGenerator.GetBytes(16);
+            var key = DeriveKey(normalizedPin, salt);
+            var verifier = EncryptWithKey(VerifierText, key);
+
+            Preferences.Default.Set(PinSaltKey, Convert.ToBase64String(salt));
+            Preferences.Default.Set(PinVerifierKey, verifier);
+            _sessionKey = key;
+            return true;
+        }
+
         public async Task<bool> EnsurePinAsync(Page page)
         {
             if (IsPinConfigured) return true;
@@ -26,14 +73,14 @@ namespace Elysium.WorkStation.Services
             var pin = await PromptPinAsync(
                 page,
                 "PIN para secretos",
-                "Define un PIN numerico de al menos 6 digitos para cifrar secretos.",
-                "Ej. 123456");
+                "Define un PIN numerico de al menos 4 digitos para cifrar secretos.",
+                "Ej. 1234");
 
             if (pin is null) return false;
             pin = pin.Trim();
-            if (!PinRegex.IsMatch(pin))
+            if (!IsValidPin(pin))
             {
-                await page.DisplayAlert("PIN invalido", "Debe tener al menos 6 digitos numericos.", "OK");
+                await page.DisplayAlert("PIN invalido", "Debe tener al menos 4 digitos numericos.", "OK");
                 return false;
             }
 
@@ -52,14 +99,7 @@ namespace Elysium.WorkStation.Services
                 return false;
             }
 
-            var salt = RandomNumberGenerator.GetBytes(16);
-            var key = DeriveKey(pin, salt);
-            var verifier = EncryptWithKey(VerifierText, key);
-
-            Preferences.Default.Set(PinSaltKey, Convert.ToBase64String(salt));
-            Preferences.Default.Set(PinVerifierKey, verifier);
-            _sessionKey = key;
-            return true;
+            return SetPin(pin);
         }
 
         public async Task<bool> UnlockAsync(Page page)
@@ -79,33 +119,19 @@ namespace Elysium.WorkStation.Services
 
             if (pin is null) return false;
             pin = pin.Trim();
-            if (!PinRegex.IsMatch(pin))
+            if (!IsValidPin(pin))
             {
-                await page.DisplayAlert("PIN invalido", "Debe tener al menos 6 digitos numericos.", "OK");
+                await page.DisplayAlert("PIN invalido", "Debe tener al menos 4 digitos numericos.", "OK");
                 return false;
             }
 
-            var saltText = Preferences.Default.Get(PinSaltKey, string.Empty);
-            var verifierText = Preferences.Default.Get(PinVerifierKey, string.Empty);
-            if (string.IsNullOrWhiteSpace(saltText) || string.IsNullOrWhiteSpace(verifierText))
-                return false;
-
-            try
-            {
-                var salt = Convert.FromBase64String(saltText);
-                var key = DeriveKey(pin, salt);
-                var plain = DecryptWithKey(verifierText, key);
-                if (!string.Equals(plain, VerifierText, StringComparison.Ordinal))
-                    throw new CryptographicException("Invalid PIN");
-
-                _sessionKey = key;
-                return true;
-            }
-            catch
+            if (!TryUnlockWithPin(pin))
             {
                 await page.DisplayAlert("PIN incorrecto", "No fue posible desbloquear secretos.", "OK");
                 return false;
             }
+
+            return true;
         }
 
         public void Lock()
