@@ -1,93 +1,107 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:views="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.VariableEditorPage"
              x:DataType="views:VariableEditorPage"
-             Title="{Binding PageTitle}">
+             Title="{Binding PageTitle}"
+             BackgroundColor="#66000000"
+             Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="*,Auto"
-          Padding="18"
-          RowSpacing="14">
+    <Grid Padding="20">
+        <Border HorizontalOptions="Center"
+                VerticalOptions="Center"
+                WidthRequest="560"
+                MaximumWidthRequest="700"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#D6DEEE, Dark=#43516A}"
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=#F9FBFF, Dark=#1D2736}"
+                Padding="16">
+            <Grid RowDefinitions="*,Auto"
+                  RowSpacing="14">
 
-        <ScrollView>
-            <VerticalStackLayout Spacing="10">
-                <Label Text="{Binding HeaderText}"
-                       FontFamily="OpenSansSemibold"
-                       FontSize="18" />
+                <ScrollView>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="{Binding HeaderText}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="18" />
 
-                <Label Text="Clave"
-                       FontFamily="OpenSansSemibold"
-                       FontSize="12"
-                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+                        <Label Text="Clave"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
 
-                <Entry x:Name="KeyEntry"
-                       Placeholder="Ej. SMTP_HOST"
-                       ClearButtonVisibility="WhileEditing" />
+                        <Entry x:Name="KeyEntry"
+                               Placeholder="Ej. SMTP_HOST"
+                               ClearButtonVisibility="WhileEditing" />
 
-                <Grid RowDefinitions="Auto,Auto"
-                      ColumnDefinitions="*,Auto"
+                        <Grid RowDefinitions="Auto,Auto"
+                              ColumnDefinitions="*,Auto"
+                              ColumnSpacing="10">
+
+                            <Label Grid.ColumnSpan="2"
+                                   x:Name="ValueLabel"
+                                   Text="Valor"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                            <Entry x:Name="ValueEntry"
+                                   Grid.Row="1"
+                                   Grid.Column="0"
+                                   Placeholder="Valor de la variable"
+                                   ClearButtonVisibility="WhileEditing"
+                                   BackgroundColor="Transparent"
+                                   VerticalOptions="Center" />
+
+                            <Button x:Name="SecretToggleButton"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Margin="0,2,0,0"
+                                    HorizontalOptions="End"
+                                    WidthRequest="108"
+                                    HeightRequest="44"
+                                    CornerRadius="12"
+                                    FontFamily="OpenSansSemibold"
+                                    FontSize="12"
+                                    Text="{Binding SecretActionText}"
+                                    Clicked="OnSecretToggleClicked"
+                                    ToolTipProperties.Text="{Binding SecretToggleTooltip}" />
+                        </Grid>
+
+                        <Label x:Name="SecretHintLabel"
+                               IsVisible="False"
+                               FontSize="11"
+                               TextColor="{AppThemeBinding Light=#6A6A6A, Dark=#A8A8A8}"
+                               Text="Al ocultar o mostrar un secreto en edicion se pedira PIN." />
+
+                        <Label Text="Descripcion (opcional)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                        <Editor x:Name="DescriptionEditor"
+                                HeightRequest="110"
+                                Placeholder="Para que sirve esta variable..." />
+                    </VerticalStackLayout>
+                </ScrollView>
+
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="*,*"
                       ColumnSpacing="10">
-                    
-                    <Label
-                           Grid.ColumnSpan="2"
-                           x:Name="ValueLabel"
-                           Text="Valor"
-                           FontFamily="OpenSansSemibold"
-                           FontSize="12"
-                           TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
-
-                    <Entry x:Name="ValueEntry"
-                           Grid.Row="1"
-                           Grid.Column="0"
-                           Placeholder="Valor de la variable"
-                           ClearButtonVisibility="WhileEditing"
-                           BackgroundColor="Transparent"
-                           VerticalOptions="Center" />
-
-                    <Button x:Name="SecretToggleButton"
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Margin="0,2,0,0"
-                            HorizontalOptions="End"
-                            WidthRequest="108"
-                            HeightRequest="44"
-                            CornerRadius="12"
-                            FontFamily="OpenSansSemibold"
-                            FontSize="12"
-                            Text="{Binding SecretActionText}"
-                            Clicked="OnSecretToggleClicked"
-                            ToolTipProperties.Text="{Binding SecretToggleTooltip}" />
+                    <Button Grid.Column="0"
+                            Text="Cancelar"
+                            Clicked="OnCancelClicked"
+                            BackgroundColor="{AppThemeBinding Light=#E6E8EF, Dark=#3A4252}"
+                            TextColor="{AppThemeBinding Light=#2D2D2D, Dark=#F3F3F3}" />
+                    <Button Grid.Column="1"
+                            Text="{Binding SaveButtonText}"
+                            Clicked="OnSaveClicked"
+                            BackgroundColor="{AppThemeBinding Light=#2F5AA8, Dark=#3D6ECB}"
+                            TextColor="White" />
                 </Grid>
-
-                <Label x:Name="SecretHintLabel"
-                       IsVisible="False"
-                       FontSize="11"
-                       TextColor="{AppThemeBinding Light=#6A6A6A, Dark=#A8A8A8}"
-                       Text="Al ocultar o mostrar un secreto en edicion se pedira PIN." />
-
-                <Label Text="Descripcion (opcional)"
-                       FontFamily="OpenSansSemibold"
-                       FontSize="12"
-                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
-
-                <Editor x:Name="DescriptionEditor"
-                        HeightRequest="110"
-                        Placeholder="Para que sirve esta variable..." />
-            </VerticalStackLayout>
-        </ScrollView>
-
-        <Grid Grid.Row="1"
-              ColumnDefinitions="*,*"
-              ColumnSpacing="10">
-            <Button Grid.Column="0"
-                    Text="Cancelar"
-                    Clicked="OnCancelClicked"
-                    BackgroundColor="{AppThemeBinding Light=#ECECEC, Dark=#3B3B3B}"
-                    TextColor="{AppThemeBinding Light=#2D2D2D, Dark=#F5F5F5}" />
-            <Button Grid.Column="1"
-                    Text="{Binding SaveButtonText}"
-                    Clicked="OnSaveClicked" />
-        </Grid>
+            </Grid>
+        </Border>
     </Grid>
 </ContentPage>
