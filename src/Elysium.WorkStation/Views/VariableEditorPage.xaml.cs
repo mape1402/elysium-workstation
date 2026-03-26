@@ -117,7 +117,8 @@ namespace Elysium.WorkStation.Views
             var keepExistingSecret = _isEditMode &&
                                      _existingVariable.IsSecret &&
                                      _isSecretMode &&
-                                     string.Equals(value, HiddenMask, StringComparison.Ordinal);
+                                     string.Equals(value, HiddenMask, StringComparison.Ordinal) &&
+                                     string.Equals(_encryptedValue, _existingVariable.EncryptedValue, StringComparison.Ordinal);
 
             if (_isSecretMode && !keepExistingSecret)
             {
