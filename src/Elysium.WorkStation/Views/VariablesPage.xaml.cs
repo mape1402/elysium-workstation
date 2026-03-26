@@ -10,6 +10,10 @@ namespace Elysium.WorkStation.Views
         private readonly IVariableRepository _repository;
         private readonly ISecretVaultService _secretVaultService;
         private readonly IToastService _toastService;
+        private List<VariableGroup> _allGroups = [];
+        private List<WorkVariable> _allVariables = [];
+        private string _groupSearchText = string.Empty;
+        private string _variableSearchText = string.Empty;
 
         public ObservableCollection<VariableGroup> Groups { get; } = [];
         public ObservableCollection<WorkVariable> Variables { get; } = [];
@@ -28,6 +32,36 @@ namespace Elysium.WorkStation.Views
         }
         public bool IsVariablesView => !IsGroupView;
 
+        public string GroupSearchText
+        {
+            get => _groupSearchText;
+            set
+            {
+                var next = value ?? string.Empty;
+                if (string.Equals(_groupSearchText, next, StringComparison.Ordinal))
+                    return;
+
+                _groupSearchText = next;
+                OnPropertyChanged();
+                ApplyGroupFilter();
+            }
+        }
+
+        public string VariableSearchText
+        {
+            get => _variableSearchText;
+            set
+            {
+                var next = value ?? string.Empty;
+                if (string.Equals(_variableSearchText, next, StringComparison.Ordinal))
+                    return;
+
+                _variableSearchText = next;
+                OnPropertyChanged();
+                ApplyVariableFilter();
+            }
+        }
+
         private VariableGroup _selectedGroup;
         public VariableGroup SelectedGroup
         {
@@ -40,10 +74,37 @@ namespace Elysium.WorkStation.Views
             }
         }
 
-        public string VariableCountText =>
-            Variables.Count == 0 ? "Sin variables" : $"{Variables.Count} variable{(Variables.Count == 1 ? "" : "s")}";
-        public string GroupCountText =>
-            Groups.Count == 0 ? "Sin grupos" : $"{Groups.Count} grupo{(Groups.Count == 1 ? "" : "s")}";
+        public string VariableCountText
+        {
+            get
+            {
+                var total = _allVariables.Count;
+                if (total == 0)
+                    return "Sin variables";
+
+                var filtered = Variables.Count;
+                if (string.IsNullOrWhiteSpace(VariableSearchText))
+                    return $"{total} variable{(total == 1 ? string.Empty : "s")}";
+
+                return $"{filtered} de {total} variable{(total == 1 ? string.Empty : "s")}";
+            }
+        }
+
+        public string GroupCountText
+        {
+            get
+            {
+                var total = _allGroups.Count;
+                if (total == 0)
+                    return "Sin grupos";
+
+                var filtered = Groups.Count;
+                if (string.IsNullOrWhiteSpace(GroupSearchText))
+                    return $"{total} grupo{(total == 1 ? string.Empty : "s")}";
+
+                return $"{filtered} de {total} grupo{(total == 1 ? string.Empty : "s")}";
+            }
+        }
         public string CurrentGroupTitle =>
             SelectedGroup is null ? string.Empty : $"Grupo: {SelectedGroup.Name}";
         public string PrimaryAddTooltip => IsGroupView ? "Agregar grupo" : "Agregar variable";
@@ -115,38 +176,38 @@ namespace Elysium.WorkStation.Views
 
         private async Task LoadGroupsAsync()
         {
-            var groups = await _repository.GetGroupsAsync();
+            var groups = (await _repository.GetGroupsAsync()).ToList();
             var selectedId = SelectedGroup?.Id ?? 0;
 
-            Groups.Clear();
             foreach (var group in groups)
-            {
                 group.Description = NormalizeDescription(group.Description);
-                Groups.Add(group);
-            }
-            OnPropertyChanged(nameof(GroupCountText));
 
-            if (Groups.Count == 0)
+            if (groups.Count == 0)
             {
                 var defaultGroup = await _repository.SaveGroupAsync(new VariableGroup
                 {
                     Name = "General",
                     Description = "Variables generales de trabajo"
                 });
-                Groups.Add(defaultGroup);
-                OnPropertyChanged(nameof(GroupCountText));
+                defaultGroup.Description = NormalizeDescription(defaultGroup.Description);
+                groups.Add(defaultGroup);
             }
 
-            SelectedGroup = Groups.FirstOrDefault(g => g.Id == selectedId) ?? Groups.FirstOrDefault();
+            _allGroups = groups
+                .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            ApplyGroupFilter();
+
+            SelectedGroup = _allGroups.FirstOrDefault(g => g.Id == selectedId) ?? _allGroups.FirstOrDefault();
         }
 
         private async Task LoadVariablesAsync()
         {
-            Variables.Clear();
-
             if (SelectedGroup is null)
             {
-                OnPropertyChanged(nameof(VariableCountText));
+                _allVariables.Clear();
+                ApplyVariableFilter();
+                OnPropertyChanged(nameof(CurrentGroupTitle));
                 return;
             }
 
@@ -156,20 +217,21 @@ namespace Elysium.WorkStation.Views
                 item.Description = NormalizeDescription(item.Description);
                 if (item.IsSecret)
                     item.Value = SecretMask;
-
-                Variables.Add(item);
             }
 
-            OnPropertyChanged(nameof(VariableCountText));
+            _allVariables = items
+                .OrderBy(v => v.VariableKey, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            ApplyVariableFilter();
             OnPropertyChanged(nameof(CurrentGroupTitle));
         }
 
-        private async Task OpenGroupAsync(VariableGroup group)
+        private Task OpenGroupAsync(VariableGroup group)
         {
-            if (group is null) return;
+            if (group is null) return Task.CompletedTask;
             SelectedGroup = group;
             IsGroupView = false;
-            await LoadVariablesAsync();
+            return Task.CompletedTask;
         }
 
         private async Task AddGroupAsync()
@@ -184,9 +246,14 @@ namespace Elysium.WorkStation.Views
             });
             group.Description = NormalizeDescription(group.Description);
 
-            Groups.Add(group);
-            SelectedGroup = group;
-            OnPropertyChanged(nameof(GroupCountText));
+            _allGroups.Add(group);
+            _allGroups = _allGroups
+                .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            ApplyGroupFilter();
+
+            SelectedGroup = _allGroups.FirstOrDefault(g => g.Id == group.Id) ?? group;
+            OnPropertyChanged(nameof(CurrentGroupTitle));
         }
 
         private async Task EditGroupAsync(VariableGroup group = null)
@@ -201,7 +268,7 @@ namespace Elysium.WorkStation.Views
             group.Description = editorResult.Description;
             await _repository.SaveGroupAsync(group);
             await LoadGroupsAsync();
-            SelectedGroup = Groups.FirstOrDefault(g => g.Id == group.Id) ?? SelectedGroup;
+            SelectedGroup = _allGroups.FirstOrDefault(g => g.Id == group.Id) ?? SelectedGroup;
             OnPropertyChanged(nameof(CurrentGroupTitle));
         }
 
@@ -216,7 +283,7 @@ namespace Elysium.WorkStation.Views
         {
             group ??= SelectedGroup;
             if (group is null) return;
-            if (Groups.Count == 1)
+            if (_allGroups.Count == 1)
             {
                 await DisplayAlert("Grupo", "Debe existir al menos un grupo.", "OK");
                 return;
@@ -232,9 +299,11 @@ namespace Elysium.WorkStation.Views
             int deleteId = group.Id;
             await _repository.DeleteGroupAsync(deleteId);
 
-            var previous = Groups.FirstOrDefault(g => g.Id != deleteId);
+            var previous = _allGroups.FirstOrDefault(g => g.Id != deleteId);
             await LoadGroupsAsync();
-            SelectedGroup = previous ?? Groups.FirstOrDefault();
+            SelectedGroup = previous is null
+                ? _allGroups.FirstOrDefault()
+                : _allGroups.FirstOrDefault(g => g.Id == previous.Id) ?? _allGroups.FirstOrDefault();
             await LoadVariablesAsync();
             IsGroupView = true;
         }
@@ -265,9 +334,9 @@ namespace Elysium.WorkStation.Views
                 if (variable.IsSecret)
                     variable.Value = SecretMask;
 
-                Variables.Add(variable);
+                _allVariables.Add(variable);
                 SortVariables();
-                OnPropertyChanged(nameof(VariableCountText));
+                ApplyVariableFilter();
             }
             catch (Exception ex)
             {
@@ -310,6 +379,7 @@ namespace Elysium.WorkStation.Views
                 if (variable.IsSecret)
                     variable.Value = SecretMask;
                 SortVariables();
+                ApplyVariableFilter();
             }
             catch (Exception ex)
             {
@@ -336,8 +406,8 @@ namespace Elysium.WorkStation.Views
             if (!confirm) return;
 
             await _repository.DeleteVariableAsync(variable.Id);
-            Variables.Remove(variable);
-            OnPropertyChanged(nameof(VariableCountText));
+            _allVariables.RemoveAll(v => v.Id == variable.Id);
+            ApplyVariableFilter();
         }
 
         private async Task ShowVariableValueAsync(WorkVariable variable)
@@ -429,10 +499,53 @@ namespace Elysium.WorkStation.Views
 
         private void SortVariables()
         {
-            var sorted = Variables.OrderBy(v => v.VariableKey, StringComparer.OrdinalIgnoreCase).ToList();
+            _allVariables = _allVariables
+                .OrderBy(v => v.VariableKey, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private void ApplyGroupFilter()
+        {
+            var filtered = _allGroups.AsEnumerable();
+            var query = GroupSearchText?.Trim();
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                filtered = filtered.Where(g =>
+                    ContainsIgnoreCase(g.Name, query) ||
+                    ContainsIgnoreCase(g.Description, query));
+            }
+
+            Groups.Clear();
+            foreach (var group in filtered)
+                Groups.Add(group);
+
+            OnPropertyChanged(nameof(GroupCountText));
+        }
+
+        private void ApplyVariableFilter()
+        {
+            var filtered = _allVariables.AsEnumerable();
+            var query = VariableSearchText?.Trim();
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                filtered = filtered.Where(v =>
+                    ContainsIgnoreCase(v.VariableKey, query) ||
+                    ContainsIgnoreCase(v.Description, query));
+            }
+
             Variables.Clear();
-            foreach (var item in sorted)
-                Variables.Add(item);
+            foreach (var variable in filtered)
+                Variables.Add(variable);
+
+            OnPropertyChanged(nameof(VariableCountText));
+        }
+
+        private static bool ContainsIgnoreCase(string source, string term)
+        {
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(term))
+                return false;
+
+            return source.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string NormalizeDescription(string description)

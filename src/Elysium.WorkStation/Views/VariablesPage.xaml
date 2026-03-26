@@ -20,6 +20,12 @@
                    FontSize="12"
                    TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}" />
 
+            <SearchBar IsVisible="{Binding IsGroupView}"
+                       Text="{Binding GroupSearchText}"
+                       Placeholder="Buscar grupos (nombre o descripcion)"
+                       Margin="0,0,0,2"
+                       HeightRequest="42" />
+
             <Grid IsVisible="{Binding IsVariablesView}"
                   ColumnDefinitions="Auto,*"
                   ColumnSpacing="8">
@@ -48,6 +54,12 @@
                    HorizontalOptions="End"
                    FontSize="12"
                    TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}" />
+
+            <SearchBar IsVisible="{Binding IsVariablesView}"
+                       Text="{Binding VariableSearchText}"
+                       Placeholder="Buscar variables (clave o descripcion)"
+                       Margin="0,0,0,2"
+                       HeightRequest="42" />
         </VerticalStackLayout>
 
         <CollectionView Grid.Row="1"
