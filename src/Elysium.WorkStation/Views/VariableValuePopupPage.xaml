@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.VariableValuePopupPage"
+             x:DataType="views:VariableValuePopupPage"
+             BackgroundColor="#66000000"
+             Shell.NavBarIsVisible="False">
+
+    <Grid Padding="20">
+        <Border HorizontalOptions="Center"
+                VerticalOptions="Center"
+                WidthRequest="420"
+                MaximumWidthRequest="520"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#D6DEEE, Dark=#43516A}"
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=#F9FBFF, Dark=#1D2736}"
+                Padding="16">
+            <VerticalStackLayout Spacing="12">
+                <Label Text="{Binding TitleText}"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="18" />
+
+                <Label Text="{Binding VariableName}"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="15"
+                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                <Label Text="Descripcion"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                <Label Text="{Binding VariableDescription}"
+                       FontSize="13"
+                       TextColor="{AppThemeBinding Light=#2A2A2A, Dark=#E8E8E8}" />
+
+                <Label Text="Valor"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="10">
+                    
+                    <Entry x:Name="ValueEntry"
+                           Grid.Column="0"
+                           Text="{Binding VariableValue}"
+                           IsReadOnly="True"
+                           ClearButtonVisibility="Never"
+                           TextColor="{AppThemeBinding Light=#202020, Dark=#F0F0F0}"
+                           BackgroundColor="{AppThemeBinding Light=#EEF3FF, Dark=#243248}" />
+                    
+                    <Button Grid.Column="1"
+                            Text="{Binding CopyButtonText}"
+                            WidthRequest="92"
+                            Clicked="OnCopyClicked"
+                            BackgroundColor="{AppThemeBinding Light=#5B6475, Dark=#49546A}"
+                            TextColor="White" />
+                </Grid>
+
+                <Button Text="Cerrar"
+                        Clicked="OnAcceptClicked"
+                        BackgroundColor="{AppThemeBinding Light=#2F5AA8, Dark=#3D6ECB}"
+                        TextColor="White" />
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
+</ContentPage>

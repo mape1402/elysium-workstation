@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:Elysium.WorkStation.Models"
+             xmlns:views="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.VariablesPage"
+             x:DataType="views:VariablesPage"
+             Title="Variables">
+
+    <Grid RowDefinitions="Auto,*"
+          RowSpacing="0">
+
+        <VerticalStackLayout Grid.Row="0"
+                             Spacing="8"
+                             Padding="16,10,16,8">
+
+            <Label Text="{Binding GroupCountText}"
+                   IsVisible="{Binding IsGroupView}"
+                   HorizontalOptions="End"
+                   FontSize="12"
+                   TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}" />
+
+            <Grid IsVisible="{Binding IsVariablesView}"
+                  ColumnDefinitions="Auto,*"
+                  ColumnSpacing="8">
+                <Button Grid.Column="0"
+                        Text="←"
+                        WidthRequest="30"
+                        HeightRequest="30"
+                        Padding="0"
+                        FontSize="14"
+                        CornerRadius="15"
+                        ToolTipProperties.Text="Volver a grupos"
+                        BackgroundColor="{AppThemeBinding Light=#E8F0FF, Dark=#31425E}"
+                        TextColor="{AppThemeBinding Light=#274C9B, Dark=#D8E6FF}"
+                        Command="{Binding BackToGroupsCommand}" />
+
+                <Label Grid.Column="1"
+                       Text="{Binding CurrentGroupTitle}"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="14"
+                       VerticalTextAlignment="Center"
+                       TextColor="{AppThemeBinding Light=#222, Dark=#EEE}" />
+            </Grid>
+
+            <Label Text="{Binding VariableCountText}"
+                   IsVisible="{Binding IsVariablesView}"
+                   HorizontalOptions="End"
+                   FontSize="12"
+                   TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}" />
+        </VerticalStackLayout>
+
+        <CollectionView Grid.Row="1"
+                        Margin="12,6,12,12"
+                        IsVisible="{Binding IsGroupView}"
+                        ItemsSource="{Binding Groups}">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Spacing="8"
+                                     Margin="0,80,0,0">
+                    <Label Text="No hay grupos"
+                           HorizontalOptions="Center"
+                           FontSize="14"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemsLayout>
+                <GridItemsLayout Orientation="Vertical"
+                                 Span="4"
+                                 HorizontalItemSpacing="10"
+                                 VerticalItemSpacing="10" />
+            </CollectionView.ItemsLayout>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:VariableGroup">
+                    <Grid RowDefinitions="Auto">
+                        <Border x:Name="GroupCard"
+                                Grid.Row="0"
+                                Padding="10"
+                                HeightRequest="66"
+                                StrokeShape="RoundRectangle 14"
+                                StrokeThickness="1"
+                                Stroke="{AppThemeBinding Light=#D7E0F5, Dark=#3E4A63}"
+                                BackgroundColor="{AppThemeBinding Light=#F8FAFF, Dark=#1F2A3B}"
+                                ToolTipProperties.Text="{Binding Description}">
+                            <Border.Shadow>
+                                <Shadow Brush="#330E1A33"
+                                        Offset="0,4"
+                                        Radius="10"
+                                        Opacity="0.9" />
+                            </Border.Shadow>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=OpenGroupCommand}"
+                                                      CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="{Binding Name}"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13" />
+                        </Border>
+
+                        <Grid Grid.Row="0"
+                              x:Name="GroupActions"
+                              ColumnDefinitions="*,*"
+                              ColumnSpacing="6"
+                              IsVisible="False"
+                              Opacity="0"
+                              HorizontalOptions="Center"
+                              VerticalOptions="End"
+                              Margin="0,0,0,-20">
+                            <Button Grid.Column="0"
+                                    Text="✎"
+                                    WidthRequest="35"
+                                    HeightRequest="35"
+                                    MinimumWidthRequest="35"
+                                    MinimumHeightRequest="35"
+                                    FontSize="10"
+                                    Padding="0"
+                                    CornerRadius="7"
+                                    FontFamily="OpenSansSemibold"
+                                    ToolTipProperties.Text="Editar grupo"
+                                    BackgroundColor="{AppThemeBinding Light=#E8F0FF, Dark=#31425E}"
+                                    TextColor="{AppThemeBinding Light=#274C9B, Dark=#D8E6FF}"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=EditGroupFromCardCommand}"
+                                    CommandParameter="{Binding .}" />
+                            <Button Grid.Column="1"
+                                    Text="🗑"
+                                    WidthRequest="35"
+                                    HeightRequest="35"
+                                    MinimumWidthRequest="35"
+                                    MinimumHeightRequest="35"
+                                    FontSize="10"
+                                    Padding="0"
+                                    CornerRadius="7"
+                                    ToolTipProperties.Text="Eliminar grupo"
+                                    BackgroundColor="{AppThemeBinding Light=#FDECEF, Dark=#5B2228}"
+                                    TextColor="{AppThemeBinding Light=#9C1F2F, Dark=#FFDCE1}"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=DeleteGroupFromCardCommand}"
+                                    CommandParameter="{Binding .}" />
+                        </Grid>
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup Name="CommonStates">
+                                <VisualState Name="Normal">
+                                    <VisualState.Setters>
+                                        <Setter TargetName="GroupActions" Property="IsVisible" Value="False" />
+                                        <Setter TargetName="GroupActions" Property="Opacity" Value="0" />
+                                        <Setter TargetName="GroupCard" Property="Scale" Value="1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter TargetName="GroupActions" Property="IsVisible" Value="True" />
+                                        <Setter TargetName="GroupActions" Property="Opacity" Value="1" />
+                                        <Setter TargetName="GroupCard" Property="Scale" Value="1.02" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <CollectionView Grid.Row="1"
+                        Margin="12,6,12,12"
+                        IsVisible="{Binding IsVariablesView}"
+                        ItemsSource="{Binding Variables}">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Spacing="8"
+                                     Margin="0,80,0,0">
+                    <Label Text="No hay variables en este grupo"
+                           HorizontalOptions="Center"
+                           FontSize="14"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemsLayout>
+                <GridItemsLayout Orientation="Vertical"
+                                 Span="4"
+                                 HorizontalItemSpacing="10"
+                                 VerticalItemSpacing="10" />
+            </CollectionView.ItemsLayout>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:WorkVariable">
+                    <Grid RowDefinitions="Auto">
+                        <Border x:Name="VariableCard"
+                                Grid.Row="0"
+                                Padding="10"
+                                HeightRequest="66"
+                                StrokeShape="RoundRectangle 14"
+                                StrokeThickness="1"
+                                Stroke="{AppThemeBinding Light=#D7E0F5, Dark=#3E4A63}"
+                                BackgroundColor="{AppThemeBinding Light=#F8FAFF, Dark=#1F2A3B}"
+                                ToolTipProperties.Text="{Binding Description}">
+                            <Border.Shadow>
+                                <Shadow Brush="#330E1A33"
+                                        Offset="0,4"
+                                        Radius="10"
+                                        Opacity="0.9" />
+                            </Border.Shadow>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=VariableCardCommand}"
+                                                      CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="{Binding VariableKey}"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13" />
+                        </Border>
+
+                        <Grid Grid.Row="0"
+                              x:Name="VariableActions"
+                              ColumnDefinitions="*,*,*"
+                              ColumnSpacing="6"
+                              IsVisible="False"
+                              Opacity="0"
+                              HorizontalOptions="Center"
+                              VerticalOptions="End"
+                              Margin="0,0,0,-20">
+                            <Button Grid.Column="0"
+                                    Text="✎"
+                                    WidthRequest="35"
+                                    HeightRequest="35"
+                                    MinimumWidthRequest="35"
+                                    MinimumHeightRequest="35"
+                                    FontSize="10"
+                                    Padding="0"
+                                    CornerRadius="7"
+                                    FontFamily="OpenSansSemibold"
+                                    ToolTipProperties.Text="Editar variable"
+                                    BackgroundColor="{AppThemeBinding Light=#E8F0FF, Dark=#31425E}"
+                                    TextColor="{AppThemeBinding Light=#274C9B, Dark=#D8E6FF}"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=EditVariableCommand}"
+                                    CommandParameter="{Binding .}" />
+                            <Button Grid.Column="1"
+                                    Text="⧉"
+                                    WidthRequest="35"
+                                    HeightRequest="35"
+                                    MinimumWidthRequest="35"
+                                    MinimumHeightRequest="35"
+                                    FontSize="10"
+                                    Padding="0"
+                                    CornerRadius="7"
+                                    FontFamily="OpenSansSemibold"
+                                    ToolTipProperties.Text="Copiar valor"
+                                    BackgroundColor="{AppThemeBinding Light=#E8F0FF, Dark=#31425E}"
+                                    TextColor="{AppThemeBinding Light=#274C9B, Dark=#D8E6FF}"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=CopyVariableCommand}"
+                                    CommandParameter="{Binding .}" />
+                            <Button Grid.Column="2"
+                                    Text="🗑"
+                                    WidthRequest="35"
+                                    HeightRequest="35"
+                                    MinimumWidthRequest="35"
+                                    MinimumHeightRequest="35"
+                                    FontSize="10"
+                                    Padding="0"
+                                    CornerRadius="7"
+                                    ToolTipProperties.Text="Eliminar variable"
+                                    BackgroundColor="{AppThemeBinding Light=#FDECEF, Dark=#5B2228}"
+                                    TextColor="{AppThemeBinding Light=#9C1F2F, Dark=#FFDCE1}"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=DeleteVariableCommand}"
+                                    CommandParameter="{Binding .}" />
+                        </Grid>
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup Name="CommonStates">
+                                <VisualState Name="Normal">
+                                    <VisualState.Setters>
+                                        <Setter TargetName="VariableActions" Property="IsVisible" Value="False" />
+                                        <Setter TargetName="VariableActions" Property="Opacity" Value="0" />
+                                        <Setter TargetName="VariableCard" Property="Scale" Value="1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter TargetName="VariableActions" Property="IsVisible" Value="True" />
+                                        <Setter TargetName="VariableActions" Property="Opacity" Value="1" />
+                                        <Setter TargetName="VariableCard" Property="Scale" Value="1.02" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <Border Grid.RowSpan="2"
+                HorizontalOptions="End"
+                VerticalOptions="End"
+                Margin="0,0,18,18"
+                BackgroundColor="{AppThemeBinding Light=#1E56D9, Dark=#2D6BFF}"
+                StrokeThickness="0"
+                WidthRequest="54"
+                HeightRequest="54"
+                StrokeShape="RoundRectangle 27"
+                Shadow="{x:Null}"
+                ToolTipProperties.Text="{Binding PrimaryAddTooltip}">
+            <Border.Shadow>
+                <Shadow Brush="#55223D7A"
+                        Offset="0,5"
+                        Radius="14"
+                        Opacity="1" />
+            </Border.Shadow>
+            <Border.GestureRecognizers>
+                <TapGestureRecognizer Command="{Binding PrimaryAddCommand}" />
+            </Border.GestureRecognizers>
+            <Label Text="+"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"
+                   FontFamily="OpenSansSemibold"
+                   FontSize="26"
+                   TextColor="White" />
+        </Border>
+    </Grid>
+</ContentPage>

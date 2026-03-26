@@ -32,6 +32,8 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.INoteRepository,         Services.NoteRepository>();
             builder.Services.AddSingleton<Services.IKanbanTaskRepository,   Services.KanbanTaskRepository>();
             builder.Services.AddSingleton<Services.IKanbanCleanupService,   Services.KanbanCleanupService>();
+            builder.Services.AddSingleton<Services.IVariableRepository,     Services.VariableRepository>();
+            builder.Services.AddSingleton<Services.ISecretVaultService,     Services.SecretVaultService>();
             builder.Services.AddSingleton<Services.IToastService,            Services.ToastService>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
@@ -40,6 +42,7 @@ namespace Elysium.WorkStation
             builder.Services.AddTransient<Views.NoteEditorPage>();
             builder.Services.AddTransient<Views.KanbanPage>();
             builder.Services.AddTransient<Views.SettingsPage>();
+            builder.Services.AddTransient<Views.VariablesPage>();
 
 #if WINDOWS
             builder.Services.AddSingleton<Services.IWebHostService, Services.WebHostService>();

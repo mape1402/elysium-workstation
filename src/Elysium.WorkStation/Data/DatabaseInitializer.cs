@@ -21,6 +21,8 @@ namespace Elysium.WorkStation.Data
             EnsureFileHistoryTable(db);
             EnsureNotesTable(db);
             EnsureKanbanTasksTable(db);
+            EnsureVariableGroupsTable(db);
+            EnsureWorkVariablesTable(db);
         }
 
         private static void EnsureNotificationsTable(AppDbContext db) =>
@@ -207,6 +209,99 @@ namespace Elysium.WorkStation.Data
                 {
                     using var alter = conn.CreateCommand();
                     alter.CommandText = $"""ALTER TABLE "KanbanTasks" ADD COLUMN "{column}" {definition}""";
+                    alter.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                if (shouldClose) conn.Close();
+            }
+        }
+
+        private static void EnsureVariableGroupsTable(AppDbContext db)
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "VariableGroups" (
+                    "Id"          INTEGER NOT NULL CONSTRAINT "PK_VariableGroups" PRIMARY KEY AUTOINCREMENT,
+                    "Name"        TEXT    NOT NULL,
+                    "Description" TEXT    NOT NULL DEFAULT '',
+                    "CreatedAt"   TEXT    NOT NULL
+                )
+                """);
+
+            AddVariableGroupsColumnIfMissing(db, "Description", "TEXT NOT NULL DEFAULT ''");
+            AddVariableGroupsColumnIfMissing(db, "CreatedAt", "TEXT NOT NULL DEFAULT ''");
+        }
+
+        private static void AddVariableGroupsColumnIfMissing(AppDbContext db, string column, string definition)
+        {
+            var conn = db.Database.GetDbConnection();
+            bool shouldClose = conn.State != ConnectionState.Open;
+            if (shouldClose) conn.Open();
+
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('VariableGroups') WHERE name = '{column}'";
+                bool hasColumn = Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+
+                if (!hasColumn)
+                {
+                    using var alter = conn.CreateCommand();
+                    alter.CommandText = $"""ALTER TABLE "VariableGroups" ADD COLUMN "{column}" {definition}""";
+                    alter.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                if (shouldClose) conn.Close();
+            }
+        }
+
+        private static void EnsureWorkVariablesTable(AppDbContext db)
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "WorkVariables" (
+                    "Id"             INTEGER NOT NULL CONSTRAINT "PK_WorkVariables" PRIMARY KEY AUTOINCREMENT,
+                    "GroupId"        INTEGER NOT NULL,
+                    "VariableKey"    TEXT    NOT NULL,
+                    "Value"          TEXT    NOT NULL DEFAULT '',
+                    "Description"    TEXT    NOT NULL DEFAULT '',
+                    "IsSecret"       INTEGER NOT NULL DEFAULT 0,
+                    "EncryptedValue" TEXT    NOT NULL DEFAULT '',
+                    "UpdatedAt"      TEXT    NOT NULL,
+                    CONSTRAINT "FK_WorkVariables_VariableGroups_GroupId"
+                        FOREIGN KEY ("GroupId") REFERENCES "VariableGroups" ("Id") ON DELETE CASCADE
+                )
+                """);
+
+            db.Database.ExecuteSqlRaw("""
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_WorkVariables_GroupId_VariableKey"
+                ON "WorkVariables" ("GroupId", "VariableKey")
+                """);
+
+            AddWorkVariablesColumnIfMissing(db, "Description", "TEXT NOT NULL DEFAULT ''");
+            AddWorkVariablesColumnIfMissing(db, "IsSecret", "INTEGER NOT NULL DEFAULT 0");
+            AddWorkVariablesColumnIfMissing(db, "EncryptedValue", "TEXT NOT NULL DEFAULT ''");
+            AddWorkVariablesColumnIfMissing(db, "UpdatedAt", "TEXT NOT NULL DEFAULT ''");
+        }
+
+        private static void AddWorkVariablesColumnIfMissing(AppDbContext db, string column, string definition)
+        {
+            var conn = db.Database.GetDbConnection();
+            bool shouldClose = conn.State != ConnectionState.Open;
+            if (shouldClose) conn.Open();
+
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('WorkVariables') WHERE name = '{column}'";
+                bool hasColumn = Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+
+                if (!hasColumn)
+                {
+                    using var alter = conn.CreateCommand();
+                    alter.CommandText = $"""ALTER TABLE "WorkVariables" ADD COLUMN "{column}" {definition}""";
                     alter.ExecuteNonQuery();
                 }
             }

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.VariableEditorPage"
+             x:DataType="views:VariableEditorPage"
+             Title="{Binding PageTitle}">
+
+    <Grid RowDefinitions="*,Auto"
+          Padding="18"
+          RowSpacing="14">
+
+        <ScrollView>
+            <VerticalStackLayout Spacing="10">
+                <Label Text="{Binding HeaderText}"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="18" />
+
+                <Label Text="Clave"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                <Entry x:Name="KeyEntry"
+                       Placeholder="Ej. SMTP_HOST"
+                       ClearButtonVisibility="WhileEditing" />
+
+                <Grid RowDefinitions="Auto,Auto"
+                      ColumnDefinitions="*,Auto"
+                      ColumnSpacing="10">
+                    
+                    <Label
+                           Grid.ColumnSpan="2"
+                           x:Name="ValueLabel"
+                           Text="Valor"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                    <Entry x:Name="ValueEntry"
+                           Grid.Row="1"
+                           Grid.Column="0"
+                           Placeholder="Valor de la variable"
+                           ClearButtonVisibility="WhileEditing"
+                           BackgroundColor="Transparent"
+                           VerticalOptions="Center" />
+
+                    <Button x:Name="SecretToggleButton"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Margin="0,2,0,0"
+                            HorizontalOptions="End"
+                            WidthRequest="108"
+                            HeightRequest="44"
+                            CornerRadius="12"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="12"
+                            Text="{Binding SecretActionText}"
+                            Clicked="OnSecretToggleClicked"
+                            ToolTipProperties.Text="{Binding SecretToggleTooltip}" />
+                </Grid>
+
+                <Label x:Name="SecretHintLabel"
+                       IsVisible="False"
+                       FontSize="11"
+                       TextColor="{AppThemeBinding Light=#6A6A6A, Dark=#A8A8A8}"
+                       Text="Al ocultar o mostrar un secreto en edicion se pedira PIN." />
+
+                <Label Text="Descripcion (opcional)"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                <Editor x:Name="DescriptionEditor"
+                        HeightRequest="110"
+                        Placeholder="Para que sirve esta variable..." />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="10">
+            <Button Grid.Column="0"
+                    Text="Cancelar"
+                    Clicked="OnCancelClicked"
+                    BackgroundColor="{AppThemeBinding Light=#ECECEC, Dark=#3B3B3B}"
+                    TextColor="{AppThemeBinding Light=#2D2D2D, Dark=#F5F5F5}" />
+            <Button Grid.Column="1"
+                    Text="{Binding SaveButtonText}"
+                    Clicked="OnSaveClicked" />
+        </Grid>
+    </Grid>
+</ContentPage>

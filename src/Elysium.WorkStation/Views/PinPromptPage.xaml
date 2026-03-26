@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.PinPromptPage"
+             x:DataType="views:PinPromptPage"
+             BackgroundColor="#66000000"
+             Shell.NavBarIsVisible="False">
+
+    <Grid Padding="20">
+        <Border HorizontalOptions="Center"
+                VerticalOptions="Center"
+                WidthRequest="360"
+                MaximumWidthRequest="420"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#D6DEEE, Dark=#43516A}"
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=#F9FBFF, Dark=#1D2736}"
+                Padding="16">
+            <VerticalStackLayout Spacing="12">
+                <Label Text="{Binding TitleText}"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="18" />
+
+                <Label Text="{Binding MessageText}"
+                       FontSize="13"
+                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                <Entry x:Name="PinEntry"
+                       Placeholder="{Binding PlaceholderText}"
+                       IsPassword="True"
+                       Keyboard="Numeric"
+                       ReturnType="Done"
+                       Completed="OnAcceptClicked" />
+
+                <Grid ColumnDefinitions="*,*"
+                      ColumnSpacing="10">
+                    <Button Grid.Column="0"
+                            Text="Cancelar"
+                            Clicked="OnCancelClicked"
+                            BackgroundColor="{AppThemeBinding Light=#E6E8EF, Dark=#3A4252}"
+                            TextColor="{AppThemeBinding Light=#2D2D2D, Dark=#F3F3F3}" />
+                    <Button Grid.Column="1"
+                            Text="Aceptar"
+                            Clicked="OnAcceptClicked"
+                            BackgroundColor="{AppThemeBinding Light=#2F5AA8, Dark=#3D6ECB}"
+                            TextColor="White" />
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
+</ContentPage>
