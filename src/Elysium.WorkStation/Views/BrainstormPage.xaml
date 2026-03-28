@@ -277,7 +277,8 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <Border HorizontalOptions="End"
+            <Border x:Name="AddFab"
+                    HorizontalOptions="End"
                     VerticalOptions="End"
                     Margin="0,0,18,18"
                     BackgroundColor="{AppThemeBinding Light=#1E56D9, Dark=#2D6BFF}"
@@ -293,7 +294,12 @@
                             Opacity="1" />
                 </Border.Shadow>
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding AddCommand}" />
+                    <PointerGestureRecognizer PointerEntered="OnFabPointerEntered"
+                                              PointerExited="OnFabPointerExited"
+                                              PointerPressed="OnFabPointerPressed"
+                                              PointerReleased="OnFabPointerReleased" />
+                    <TapGestureRecognizer Command="{Binding AddCommand}"
+                                          Tapped="OnFabTapped" />
                 </Border.GestureRecognizers>
                 <Label Text="+"
                        FontSize="26"

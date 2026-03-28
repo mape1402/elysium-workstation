@@ -1,7 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 
 using Elysium.WorkStation.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Maui.Handlers;
+#if WINDOWS
+using Elysium.WorkStation.Controls;
+#endif
 
 namespace Elysium.WorkStation
 {
@@ -12,6 +16,28 @@ namespace Elysium.WorkStation
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
+                .ConfigureMauiHandlers(handlers =>
+                {
+#if WINDOWS
+                    ButtonHandler.Mapper.AppendToMapping("GlobalButtonAnimations", (handler, view) =>
+                    {
+                        if (handler.PlatformView is Microsoft.UI.Xaml.Controls.Button platformButton &&
+                            view is Microsoft.Maui.Controls.VisualElement element)
+                        {
+                            GlobalButtonAnimations.Attach(platformButton, element);
+                        }
+                    });
+
+                    ImageButtonHandler.Mapper.AppendToMapping("GlobalButtonAnimations", (handler, view) =>
+                    {
+                        if (handler.PlatformView is Microsoft.UI.Xaml.Controls.Button platformButton &&
+                            view is Microsoft.Maui.Controls.VisualElement element)
+                        {
+                            GlobalButtonAnimations.Attach(platformButton, element);
+                        }
+                    });
+#endif
+                })
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

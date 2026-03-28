@@ -14,6 +14,7 @@ namespace Elysium.WorkStation.Views
         private List<WorkVariable> _allVariables = [];
         private string _groupSearchText = string.Empty;
         private string _variableSearchText = string.Empty;
+        private bool _isFabPointerInside;
 
         public ObservableCollection<VariableGroup> Groups { get; } = [];
         public ObservableCollection<WorkVariable> Variables { get; } = [];
@@ -556,6 +557,53 @@ namespace Elysium.WorkStation.Views
         private static string NormalizeDescriptionForStorage(string description)
         {
             return string.IsNullOrWhiteSpace(description) ? string.Empty : description.Trim();
+        }
+
+        private async void OnFabPointerEntered(object sender, PointerEventArgs e)
+        {
+            _isFabPointerInside = true;
+            if (sender is not VisualElement element) return;
+            await AnimateFabStateAsync(element, 1.08, 1, -2, 120);
+        }
+
+        private async void OnFabPointerExited(object sender, PointerEventArgs e)
+        {
+            _isFabPointerInside = false;
+            if (sender is not VisualElement element) return;
+            await AnimateFabStateAsync(element, 1, 1, 0, 120);
+        }
+
+        private async void OnFabPointerPressed(object sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+            await AnimateFabStateAsync(element, 0.9, 0.9, 0, 90);
+        }
+
+        private async void OnFabPointerReleased(object sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+            var targetScale = _isFabPointerInside ? 1.08 : 1;
+            var targetY = _isFabPointerInside ? -2 : 0;
+            await AnimateFabStateAsync(element, targetScale, 1, targetY, 120);
+        }
+
+        private async void OnFabTapped(object sender, TappedEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+
+            element.CancelAnimations();
+            await element.ScaleTo(0.92, 65, Easing.CubicOut);
+            var targetScale = _isFabPointerInside ? 1.08 : 1;
+            await element.ScaleTo(targetScale, 90, Easing.CubicOut);
+        }
+
+        private static Task AnimateFabStateAsync(VisualElement element, double scale, double opacity, double translateY, uint duration)
+        {
+            element.CancelAnimations();
+            return Task.WhenAll(
+                element.ScaleTo(scale, duration, Easing.CubicOut),
+                element.FadeTo(opacity, duration, Easing.CubicOut),
+                element.TranslateTo(0, translateY, duration, Easing.CubicOut));
         }
     }
 }

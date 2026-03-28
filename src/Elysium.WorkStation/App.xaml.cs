@@ -9,6 +9,7 @@ namespace Elysium.WorkStation
         private readonly Services.IMouseService _mouseService;
         private readonly Services.ITrayService _trayService;
         private readonly AppShell _appShell;
+        private readonly Controls.WindowsFlyoutItemAnimations _windowsFlyoutItemAnimations = new();
 
         private Microsoft.UI.Xaml.Window _nativeWindow;
         private bool _isReallyExiting;
@@ -16,6 +17,8 @@ namespace Elysium.WorkStation
         private bool _isWindowsTitleBarConfigured;
         private Microsoft.Maui.Controls.TitleBar _windowsTitleBar;
         private Microsoft.Maui.Controls.Button _windowsHamburgerButton;
+        private Microsoft.Maui.Controls.PointerGestureRecognizer _windowsHamburgerPointerRecognizer;
+        private bool _isWindowsHamburgerPointerInside;
 
         public App(
             AppShell appShell,
@@ -46,6 +49,7 @@ namespace Elysium.WorkStation
                 if (_isWindowsTitleBarConfigured && TryGetOpenNativeWindow(out var nativeWindow))
                 {
                     UpdateWindowsWindowTitle(nativeWindow);
+                    RefreshWindowsFlyoutItemAnimations(nativeWindow);
                 }
             });
         }
@@ -142,6 +146,7 @@ namespace Elysium.WorkStation
                 BorderWidth = 0,
                 BackgroundColor = Colors.Transparent
             };
+            ConfigureWindowsHamburgerButtonInteractions();
             _windowsHamburgerButton.Clicked += (_, _) => _appShell.ToggleSidebarCommand.Execute(null);
 
             _windowsTitleBar = new Microsoft.Maui.Controls.TitleBar
@@ -160,6 +165,7 @@ namespace Elysium.WorkStation
 
             UpdateWindowsWindowTitle(nativeWindow);
             UpdateWindowsTitleBarColors(nativeWindow);
+            RefreshWindowsFlyoutItemAnimations(nativeWindow);
 
             _isWindowsTitleBarConfigured = true;
         }
@@ -267,6 +273,7 @@ namespace Elysium.WorkStation
             if (sender is Microsoft.UI.Xaml.Window nativeWindow && IsNativeWindowAvailable(nativeWindow))
             {
                 UpdateWindowsTitleBarColors(nativeWindow);
+                RefreshWindowsFlyoutItemAnimations(nativeWindow);
             }
         }
 
@@ -277,6 +284,14 @@ namespace Elysium.WorkStation
                 nativeWindow.Activated -= OnNativeWindowActivated;
                 nativeWindow.Closed -= OnNativeWindowClosed;
             }
+
+            if (_windowsHamburgerButton is not null)
+            {
+                _windowsHamburgerButton.HandlerChanged -= OnWindowsHamburgerButtonHandlerChanged;
+                _windowsHamburgerButton.Pressed -= OnWindowsHamburgerPressed;
+                _windowsHamburgerButton.Released -= OnWindowsHamburgerReleased;
+            }
+            DetachWindowsHamburgerPointerRecognizer();
 
             _isNativeWindowClosed = true;
             _isWindowsTitleBarConfigured = false;
@@ -329,6 +344,7 @@ namespace Elysium.WorkStation
             try
             {
                 nativeWindow.AppWindow.Show(true);
+                RefreshWindowsFlyoutItemAnimations(nativeWindow);
             }
             catch
             {
@@ -350,6 +366,141 @@ namespace Elysium.WorkStation
             catch
             {
                 _isNativeWindowClosed = true;
+            }
+        }
+
+        private void RefreshWindowsFlyoutItemAnimations(Microsoft.UI.Xaml.Window nativeWindow)
+        {
+            if (!IsNativeWindowAvailable(nativeWindow))
+            {
+                return;
+            }
+
+            _windowsFlyoutItemAnimations.AttachFromRoot(nativeWindow.Content);
+        }
+
+        private void OnWindowsHamburgerButtonHandlerChanged(object sender, EventArgs args)
+        {
+            if (sender is Microsoft.Maui.Controls.Button button)
+            {
+                TryAttachWindowsHamburgerAnimation(button);
+            }
+        }
+
+        private void ConfigureWindowsHamburgerButtonInteractions()
+        {
+            if (_windowsHamburgerButton is null)
+            {
+                return;
+            }
+
+            _windowsHamburgerButton.HandlerChanged -= OnWindowsHamburgerButtonHandlerChanged;
+            _windowsHamburgerButton.HandlerChanged += OnWindowsHamburgerButtonHandlerChanged;
+
+            _windowsHamburgerButton.Pressed -= OnWindowsHamburgerPressed;
+            _windowsHamburgerButton.Released -= OnWindowsHamburgerReleased;
+            _windowsHamburgerButton.Pressed += OnWindowsHamburgerPressed;
+            _windowsHamburgerButton.Released += OnWindowsHamburgerReleased;
+
+            AttachWindowsHamburgerPointerRecognizer();
+            TryAttachWindowsHamburgerAnimation(_windowsHamburgerButton);
+        }
+
+        private void AttachWindowsHamburgerPointerRecognizer()
+        {
+            if (_windowsHamburgerButton is null)
+            {
+                return;
+            }
+
+            DetachWindowsHamburgerPointerRecognizer();
+
+            _windowsHamburgerPointerRecognizer = new Microsoft.Maui.Controls.PointerGestureRecognizer();
+            _windowsHamburgerPointerRecognizer.PointerEntered += OnWindowsHamburgerPointerEntered;
+            _windowsHamburgerPointerRecognizer.PointerExited += OnWindowsHamburgerPointerExited;
+            _windowsHamburgerButton.GestureRecognizers.Add(_windowsHamburgerPointerRecognizer);
+        }
+
+        private void DetachWindowsHamburgerPointerRecognizer()
+        {
+            if (_windowsHamburgerButton is null || _windowsHamburgerPointerRecognizer is null)
+            {
+                _windowsHamburgerPointerRecognizer = null;
+                return;
+            }
+
+            _windowsHamburgerPointerRecognizer.PointerEntered -= OnWindowsHamburgerPointerEntered;
+            _windowsHamburgerPointerRecognizer.PointerExited -= OnWindowsHamburgerPointerExited;
+            _windowsHamburgerButton.GestureRecognizers.Remove(_windowsHamburgerPointerRecognizer);
+            _windowsHamburgerPointerRecognizer = null;
+        }
+
+        private void OnWindowsHamburgerPressed(object sender, EventArgs args)
+        {
+            AnimateWindowsHamburger(0.88, 0.85, 1.5, -9, 90, true);
+        }
+
+        private void OnWindowsHamburgerReleased(object sender, EventArgs args)
+        {
+            var hovered = _isWindowsHamburgerPointerInside;
+            AnimateWindowsHamburger(
+                hovered ? 1.08 : 1.0,
+                1.0,
+                0,
+                0,
+                130,
+                hovered);
+        }
+
+        private void OnWindowsHamburgerPointerEntered(object sender, Microsoft.Maui.Controls.PointerEventArgs args)
+        {
+            _isWindowsHamburgerPointerInside = true;
+            AnimateWindowsHamburger(1.08, 1.0, 0, 0, 130, true);
+        }
+
+        private void OnWindowsHamburgerPointerExited(object sender, Microsoft.Maui.Controls.PointerEventArgs args)
+        {
+            _isWindowsHamburgerPointerInside = false;
+            AnimateWindowsHamburger(1.0, 1.0, 0, 0, 130, false);
+        }
+
+        private void AnimateWindowsHamburger(double targetScale, double targetOpacity, double targetTranslateY, double targetRotation, uint duration, bool hovered)
+        {
+            if (_windowsHamburgerButton is null)
+            {
+                return;
+            }
+
+            var effectiveTheme = UserAppTheme == AppTheme.Unspecified
+                ? (Current?.RequestedTheme ?? AppTheme.Light)
+                : UserAppTheme;
+            var hoverColor = effectiveTheme == AppTheme.Dark
+                ? Color.FromArgb("#2B4E87")
+                : Color.FromArgb("#DCEAFE");
+
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                if (_windowsHamburgerButton is null)
+                {
+                    return;
+                }
+
+                _windowsHamburgerButton.CancelAnimations();
+                _windowsHamburgerButton.BackgroundColor = hovered ? hoverColor : Colors.Transparent;
+
+                await Task.WhenAll(
+                    _windowsHamburgerButton.ScaleTo(targetScale, duration, Easing.CubicOut),
+                    _windowsHamburgerButton.FadeTo(targetOpacity, duration, Easing.CubicOut),
+                    _windowsHamburgerButton.TranslateTo(0, targetTranslateY, duration, Easing.CubicOut),
+                    _windowsHamburgerButton.RotateTo(targetRotation, duration, Easing.CubicOut));
+            });
+        }
+
+        private static void TryAttachWindowsHamburgerAnimation(Microsoft.Maui.Controls.Button button)
+        {
+            if (button.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.Button platformButton)
+            {
+                Controls.GlobalButtonAnimations.Attach(platformButton, button);
             }
         }
 #endif

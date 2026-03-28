@@ -15,6 +15,7 @@ public partial class KanbanPage : ContentPage, INotifyPropertyChanged
         private KanbanTask? _draggedTask;
         private List<KanbanTask> _allTasks = [];
         private readonly Dictionary<Border, CancellationTokenSource> _deleteHideTimers = [];
+        private readonly HashSet<VisualElement> _hoveredAddButtons = [];
 
         public ObservableCollection<KanbanTask> PendingTasks { get; } = [];
         public ObservableCollection<KanbanTask> InProgressTasks { get; } = [];
@@ -164,6 +165,56 @@ public partial class KanbanPage : ContentPage, INotifyPropertyChanged
         {
             if (sender is Border del)
                 ScheduleHideDeleteOverlay(del);
+        }
+
+        private async void OnAddButtonPointerEntered(object? sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+
+            _hoveredAddButtons.Add(element);
+            await AnimateAddButtonAsync(element, 1.1, 1, -1, 110);
+        }
+
+        private async void OnAddButtonPointerExited(object? sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+
+            _hoveredAddButtons.Remove(element);
+            await AnimateAddButtonAsync(element, 1, 1, 0, 110);
+        }
+
+        private async void OnAddButtonPointerPressed(object? sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+
+            await AnimateAddButtonAsync(element, 0.88, 0.88, 0, 80);
+        }
+
+        private async void OnAddButtonPointerReleased(object? sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+
+            var hovered = _hoveredAddButtons.Contains(element);
+            await AnimateAddButtonAsync(element, hovered ? 1.1 : 1, 1, hovered ? -1 : 0, 110);
+        }
+
+        private async void OnAddButtonTapped(object? sender, TappedEventArgs e)
+        {
+            if (sender is not VisualElement element) return;
+
+            element.CancelAnimations();
+            await element.ScaleTo(0.92, 55, Easing.CubicOut);
+            var hovered = _hoveredAddButtons.Contains(element);
+            await element.ScaleTo(hovered ? 1.1 : 1, 85, Easing.CubicOut);
+        }
+
+        private static Task AnimateAddButtonAsync(VisualElement element, double scale, double opacity, double translateY, uint duration)
+        {
+            element.CancelAnimations();
+            return Task.WhenAll(
+                element.ScaleTo(scale, duration, Easing.CubicOut),
+                element.FadeTo(opacity, duration, Easing.CubicOut),
+                element.TranslateTo(0, translateY, duration, Easing.CubicOut));
         }
 
         private void ShowDeleteOverlay(Border del)

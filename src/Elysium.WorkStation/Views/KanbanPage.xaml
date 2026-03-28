@@ -79,7 +79,11 @@
                                     <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
                                 </Border.Shadow>
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Pending" />
+                                    <PointerGestureRecognizer PointerEntered="OnAddButtonPointerEntered"
+                                                             PointerExited="OnAddButtonPointerExited"
+                                                             PointerPressed="OnAddButtonPointerPressed"
+                                                             PointerReleased="OnAddButtonPointerReleased" />
+                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Pending" Tapped="OnAddButtonTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="+"
                                        FontFamily="OpenSansSemibold"
@@ -228,7 +232,11 @@
                                     <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
                                 </Border.Shadow>
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="InProgress" />
+                                    <PointerGestureRecognizer PointerEntered="OnAddButtonPointerEntered"
+                                                             PointerExited="OnAddButtonPointerExited"
+                                                             PointerPressed="OnAddButtonPointerPressed"
+                                                             PointerReleased="OnAddButtonPointerReleased" />
+                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="InProgress" Tapped="OnAddButtonTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="+"
                                        FontFamily="OpenSansSemibold"
@@ -377,7 +385,11 @@
                                     <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
                                 </Border.Shadow>
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Blocked" />
+                                    <PointerGestureRecognizer PointerEntered="OnAddButtonPointerEntered"
+                                                             PointerExited="OnAddButtonPointerExited"
+                                                             PointerPressed="OnAddButtonPointerPressed"
+                                                             PointerReleased="OnAddButtonPointerReleased" />
+                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Blocked" Tapped="OnAddButtonTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="+"
                                        FontFamily="OpenSansSemibold"
@@ -526,7 +538,11 @@
                                     <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
                                 </Border.Shadow>
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Done" />
+                                    <PointerGestureRecognizer PointerEntered="OnAddButtonPointerEntered"
+                                                             PointerExited="OnAddButtonPointerExited"
+                                                             PointerPressed="OnAddButtonPointerPressed"
+                                                             PointerReleased="OnAddButtonPointerReleased" />
+                                    <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Done" Tapped="OnAddButtonTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="+"
                                        FontFamily="OpenSansSemibold"

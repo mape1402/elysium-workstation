@@ -46,6 +46,16 @@
                            Keyboard="Url"
                            ClearButtonVisibility="WhileEditing" />
 
+                    <Button Text="🔌  Probar conexión"
+                            Command="{Binding TestCommand}"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="13"
+                            CornerRadius="10"
+                            AnchorX="0"
+                            HorizontalOptions="Start"
+                            Margin="2,2,0,2"
+                            StyleClass="SecondaryButton" />
+
                 </VerticalStackLayout>
             </Border>
 
@@ -217,6 +227,9 @@
                             FontFamily="OpenSansSemibold"
                             FontSize="13"
                             CornerRadius="10"
+                            AnchorX="0"
+                            HorizontalOptions="Start"
+                            Margin="2,2,0,2"
                             StyleClass="DangerButton" />
                 </VerticalStackLayout>
             </Border>
@@ -389,20 +402,13 @@
         </VerticalStackLayout>
     </ScrollView>
 
-    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12" Padding="24,12,24,12">
+    <Grid Grid.Row="1" ColumnDefinitions="*" Padding="24,12,24,12">
                 <Button Grid.Column="0"
                         Text="💾  Guardar"
                         Command="{Binding SaveCommand}"
                         FontFamily="OpenSansSemibold"
                         FontSize="14"
                         CornerRadius="12" />
-                <Button Grid.Column="1"
-                        Text="🔌  Probar conexión"
-                        Command="{Binding TestCommand}"
-                        FontFamily="OpenSansSemibold"
-                        FontSize="14"
-                        CornerRadius="12"
-                        StyleClass="SecondaryButton" />
             </Grid>
 
             <Border Grid.Row="2"
