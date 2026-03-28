@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:Elysium.WorkStation.Models"
+             xmlns:local="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.FolderSyncDetailPage"
+             x:DataType="local:FolderSyncDetailPage"
+             x:Name="thisPage"
+             Shell.NavBarIsVisible="False"
+             Title="Detalle sincronizacion">
+
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0"
+                BackgroundColor="{Binding StatusColor}"
+                Padding="12,6">
+            <Label Text="{Binding StatusText}"
+                   FontFamily="OpenSansRegular"
+                   FontSize="12"
+                   TextColor="White"
+                   HorizontalOptions="Center" />
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,12,16,18" Spacing="12">
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="{Binding LinkName}" StyleClass="PageTitle" />
+                    <Label Text="{Binding LinkDescription}" StyleClass="Muted" />
+                    <Label Text="{Binding LinkPath}"
+                           FontFamily="OpenSansRegular"
+                           FontSize="11"
+                           LineBreakMode="TailTruncation"
+                           TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
+                </VerticalStackLayout>
+
+                <Border Padding="14"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
+                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Control de sincronizacion" StyleClass="SectionTitle" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Label Grid.Column="0"
+                                   Text="{Binding LinkStatusText}"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="12" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding LinkRoleText}"
+                                   HorizontalTextAlignment="End"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="12" />
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
+                            <Button Grid.Column="0"
+                                    Text="Abrir carpeta"
+                                    Command="{Binding OpenFolderCommand}" />
+                            <Button Grid.Column="1"
+                                    Text="{Binding ToggleContinuousText}"
+                                    Command="{Binding ToggleContinuousCommand}" />
+                            <Button Grid.Column="2"
+                                    Text="Invertir rol"
+                                    Command="{Binding SwitchRoleCommand}" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="14"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
+                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Path ignore" StyleClass="SectionTitle" />
+                        <Button Text="Agregar ruta ignorada"
+                                Command="{Binding AddIgnorePathCommand}" />
+                        <CollectionView ItemsSource="{Binding IgnorePaths}" HeightRequest="160">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Padding="0,2">
+                                        <Label Grid.Column="0"
+                                               Text="{Binding .}"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="11"
+                                               LineBreakMode="TailTruncation" />
+                                        <Button Grid.Column="1"
+                                                Text="Quitar"
+                                                Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.RemoveIgnorePathCommand}"
+                                                CommandParameter="{Binding .}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="14"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
+                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Bitacora de cambios" StyleClass="SectionTitle" />
+                        <CollectionView ItemsSource="{Binding Logs}" HeightRequest="180">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:FolderSyncLogEntry">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Padding="0,2">
+                                        <Label Grid.Column="0"
+                                               Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="11" />
+                                        <Label Grid.Column="1"
+                                               Text="{Binding Message}"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="11"
+                                               LineBreakMode="TailTruncation" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                        <Label Text="Resumen deduplicado" StyleClass="SectionTitle" />
+                        <CollectionView ItemsSource="{Binding Summary}" HeightRequest="180">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:FolderSyncSummaryEntry">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Padding="0,2">
+                                        <Label Grid.Column="0"
+                                               Text="{Binding RelativePath}"
+                                               FontFamily="OpenSansRegular"
+                                               FontSize="11"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Grid.Column="1"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="11">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="S:" />
+                                                    <Span Text="{Binding SentCount}" />
+                                                    <Span Text=" R:" />
+                                                    <Span Text="{Binding ReceivedCount}" />
+                                                    <Span Text=" D:" />
+                                                    <Span Text="{Binding DeletedCount}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                        </Label>
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

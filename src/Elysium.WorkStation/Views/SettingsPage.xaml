@@ -56,6 +56,52 @@
                             Margin="2,2,0,2"
                             StyleClass="SecondaryButton" />
 
+                    <VerticalStackLayout Spacing="8" Margin="0,8,0,0">
+                        <Label Text="Ruta de base de datos SQLite"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Label Text="Por defecto usa la ruta local de la app. Si cambias esta ruta, se aplicará al reiniciar."
+                               FontFamily="OpenSansRegular"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                        <Entry Text="{Binding SqliteDbPath}"
+                               Placeholder="C:\data\elysium.db"
+                               FontFamily="OpenSansRegular"
+                               FontSize="14"
+                               ClearButtonVisibility="WhileEditing" />
+                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                            <Button Grid.Column="0"
+                                    Text="Seleccionar ruta"
+                                    Command="{Binding SelectDbPathCommand}"
+                                    FontFamily="OpenSansSemibold"
+                                    FontSize="12"
+                                    CornerRadius="10"
+                                    AnchorX="0"
+                                    HorizontalOptions="Start"
+                                    StyleClass="SecondaryButton" />
+                            <Button Grid.Column="1"
+                                    Text="Ruta por defecto"
+                                    Command="{Binding UseDefaultDbPathCommand}"
+                                    FontFamily="OpenSansSemibold"
+                                    FontSize="12"
+                                    CornerRadius="10"
+                                    AnchorX="0"
+                                    HorizontalOptions="Start"
+                                    StyleClass="SecondaryButton" />
+                        </Grid>
+
+                        <Button Text="Resetear base de datos"
+                                Command="{Binding ResetDatabaseCommand}"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="13"
+                                CornerRadius="10"
+                                AnchorX="0"
+                                HorizontalOptions="Start"
+                                Margin="2,2,0,2"
+                                StyleClass="DangerButton" />
+                    </VerticalStackLayout>
+
                 </VerticalStackLayout>
             </Border>
 

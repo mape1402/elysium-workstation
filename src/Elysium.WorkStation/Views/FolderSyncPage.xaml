@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:Elysium.WorkStation.Models"
+             xmlns:local="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.FolderSyncPage"
+             x:DataType="local:FolderSyncPage"
+             x:Name="thisPage"
+             Shell.NavBarIsVisible="False"
+             Title="Sincronizacion carpeta">
+
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0"
+                BackgroundColor="{Binding StatusColor}"
+                Padding="12,6">
+            <Label Text="{Binding StatusText}"
+                   FontFamily="OpenSansRegular"
+                   FontSize="12"
+                   TextColor="White"
+                   HorizontalOptions="Center" />
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,12,16,18" Spacing="12">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Grid.Column="0" Spacing="4">
+                        <Label Text="Sincronizacion de carpeta" StyleClass="PageTitle" />
+                        <Label Text="Administra multiples carpetas sincronizadas."
+                               StyleClass="Muted" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1"
+                            Text="Agregar"
+                            VerticalOptions="Start"
+                            Command="{Binding AddSyncCommand}" />
+                </Grid>
+
+                <Border Padding="14"
+                        IsVisible="{Binding HasPendingInvites}"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
+                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Invitaciones pendientes" StyleClass="SectionTitle" />
+                        <CollectionView ItemsSource="{Binding PendingInvites}">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="8" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:FolderSyncInvite">
+                                    <Border Padding="10"
+                                            StrokeShape="RoundRectangle 10"
+                                            Stroke="{AppThemeBinding Light=#D3E0F7, Dark=#4D648D}"
+                                            BackgroundColor="{AppThemeBinding Light=White, Dark=#182338}">
+                                        <VerticalStackLayout Spacing="6">
+                                            <Label Text="{Binding Name}"
+                                                   FontFamily="OpenSansSemibold"
+                                                   FontSize="13" />
+                                            <Label Text="{Binding Description}"
+                                                   FontFamily="OpenSansRegular"
+                                                   FontSize="12"
+                                                   TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
+                                            <Label FontFamily="OpenSansRegular"
+                                                   FontSize="11"
+                                                   TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="De: " />
+                                                        <Span Text="{Binding RequesterName}" />
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                                <Button Grid.Column="0"
+                                                        Text="Aceptar"
+                                                        Command="{Binding Source={x:Reference thisPage}, Path=AcceptInviteCommand}"
+                                                        CommandParameter="{Binding .}" />
+                                                <Button Grid.Column="1"
+                                                        Text="Rechazar"
+                                                        Command="{Binding Source={x:Reference thisPage}, Path=RejectInviteCommand}"
+                                                        CommandParameter="{Binding .}" />
+                                            </Grid>
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="14"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
+                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Carpetas sincronizadas" StyleClass="SectionTitle" />
+                        <CollectionView ItemsSource="{Binding Links}">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="8" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:FolderSyncLink">
+                                    <Border Padding="10"
+                                            StrokeShape="RoundRectangle 10"
+                                            Stroke="{AppThemeBinding Light=#D3E0F7, Dark=#4D648D}"
+                                            BackgroundColor="{AppThemeBinding Light=White, Dark=#182338}">
+                                        <VerticalStackLayout Spacing="6">
+                                            <Label Text="{Binding Name}"
+                                                   FontFamily="OpenSansSemibold"
+                                                   FontSize="13" />
+                                            <Label Text="{Binding Description}"
+                                                   FontFamily="OpenSansRegular"
+                                                   FontSize="12"
+                                                   TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
+                                            <Label Text="{Binding LocalFolderPath}"
+                                                   FontFamily="OpenSansRegular"
+                                                   FontSize="11"
+                                                   LineBreakMode="TailTruncation"
+                                                   TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
+                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                                <Label Grid.Column="0"
+                                                       Text="{Binding StatusText}"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="11" />
+                                                <Label Grid.Column="1"
+                                                       Text="{Binding RoleText}"
+                                                       HorizontalTextAlignment="End"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="11" />
+                                            </Grid>
+                                            <Button Text="Abrir detalle"
+                                                    Command="{Binding Source={x:Reference thisPage}, Path=OpenDetailCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

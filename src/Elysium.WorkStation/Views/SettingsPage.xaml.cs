@@ -1,5 +1,7 @@
+using Elysium.WorkStation.Data;
 using Elysium.WorkStation.Models;
 using Elysium.WorkStation.Services;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 #if WINDOWS
@@ -55,7 +57,10 @@ namespace Elysium.WorkStation.Views
         private readonly IStartupService _startupService;
         private readonly ISecretVaultService _secretVaultService;
         private readonly IVariableRepository _variableRepository;
+        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
         private string _serverUrl;
+        private string _sqliteDbPath;
+        private string _preparedDbPath = string.Empty;
         private int _fileRetentionHours;
         private int _clipboardRetentionHours;
         private int _notificationRetentionHours;
@@ -70,6 +75,16 @@ namespace Elysium.WorkStation.Views
             set
             {
                 _serverUrl = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string SqliteDbPath
+        {
+            get => _sqliteDbPath;
+            set
+            {
+                _sqliteDbPath = value;
                 OnPropertyChanged();
             }
         }
@@ -205,18 +220,24 @@ namespace Elysium.WorkStation.Views
         public Command SaveCommand { get; }
         public Command TestCommand { get; }
         public Command ResetPinCommand { get; }
+        public Command SelectDbPathCommand { get; }
+        public Command UseDefaultDbPathCommand { get; }
+        public Command ResetDatabaseCommand { get; }
 
         public SettingsPage(
             ISettingsService settingsService,
             IStartupService startupService,
             ISecretVaultService secretVaultService,
-            IVariableRepository variableRepository)
+            IVariableRepository variableRepository,
+            IDbContextFactory<AppDbContext> dbContextFactory)
         {
             _settingsService = settingsService;
             _startupService = startupService;
             _secretVaultService = secretVaultService;
             _variableRepository = variableRepository;
+            _dbContextFactory = dbContextFactory;
             _serverUrl = settingsService.ServerUrl;
+            _sqliteDbPath = settingsService.SqliteDbPath;
             _fileRetentionHours = settingsService.FileRetentionHours;
             _clipboardRetentionHours = settingsService.ClipboardRetentionHours;
             _notificationRetentionHours = settingsService.NotificationRetentionHours;
@@ -247,7 +268,23 @@ namespace Elysium.WorkStation.Views
                     ShowFeedback("⚠️  URL inválida. Usa el formato http://host:puerto", Color.FromArgb("#E65100"));
                     return;
                 }
+                var previousDbPath = DatabasePathProvider.NormalizeOrDefault(_settingsService.SqliteDbPath);
+                var nextDbPath = DatabasePathProvider.NormalizeOrDefault(SqliteDbPath);
+                var dbPathChanged = !string.Equals(previousDbPath, nextDbPath, StringComparison.OrdinalIgnoreCase);
+
+                if (dbPathChanged)
+                {
+                    var alreadyPrepared = string.Equals(_preparedDbPath, nextDbPath, StringComparison.OrdinalIgnoreCase);
+                    var prepared = alreadyPrepared || await PrepareSelectedDatabasePathAsync(nextDbPath);
+                    if (!prepared)
+                    {
+                        return;
+                    }
+                }
+
                 _settingsService.ServerUrl = ServerUrl;
+                _settingsService.SqliteDbPath = nextDbPath;
+                _preparedDbPath = string.Empty;
                 _settingsService.FileRetentionHours = FileRetentionHours;
                 _settingsService.ClipboardRetentionHours = ClipboardRetentionHours;
                 _settingsService.NotificationRetentionHours = NotificationRetentionHours;
@@ -275,7 +312,11 @@ namespace Elysium.WorkStation.Views
                 else
                     _startupService.Disable();
 
-                ShowFeedback("✅  Configuración guardada correctamente.", Color.FromArgb("#1B5E20"));
+                ShowFeedback(
+                    dbPathChanged
+                        ? "Configuracion guardada. La nueva ruta de DB ya quedo activa."
+                        : "Configuracion guardada correctamente.",
+                    Color.FromArgb("#1B5E20"));
                 await Task.Delay(600);
                 await Shell.Current.GoToAsync("..");
             });
@@ -436,6 +477,104 @@ namespace Elysium.WorkStation.Views
                 }
             });
 
+            SelectDbPathCommand = new Command(async () =>
+            {
+                var pickedPath = await PickSqlitePathAsync(SqliteDbPath);
+                if (string.IsNullOrWhiteSpace(pickedPath))
+                {
+                    return;
+                }
+
+                var normalized = DatabasePathProvider.NormalizeOrDefault(pickedPath);
+                var prepared = await PrepareSelectedDatabasePathAsync(normalized);
+                if (!prepared)
+                {
+                    return;
+                }
+
+                SqliteDbPath = normalized;
+                _preparedDbPath = normalized;
+            });
+
+            UseDefaultDbPathCommand = new Command(() =>
+            {
+                SqliteDbPath = DatabasePathProvider.DefaultPath;
+                _preparedDbPath = string.Empty;
+                ShowFeedback("Ruta de DB restablecida a la ruta por defecto.", Color.FromArgb("#1565C0"));
+            });
+
+            ResetDatabaseCommand = new Command(async () =>
+            {
+                var activeDbPath = DatabasePathProvider.NormalizeOrDefault(_settingsService.SqliteDbPath);
+                var dbExists = File.Exists(activeDbPath);
+
+                bool createFromScratch;
+                if (dbExists)
+                {
+                    var choice = await DisplayActionSheet(
+                        "Base de datos existente detectada",
+                        "Cancelar",
+                        null,
+                        "Usar informacion existente",
+                        "Crear desde cero");
+
+                    if (choice == "Usar informacion existente")
+                    {
+                        try
+                        {
+                            await using var existingDb = await _dbContextFactory.CreateDbContextAsync();
+                            await existingDb.Database.EnsureCreatedAsync();
+                            DatabaseInitializer.Initialize(existingDb);
+                            ShowFeedback("Se uso la base existente sin borrar informacion.", Color.FromArgb("#1565C0"));
+                        }
+                        catch (Exception ex)
+                        {
+                            await DisplayAlert("DB", $"No se pudo abrir la base existente: {ex.Message}", "OK");
+                        }
+
+                        return;
+                    }
+
+                    if (choice != "Crear desde cero")
+                    {
+                        return;
+                    }
+
+                    createFromScratch = true;
+                }
+                else
+                {
+                    var confirmCreate = await DisplayAlert(
+                        "Crear base de datos",
+                        "No existe una base en la ruta configurada. Deseas crear una nueva desde cero?",
+                        "Crear",
+                        "Cancelar");
+
+                    if (!confirmCreate)
+                    {
+                        return;
+                    }
+
+                    createFromScratch = true;
+                }
+
+                try
+                {
+                    await using var db = await _dbContextFactory.CreateDbContextAsync();
+                    if (createFromScratch)
+                    {
+                        await db.Database.EnsureDeletedAsync();
+                    }
+                    await db.Database.EnsureCreatedAsync();
+                    DatabaseInitializer.Initialize(db);
+                    ShowFeedback("Base de datos reseteada correctamente.", Color.FromArgb("#1B5E20"));
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("DB", $"No se pudo resetear la base de datos: {ex.Message}", "OK");
+                }
+            });
+
             InitializeComponent();
             BindingContext = this;
 
@@ -469,6 +608,64 @@ namespace Elysium.WorkStation.Views
             string.Equals(mode, "Dark", StringComparison.OrdinalIgnoreCase)
                 ? AppTheme.Dark
                 : AppTheme.Light;
+
+        private async Task<bool> PrepareSelectedDatabasePathAsync(string targetDbPath)
+        {
+            var directory = Path.GetDirectoryName(targetDbPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            if (!File.Exists(targetDbPath))
+            {
+                return await EnsureDatabaseAtPathAsync(targetDbPath, createFromScratch: false);
+            }
+
+            var choice = await DisplayActionSheet(
+                "La nueva ruta ya tiene una DB",
+                "Cancelar",
+                null,
+                "Usar DB existente",
+                "Crear DB desde cero");
+
+            if (choice == "Usar DB existente")
+            {
+                return await EnsureDatabaseAtPathAsync(targetDbPath, createFromScratch: false);
+            }
+
+            if (choice == "Crear DB desde cero")
+            {
+                return await EnsureDatabaseAtPathAsync(targetDbPath, createFromScratch: true);
+            }
+
+            return false;
+        }
+
+        private async Task<bool> EnsureDatabaseAtPathAsync(string dbPath, bool createFromScratch)
+        {
+            try
+            {
+                if (createFromScratch && File.Exists(dbPath))
+                {
+                    File.Delete(dbPath);
+                }
+
+                var options = new DbContextOptionsBuilder<AppDbContext>()
+                    .UseSqlite($"Data Source={dbPath}")
+                    .Options;
+
+                await using var db = new AppDbContext(options);
+                await db.Database.EnsureCreatedAsync();
+                DatabaseInitializer.Initialize(db);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("DB", $"No se pudo preparar la base en la nueva ruta: {ex.Message}", "OK");
+                return false;
+            }
+        }
 
         private void ShowFeedback(string text, Color color)
         {
@@ -527,7 +724,31 @@ namespace Elysium.WorkStation.Views
             comboBox.Resources["ComboBoxItemBackgroundSelected"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(selected);
             comboBox.Resources["ComboBoxItemForegroundSelected"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(foreground);
         }
+
+        private static async Task<string> PickSqlitePathAsync(string currentPath)
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+            picker.FileTypeFilter.Add(".db");
+            picker.FileTypeFilter.Add(".sqlite");
+            picker.FileTypeFilter.Add(".sqlite3");
+
+            var window = Application.Current?.Windows.FirstOrDefault();
+            if (window?.Handler?.PlatformView is Microsoft.Maui.MauiWinUIWindow nativeWindow)
+            {
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, nativeWindow.WindowHandle);
+            }
+
+            var file = await picker.PickSingleFileAsync();
+            return file?.Path ?? string.Empty;
+        }
+#else
+        private static Task<string> PickSqlitePathAsync(string currentPath)
+        {
+            return Task.FromResult(string.Empty);
+        }
 #endif
     }
 }
+
 

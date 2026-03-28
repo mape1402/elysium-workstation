@@ -9,6 +9,7 @@ namespace Elysium.WorkStation
         private readonly IClipboardSyncService _clipboardSyncService;
         private readonly ISettingsService _settingsService;
         private readonly IFileTransferService _fileTransferService;
+        private readonly IFolderSyncService _folderSyncService;
         private readonly ICleanupService _cleanupService;
         private readonly IKanbanCleanupService _kanbanCleanupService;
 
@@ -35,6 +36,7 @@ namespace Elysium.WorkStation
             IClipboardSyncService clipboardSyncService,
             ISettingsService settingsService,
             IFileTransferService fileTransferService,
+            IFolderSyncService folderSyncService,
             ICleanupService cleanupService,
             IKanbanCleanupService kanbanCleanupService)
         {
@@ -42,6 +44,7 @@ namespace Elysium.WorkStation
             _clipboardSyncService = clipboardSyncService;
             _settingsService = settingsService;
             _fileTransferService = fileTransferService;
+            _folderSyncService = folderSyncService;
             _cleanupService = cleanupService;
             _kanbanCleanupService = kanbanCleanupService;
 
@@ -111,6 +114,7 @@ namespace Elysium.WorkStation
 
             await _clipboardSyncService.StartAsync(hubUrl);
             await _fileTransferService.StartAsync(hubUrl);
+            await _folderSyncService.StartAsync(hubUrl);
             await _cleanupService.StartAsync();
             await _kanbanCleanupService.StartAsync();
         }

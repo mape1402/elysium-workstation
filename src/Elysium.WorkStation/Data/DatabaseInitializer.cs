@@ -24,6 +24,7 @@ namespace Elysium.WorkStation.Data
             EnsureBrainstormNodesTable(db);
             EnsureVariableGroupsTable(db);
             EnsureWorkVariablesTable(db);
+            EnsureFolderSyncLinksTable(db);
         }
 
         private static void EnsureNotificationsTable(AppDbContext db) =>
@@ -360,6 +361,32 @@ namespace Elysium.WorkStation.Data
             {
                 if (shouldClose) conn.Close();
             }
+        }
+
+        private static void EnsureFolderSyncLinksTable(AppDbContext db)
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "FolderSyncLinks" (
+                    "Id"                    INTEGER NOT NULL CONSTRAINT "PK_FolderSyncLinks" PRIMARY KEY AUTOINCREMENT,
+                    "SyncId"                TEXT    NOT NULL UNIQUE,
+                    "Name"                  TEXT    NOT NULL,
+                    "Description"           TEXT    NOT NULL DEFAULT '',
+                    "LocalFolderPath"       TEXT    NOT NULL,
+                    "IgnorePathsJson"       TEXT    NOT NULL DEFAULT '[]',
+                    "LocalClientId"         TEXT    NOT NULL DEFAULT '',
+                    "RemoteClientId"        TEXT    NOT NULL DEFAULT '',
+                    "RemoteClientName"      TEXT    NOT NULL DEFAULT '',
+                    "IsPendingOutgoing"     INTEGER NOT NULL DEFAULT 0,
+                    "IsPendingIncoming"     INTEGER NOT NULL DEFAULT 0,
+                    "IsAccepted"            INTEGER NOT NULL DEFAULT 0,
+                    "ContinuousSyncEnabled" INTEGER NOT NULL DEFAULT 0,
+                    "IsEmitter"             INTEGER NOT NULL DEFAULT 0,
+                    "LastSnapshotJson"      TEXT    NOT NULL DEFAULT '',
+                    "LastStateHash"         TEXT    NOT NULL DEFAULT '',
+                    "CreatedAt"             TEXT    NOT NULL,
+                    "UpdatedAt"             TEXT    NOT NULL
+                )
+                """);
         }
     }
 }

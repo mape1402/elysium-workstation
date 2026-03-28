@@ -88,12 +88,14 @@ namespace Elysium.WorkStation
             NotesContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.NotesPage>());
             ClipboardContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.ClipboardHistoryPage>());
             FilesContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.FilesPage>());
+            FolderSyncContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.FolderSyncPage>());
             NotificationsContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.NotificationsPage>());
             BrainstormContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.BrainstormPage>());
             SettingsContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.SettingsPage>());
 
             // Additional detail routes used from pages.
             Routing.RegisterRoute("note-editor", typeof(Views.NoteEditorPage));
+            Routing.RegisterRoute("folder-sync-detail", typeof(Views.FolderSyncDetailPage));
 
             _roleService.RoleChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() =>
             {

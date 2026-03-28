@@ -49,11 +49,12 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.ISettingsService,      Services.SettingsService>();
             builder.Services.AddSingleton<Services.IClipboardSyncService,  Services.ClipboardSyncService>();
             builder.Services.AddSingleton<Services.IFileTransferService,   Services.FileTransferService>();
-            builder.Services.AddDbContextFactory<AppDbContext>(opts =>
-                opts.UseSqlite($"Data Source={Path.Combine(FileSystem.AppDataDirectory, "elysium.db")}"));
+            builder.Services.AddSingleton<Services.IFolderSyncService, Services.FolderSyncService>();
+            builder.Services.AddSingleton<IDbContextFactory<AppDbContext>, Services.DynamicAppDbContextFactory>();
             builder.Services.AddSingleton<Services.INotificationRepository, Services.NotificationRepository>();
             builder.Services.AddSingleton<Services.IClipboardRepository,    Services.ClipboardRepository>();
             builder.Services.AddSingleton<Services.IFileRepository,         Services.FileRepository>();
+            builder.Services.AddSingleton<Services.IFolderSyncRepository,   Services.FolderSyncRepository>();
             builder.Services.AddSingleton<Services.ICleanupService,        Services.CleanupService>();
             builder.Services.AddSingleton<Services.INoteRepository,         Services.NoteRepository>();
             builder.Services.AddSingleton<Services.IKanbanTaskRepository,   Services.KanbanTaskRepository>();
@@ -64,6 +65,10 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.IToastService,            Services.ToastService>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
+            builder.Services.AddTransient<Views.FolderSyncPage>();
+            builder.Services.AddTransient<Views.FolderSyncDetailPage>();
+            builder.Services.AddTransient<Views.FolderSyncEditorPage>();
+            builder.Services.AddTransient<Views.IgnorePathPickerPage>();
             builder.Services.AddTransient<Views.NotificationsPage>();
             builder.Services.AddTransient<Views.NotesPage>();
             builder.Services.AddTransient<Views.NoteEditorPage>();

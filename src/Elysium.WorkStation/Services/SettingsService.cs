@@ -128,6 +128,12 @@ namespace Elysium.WorkStation.Services
             set => Preferences.Default.Set(ProfileIsRegisteredKey, value);
         }
 
+        public string SqliteDbPath
+        {
+            get => DatabasePathProvider.GetPath();
+            set => DatabasePathProvider.SetPath(value);
+        }
+
         public string ThemeMode
         {
             get

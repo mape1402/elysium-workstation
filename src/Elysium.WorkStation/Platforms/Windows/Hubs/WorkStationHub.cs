@@ -15,5 +15,67 @@ namespace Elysium.WorkStation.Hubs
 
         public async Task AnnounceFile(string fileId, string fileName, long fileSize, string senderName)
             => await Clients.Others.SendAsync("ReceiveFileAnnouncement", fileId, fileName, fileSize, senderName);
+
+        public async Task SendFolderSyncInvite(
+            string inviteId,
+            string syncId,
+            string requesterClientId,
+            string requesterName,
+            string name,
+            string description,
+            string ignorePathsJson)
+            => await Clients.Others.SendAsync(
+                "ReceiveFolderSyncInvite",
+                inviteId,
+                syncId,
+                requesterClientId,
+                requesterName,
+                name,
+                description,
+                ignorePathsJson);
+
+        public async Task RespondFolderSyncInvite(
+            string inviteId,
+            string syncId,
+            bool accepted,
+            string responderClientId,
+            string responderName)
+            => await Clients.Others.SendAsync(
+                "ReceiveFolderSyncInviteResponse",
+                inviteId,
+                syncId,
+                accepted,
+                responderClientId,
+                responderName);
+
+        public async Task AnnounceFolderSyncChange(
+            string syncId,
+            string senderClientId,
+            string action,
+            string relativePath,
+            string uploadId,
+            long fileSize,
+            string fileHash)
+            => await Clients.Others.SendAsync(
+                "ReceiveFolderSyncChange",
+                syncId,
+                senderClientId,
+                action,
+                relativePath,
+                uploadId,
+                fileSize,
+                fileHash);
+
+        public async Task AnnounceFolderSyncState(
+            string syncId,
+            bool enabled,
+            string emitterClientId,
+            string changedByClientId)
+            => await Clients.Others.SendAsync(
+                "ReceiveFolderSyncState",
+                syncId,
+                enabled,
+                emitterClientId,
+                changedByClientId);
     }
 }

@@ -15,5 +15,6 @@ namespace Elysium.WorkStation.Data
         public DbSet<BrainstormNode>    BrainstormNodes  => Set<BrainstormNode>();
         public DbSet<VariableGroup>     VariableGroups   => Set<VariableGroup>();
         public DbSet<WorkVariable>      WorkVariables    => Set<WorkVariable>();
+        public DbSet<FolderSyncLink>    FolderSyncLinks  => Set<FolderSyncLink>();
     }
 }

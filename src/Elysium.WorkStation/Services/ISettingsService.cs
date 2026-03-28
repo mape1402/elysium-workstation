@@ -28,5 +28,6 @@ namespace Elysium.WorkStation.Services
         string ProfileLastName { get; set; }
         string ProfilePhotoPath { get; set; }
         bool ProfileIsRegistered { get; set; }
+        string SqliteDbPath { get; set; }
     }
 }

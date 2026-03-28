@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.IgnorePathPickerPage"
+             x:DataType="local:IgnorePathPickerPage"
+             Title="Seleccionar ignore path"
+             BackgroundColor="#66000000"
+             Shell.NavBarIsVisible="False">
+
+    <Grid Padding="20">
+        <Border HorizontalOptions="Center"
+                VerticalOptions="Center"
+                WidthRequest="700"
+                MaximumWidthRequest="860"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#D6DEEE, Dark=#43516A}"
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=#F9FBFF, Dark=#1D2736}"
+                Padding="16">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+                <Label Text="Seleccionar ruta a ignorar"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="18" />
+
+                <Label Grid.Row="1"
+                       Text="{Binding CurrentPath}"
+                       FontFamily="OpenSansRegular"
+                       FontSize="12"
+                       LineBreakMode="TailTruncation"
+                       TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                <CollectionView Grid.Row="2" ItemsSource="{Binding Entries}">
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="local:IgnorePathPickerEntry">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="4,2">
+                                <Label Grid.Column="0"
+                                       Text="{Binding Icon}"
+                                       FontSize="16"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding Name}"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="12"
+                                       VerticalOptions="Center"
+                                       LineBreakMode="TailTruncation" />
+                                <Button Grid.Column="2"
+                                        Text="{Binding ActionText}"
+                                        Clicked="OnEntryActionClicked"
+                                        CommandParameter="{Binding .}" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                    <Button Grid.Column="0"
+                            Text="Subir"
+                            Clicked="OnGoUpClicked" />
+                    <Button Grid.Column="1"
+                            Text="Seleccionar carpeta actual"
+                            Clicked="OnPickCurrentFolderClicked" />
+                    <Button Grid.Column="3"
+                            Text="Cancelar"
+                            Clicked="OnCancelClicked" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

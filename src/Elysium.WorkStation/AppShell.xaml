@@ -101,6 +101,13 @@
                       Shell.NavBarIsVisible="False" />
     </FlyoutItem>
 
+    <FlyoutItem Title="🔄  Sync carpeta" Route="folder-sync-root">
+        <ShellContent x:Name="FolderSyncContent"
+                      Title="Sync carpeta"
+                      Route="folder-sync"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
     <FlyoutItem Title="🔐  Variables" Route="variables-root">
         <ShellContent x:Name="VariablesContent"
                       Title="Variables"
