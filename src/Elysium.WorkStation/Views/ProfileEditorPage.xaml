@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.ProfileEditorPage"
+             x:DataType="views:ProfileEditorPage"
+             Title="{Binding PageTitle}"
+             BackgroundColor="#66000000"
+             Shell.NavBarIsVisible="False">
+
+    <Grid Padding="20">
+        <Border HorizontalOptions="Center"
+                VerticalOptions="Center"
+                WidthRequest="560"
+                MaximumWidthRequest="680"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#D6DEEE, Dark=#43516A}"
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=#F9FBFF, Dark=#1D2736}"
+                Padding="16">
+            <Grid RowDefinitions="*,Auto"
+                  RowSpacing="14">
+
+                <ScrollView>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="{Binding HeaderText}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="18" />
+
+                        <Label Text="Nombre (opcional)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                        <Entry x:Name="FirstNameEntry"
+                               Placeholder="Ej. Clint"
+                               ClearButtonVisibility="WhileEditing" />
+
+                        <Label Text="Apellidos (opcional)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                        <Entry x:Name="LastNameEntry"
+                               Placeholder="Ej. Eastwood"
+                               ClearButtonVisibility="WhileEditing" />
+
+                        <Label Text="Foto de perfil (opcional)"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#5E5E5E, Dark=#B8B8B8}" />
+
+                        <Grid ColumnDefinitions="Auto,*"
+                              ColumnSpacing="12">
+                            <Border WidthRequest="74"
+                                    HeightRequest="74"
+                                    StrokeShape="RoundRectangle 37"
+                                    Stroke="{AppThemeBinding Light=#BCD0F3, Dark=#4C6BA0}"
+                                    StrokeThickness="1"
+                                    Padding="0"
+                                    BackgroundColor="{AppThemeBinding Light=#E6F0FF, Dark=#1A3159}">
+                                <Image Source="{Binding PhotoPreviewSource}"
+                                       Aspect="AspectFill" />
+                            </Border>
+
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="8">
+                                <Button Text="Seleccionar foto"
+                                        Clicked="OnSelectPhotoClicked"
+                                        FontFamily="OpenSansSemibold"
+                                        FontSize="12"
+                                        CornerRadius="10" />
+                                <Button Text="Quitar foto"
+                                        Clicked="OnClearPhotoClicked"
+                                        IsVisible="{Binding HasPhoto}"
+                                        FontFamily="OpenSansSemibold"
+                                        FontSize="12"
+                                        CornerRadius="10"
+                                        StyleClass="SecondaryButton" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </ScrollView>
+
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="*,*"
+                      ColumnSpacing="10">
+                    <Button Grid.Column="0"
+                            Text="{Binding CancelButtonText}"
+                            Clicked="OnCancelClicked"
+                            BackgroundColor="{AppThemeBinding Light=#E6E8EF, Dark=#3A4252}"
+                            TextColor="{AppThemeBinding Light=#2D2D2D, Dark=#F3F3F3}" />
+                    <Button Grid.Column="1"
+                            Text="{Binding SaveButtonText}"
+                            Clicked="OnSaveClicked"
+                            BackgroundColor="{AppThemeBinding Light=#2F5AA8, Dark=#3D6ECB}"
+                            TextColor="White" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

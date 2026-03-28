@@ -20,7 +20,11 @@
             <Border Padding="10"
                     Stroke="{AppThemeBinding Light=#C5D6F6, Dark=#3E5C90}"
                     StrokeShape="RoundRectangle 12"
-                    BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#132443}">
+                    BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#132443}"
+                    ToolTipProperties.Text="Editar perfil">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding EditProfileCommand}" />
+                </Border.GestureRecognizers>
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                     <Border WidthRequest="44"
                             HeightRequest="44"
@@ -29,7 +33,7 @@
                             StrokeThickness="1"
                             Padding="0"
                             BackgroundColor="{AppThemeBinding Light=#E6F0FF, Dark=#1A3159}">
-                        <Image Source="dotnet_bot.png"
+                        <Image Source="{Binding ProfilePhotoSource}"
                                Aspect="AspectFill" />
                     </Border>
 
@@ -38,7 +42,7 @@
                                FontFamily="OpenSansSemibold"
                                FontSize="13"
                                TextColor="{AppThemeBinding Light=#1E3F77, Dark=#D4E4FF}" />
-                        <Label Text="Perfil"
+                        <Label Text="Editar perfil"
                                FontFamily="OpenSansRegular"
                                FontSize="11"
                                TextColor="{AppThemeBinding Light=#6D7FA0, Dark=#9CB2D7}" />

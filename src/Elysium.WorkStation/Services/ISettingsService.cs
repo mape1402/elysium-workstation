@@ -23,5 +23,10 @@ namespace Elysium.WorkStation.Services
         // SignalR reconnect settings
         int SignalRReconnectMinutes { get; set; }
         TimeSpan SignalRReconnectDelay { get; }
+
+        string ProfileFirstName { get; set; }
+        string ProfileLastName { get; set; }
+        string ProfilePhotoPath { get; set; }
+        bool ProfileIsRegistered { get; set; }
     }
 }

@@ -22,6 +22,10 @@ namespace Elysium.WorkStation.Services
         private const int DefaultKanbanCleanupIntervalHours = 1;
         private const string SignalRReconnectMinutesKey = "signalr_reconnect_minutes";
         private const int DefaultSignalRReconnectMinutes = 1;
+        private const string ProfileFirstNameKey = "profile_first_name";
+        private const string ProfileLastNameKey = "profile_last_name";
+        private const string ProfilePhotoPathKey = "profile_photo_path";
+        private const string ProfileIsRegisteredKey = "profile_is_registered";
 
         public string ServerUrl
         {
@@ -99,6 +103,30 @@ namespace Elysium.WorkStation.Services
         }
 
         public TimeSpan SignalRReconnectDelay => TimeSpan.FromMinutes(SignalRReconnectMinutes);
+
+        public string ProfileFirstName
+        {
+            get => Preferences.Default.Get(ProfileFirstNameKey, string.Empty);
+            set => Preferences.Default.Set(ProfileFirstNameKey, (value ?? string.Empty).Trim());
+        }
+
+        public string ProfileLastName
+        {
+            get => Preferences.Default.Get(ProfileLastNameKey, string.Empty);
+            set => Preferences.Default.Set(ProfileLastNameKey, (value ?? string.Empty).Trim());
+        }
+
+        public string ProfilePhotoPath
+        {
+            get => Preferences.Default.Get(ProfilePhotoPathKey, string.Empty);
+            set => Preferences.Default.Set(ProfilePhotoPathKey, value ?? string.Empty);
+        }
+
+        public bool ProfileIsRegistered
+        {
+            get => Preferences.Default.Get(ProfileIsRegisteredKey, false);
+            set => Preferences.Default.Set(ProfileIsRegisteredKey, value);
+        }
 
         public string ThemeMode
         {

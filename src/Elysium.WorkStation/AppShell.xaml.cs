@@ -1,20 +1,56 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Storage;
 using Elysium.WorkStation.Models;
 using Elysium.WorkStation.Services;
+using Elysium.WorkStation.Views;
 
 namespace Elysium.WorkStation
 {
     public partial class AppShell : Shell
     {
         private const string SidebarPinnedPreferenceKey = "ui.sidebar.pinned";
+        private const string DefaultProfileImageSource = "dotnet_bot.png";
 
         private readonly IRoleService _roleService;
+        private readonly ISettingsService _settingsService;
         private bool _isSidebarPinned;
+        private bool _hasProfilePromptedOnStartup;
+        private bool _isProfileEditorOpen;
+        private string _profileName = "Usuario";
+        private string _profilePhotoSource = DefaultProfileImageSource;
 
-        public string ProfileName { get; } = string.IsNullOrWhiteSpace(Environment.UserName) ? "Usuario" : Environment.UserName;
+        public string ProfileName
+        {
+            get => _profileName;
+            private set
+            {
+                if (string.Equals(_profileName, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _profileName = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string ProfilePhotoSource
+        {
+            get => _profilePhotoSource;
+            private set
+            {
+                if (string.Equals(_profilePhotoSource, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _profilePhotoSource = value;
+                OnPropertyChanged();
+            }
+        }
 
         public Command ToggleSidebarCommand { get; }
+        public Command EditProfileCommand { get; }
 
         public string AppModeText => _roleService.CurrentRole switch
         {
@@ -30,16 +66,20 @@ namespace Elysium.WorkStation
             _ => Color.FromArgb("#6E83AA")
         };
 
-        public AppShell(IServiceProvider services, IRoleService roleService)
+        public AppShell(IServiceProvider services, IRoleService roleService, ISettingsService settingsService)
         {
             _roleService = roleService;
+            _settingsService = settingsService;
             ToggleSidebarCommand = new Command(ToggleSidebar);
+            EditProfileCommand = new Command(async () => await EditProfileAsync(false));
 
             InitializeComponent();
             BindingContext = this;
 
             _isSidebarPinned = Preferences.Default.Get(SidebarPinnedPreferenceKey, true);
             ApplySidebarState();
+            LoadProfileFromSettings();
+            Loaded += OnShellLoaded;
 
             // Lazy page creation via DI prevents early resource resolution crashes.
             HomeContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<MainPage>());
@@ -73,6 +113,87 @@ namespace Elysium.WorkStation
         {
             FlyoutBehavior = _isSidebarPinned ? FlyoutBehavior.Locked : FlyoutBehavior.Disabled;
             FlyoutIsPresented = _isSidebarPinned;
+        }
+
+        private async void OnShellLoaded(object sender, EventArgs e)
+        {
+            if (_hasProfilePromptedOnStartup)
+            {
+                return;
+            }
+
+            _hasProfilePromptedOnStartup = true;
+            Loaded -= OnShellLoaded;
+
+            if (_settingsService.ProfileIsRegistered)
+            {
+                return;
+            }
+
+            await EditProfileAsync(true);
+        }
+
+        private async Task EditProfileAsync(bool isStartupPrompt)
+        {
+            if (_isProfileEditorOpen)
+            {
+                return;
+            }
+
+            _isProfileEditorOpen = true;
+            try
+            {
+                var editor = new ProfileEditorPage(
+                    _settingsService.ProfileFirstName,
+                    _settingsService.ProfileLastName,
+                    _settingsService.ProfilePhotoPath,
+                    isStartupPrompt);
+
+                await Navigation.PushModalAsync(editor);
+                var result = await editor.ResultTask;
+                if (result is null)
+                {
+                    return;
+                }
+
+                _settingsService.ProfileFirstName = result.FirstName;
+                _settingsService.ProfileLastName = result.LastName;
+                _settingsService.ProfilePhotoPath = result.PhotoPath ?? string.Empty;
+                _settingsService.ProfileIsRegistered = true;
+
+                LoadProfileFromSettings();
+            }
+            finally
+            {
+                _isProfileEditorOpen = false;
+            }
+        }
+
+        private void LoadProfileFromSettings()
+        {
+            ProfileName = BuildProfileName(_settingsService.ProfileFirstName, _settingsService.ProfileLastName);
+            ProfilePhotoSource = ResolveProfilePhotoSource(_settingsService.ProfilePhotoPath);
+        }
+
+        private static string BuildProfileName(string firstName, string lastName)
+        {
+            var fullName = $"{firstName ?? string.Empty} {lastName ?? string.Empty}".Trim();
+            if (!string.IsNullOrWhiteSpace(fullName))
+            {
+                return fullName;
+            }
+
+            return "Usuario";
+        }
+
+        private static string ResolveProfilePhotoSource(string photoPath)
+        {
+            if (!string.IsNullOrWhiteSpace(photoPath) && File.Exists(photoPath))
+            {
+                return photoPath;
+            }
+
+            return DefaultProfileImageSource;
         }
     }
 }
