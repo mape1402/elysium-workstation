@@ -6,6 +6,7 @@
              x:Class="Elysium.WorkStation.Views.FilesPage"
              x:DataType="local:FilesPage"
              x:Name="thisPage"
+             Shell.NavBarIsVisible="False"
              Title="Archivos">
 
     <Grid RowDefinitions="Auto,*">
@@ -211,3 +212,4 @@
     </Grid>
 
 </ContentPage>
+

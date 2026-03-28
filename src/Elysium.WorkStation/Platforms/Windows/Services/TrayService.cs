@@ -182,7 +182,7 @@ namespace Elysium.WorkStation.Services
                 uFlags          = NIF_ICON | NIF_MESSAGE | NIF_TIP,
                 uCallbackMessage = WM_TRAYICON,
                 hIcon           = hIcon,
-                szTip           = "Elysium WorkStation"
+                szTip           = "MyWorkStation"
             };
 
             Shell_NotifyIcon(NIM_ADD, ref nid);

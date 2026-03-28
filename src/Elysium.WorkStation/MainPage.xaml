@@ -1,27 +1,23 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:models="clr-namespace:Elysium.WorkStation.Models"
              xmlns:local="clr-namespace:Elysium.WorkStation"
              x:Class="Elysium.WorkStation.MainPage"
              x:DataType="local:MainPage"
+             Shell.NavBarIsVisible="False"
              Title="Workspace">
 
-    <Grid RowDefinitions="Auto,Auto,*">
-
-        <VerticalStackLayout Grid.Row="0"
-                             Padding="16,18,16,6"
-                             Spacing="4">
+    <Grid Padding="18" RowDefinitions="Auto,Auto,*" RowSpacing="12">
+        <VerticalStackLayout Grid.Row="0" Spacing="4">
             <Label Text="Workspace"
                    StyleClass="PageTitle" />
-            <Label Text="Tu centro de trabajo en una sola vista"
+            <Label Text="Selecciona un modulo desde el sidebar"
                    StyleClass="Muted" />
         </VerticalStackLayout>
 
         <Border Grid.Row="1"
                 BackgroundColor="{Binding RoleStatusColor}"
-                Padding="12,6"
-                Margin="16,2,16,8"
+                Padding="12,7"
                 StrokeThickness="0"
                 StrokeShape="RoundRectangle 10">
             <Label Text="{Binding RoleStatusText}"
@@ -31,61 +27,32 @@
                    HorizontalOptions="Center" />
         </Border>
 
-        <CollectionView x:Name="MenuCollectionView"
-                    Grid.Row="2"
-                    ItemsSource="{Binding MenuItems}"
-                    Margin="16,0,16,14">
-        <CollectionView.ItemsLayout>
-            <GridItemsLayout Orientation="Vertical"
-                             Span="2"
-                             HorizontalItemSpacing="12"
-                             VerticalItemSpacing="12" />
-        </CollectionView.ItemsLayout>
-        <CollectionView.ItemTemplate>
-            <DataTemplate x:DataType="models:MenuItemModel">
-                <Border Padding="16,20"
-                        HeightRequest="{Binding Source={RelativeSource AncestorType={x:Type local:MainPage}}, Path=CardHeight}"
-                        StrokeShape="RoundRectangle 16"
-                        Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
-                        StrokeThickness="1"
-                        BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray900}}">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer
-                            Command="{Binding Source={RelativeSource AncestorType={x:Type local:MainPage}}, Path=NavigateCommand}"
-                            CommandParameter="{Binding .}" />
-                        <PointerGestureRecognizer
-                            PointerEntered="OnCardPointerEntered"
-                            PointerExited="OnCardPointerExited" />
-                    </Border.GestureRecognizers>
-                    <Border.Shadow>
-                        <Shadow Brush="Black"
-                                Offset="0,2"
-                                Radius="8"
-                                Opacity="0.08" />
-                    </Border.Shadow>
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="{Binding Icon}"
-                               FontSize="40"
-                               HorizontalOptions="Center"
-                               HorizontalTextAlignment="Center" />
-                        <Label Text="{Binding Title}"
-                               FontFamily="OpenSansSemibold"
-                               FontSize="15"
-                               TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
-                               HorizontalOptions="Center"
-                               HorizontalTextAlignment="Center" />
-                        <Label Text="{Binding Description}"
-                               FontFamily="OpenSansRegular"
-                               FontSize="12"
-                               TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
-                               HorizontalOptions="Center"
-                               HorizontalTextAlignment="Center" />
-                    </VerticalStackLayout>
-                </Border>
-            </DataTemplate>
-        </CollectionView.ItemTemplate>
-            </CollectionView>
+        <Border Grid.Row="2"
+                Padding="16"
+                Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
+                BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}"
+                StrokeShape="RoundRectangle 14">
+            <VerticalStackLayout Spacing="10">
+                <Label Text="Panel principal"
+                       StyleClass="SectionTitle" />
+                <Label Text="Ahora la app usa un sidebar real para navegar entre modulos dentro del contenedor principal."
+                       FontFamily="OpenSansRegular"
+                       FontSize="13"
+                       TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" Margin="0,4,0,0">
+                    <Button Grid.Column="0"
+                            Text="Variables"
+                            Command="{Binding OpenVariablesCommand}" />
+                    <Button Grid.Column="1"
+                            Text="Kanban"
+                            Command="{Binding OpenKanbanCommand}" />
+                    <Button Grid.Column="2"
+                            Text="Notas"
+                            Command="{Binding OpenNotesCommand}" />
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
 
-        </Grid>
+</ContentPage>
 
-    </ContentPage>

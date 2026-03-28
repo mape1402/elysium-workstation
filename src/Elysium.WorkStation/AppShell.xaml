@@ -1,14 +1,139 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+﻿<?xml version="1.0" encoding="UTF-8" ?>
 <Shell
     x:Class="Elysium.WorkStation.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:Elysium.WorkStation"
-    Title="Elysium.WorkStation">
+    x:DataType="local:AppShell"
+    Title=""
+    FlyoutWidth="230"
+    Shell.NavBarIsVisible="False"
+    Shell.BackgroundColor="{AppThemeBinding Light=#F7FAFF, Dark=#0E1830}"
+    Shell.FlyoutBackgroundColor="{AppThemeBinding Light=#E3EEFF, Dark=#040D1E}"
+    Shell.ForegroundColor="{AppThemeBinding Light=#1E3F77, Dark=#D4E4FF}"
+    Shell.TitleColor="{AppThemeBinding Light=#1E3F77, Dark=#D4E4FF}"
+    Shell.UnselectedColor="{AppThemeBinding Light=#4D6691, Dark=#8CA6D4}"
+    FlyoutBehavior="Disabled">
 
-    <ShellContent
-        x:Name="HomeContent"
-        Title="Home"
-        Route="MainPage" />
+    <Shell.FlyoutHeader>
+        <Grid Padding="12,0,12,8">
+            <Border Padding="10"
+                    Stroke="{AppThemeBinding Light=#C5D6F6, Dark=#3E5C90}"
+                    StrokeShape="RoundRectangle 12"
+                    BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#132443}">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <Border WidthRequest="44"
+                            HeightRequest="44"
+                            StrokeShape="RoundRectangle 22"
+                            Stroke="{AppThemeBinding Light=#BCD0F3, Dark=#4C6BA0}"
+                            StrokeThickness="1"
+                            Padding="0"
+                            BackgroundColor="{AppThemeBinding Light=#E6F0FF, Dark=#1A3159}">
+                        <Image Source="dotnet_bot.png"
+                               Aspect="AspectFill" />
+                    </Border>
+
+                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="0">
+                        <Label Text="{Binding ProfileName}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light=#1E3F77, Dark=#D4E4FF}" />
+                        <Label Text="Perfil"
+                               FontFamily="OpenSansRegular"
+                               FontSize="11"
+                               TextColor="{AppThemeBinding Light=#6D7FA0, Dark=#9CB2D7}" />
+                    </VerticalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
+    </Shell.FlyoutHeader>
+
+    <FlyoutItem Title="🏠  Inicio" Route="home-root">
+        <ShellContent x:Name="HomeContent"
+                      Title="Inicio"
+                      Route="MainPage"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="🔔  Notificaciones" Route="notifications-root">
+        <ShellContent x:Name="NotificationsContent"
+                      Title="Notificaciones"
+                      Route="notifications"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="📌  Kanban" Route="kanban-root">
+        <ShellContent x:Name="KanbanContent"
+                      Title="Kanban"
+                      Route="kanban"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="💡  Brainstorming" Route="brainstorm-root">
+        <ShellContent x:Name="BrainstormContent"
+                      Title="Brainstorming"
+                      Route="brainstorming"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="📝  Notas" Route="notes-root">
+        <ShellContent x:Name="NotesContent"
+                      Title="Notas"
+                      Route="notes"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="📋  Portapapeles" Route="clipboard-root">
+        <ShellContent x:Name="ClipboardContent"
+                      Title="Portapapeles"
+                      Route="clipboard-history"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="📂  Archivos" Route="files-root">
+        <ShellContent x:Name="FilesContent"
+                      Title="Archivos"
+                      Route="files"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="🔐  Variables" Route="variables-root">
+        <ShellContent x:Name="VariablesContent"
+                      Title="Variables"
+                      Route="variables"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="⚙️  Configuracion" Route="settings-root">
+        <ShellContent x:Name="SettingsContent"
+                      Title="Configuracion"
+                      Route="settings"
+                      Shell.NavBarIsVisible="False" />
+    </FlyoutItem>
+
+    <Shell.FlyoutFooter>
+        <Grid Padding="10,8,10,10">
+            <Border Padding="10,8"
+                    Stroke="{AppThemeBinding Light=#C5D6F6, Dark=#3E5C90}"
+                    StrokeShape="RoundRectangle 10"
+                    BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#132443}">
+                <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                    <Border WidthRequest="10"
+                            HeightRequest="10"
+                            Padding="0"
+                            StrokeShape="RoundRectangle 5"
+                            StrokeThickness="0"
+                            VerticalOptions="Center"
+                            BackgroundColor="{Binding AppModeColor}" />
+                    <Label Text="{Binding AppModeText, StringFormat='Modo: {0}'}"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="12"
+                           VerticalOptions="Center"
+                           TextColor="{AppThemeBinding Light=#1E3F77, Dark=#D4E4FF}" />
+                </HorizontalStackLayout>
+            </Border>
+        </Grid>
+    </Shell.FlyoutFooter>
 
 </Shell>
+

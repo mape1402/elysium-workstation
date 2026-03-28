@@ -5,6 +5,7 @@
              xmlns:views="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.BrainstormPage"
              x:DataType="views:BrainstormPage"
+             Shell.NavBarIsVisible="False"
              Title="Brainstorming">
 
     <Grid RowDefinitions="Auto,*">
@@ -305,4 +306,5 @@
 
     </Grid>
 </ContentPage>
+
 

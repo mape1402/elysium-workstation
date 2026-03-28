@@ -253,7 +253,7 @@
 
     <Style TargetType="Page" ApplyToDerivedTypes="True">
         <Setter Property="Padding" Value="0" />
-        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#F2F7FF, Dark={StaticResource OffBlack}}" />
+        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#F7FAFF, Dark=#0E1830}" />
     </Style>
 
     <Style TargetType="Shell" ApplyToDerivedTypes="True">

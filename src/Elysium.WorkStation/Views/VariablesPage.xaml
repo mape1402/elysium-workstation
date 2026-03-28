@@ -1,10 +1,11 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:models="clr-namespace:Elysium.WorkStation.Models"
              xmlns:views="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.VariablesPage"
              x:DataType="views:VariablesPage"
+             Shell.NavBarIsVisible="False"
              Title="Variables">
 
     <Grid RowDefinitions="Auto,*"
@@ -30,7 +31,7 @@
                   ColumnDefinitions="Auto,*"
                   ColumnSpacing="8">
                 <Button Grid.Column="0"
-                        Text="←"
+                        Text="â†"
                         WidthRequest="30"
                         HeightRequest="30"
                         Padding="0"
@@ -126,7 +127,7 @@
                               VerticalOptions="End"
                               Margin="0,0,0,-20">
                             <Button Grid.Column="0"
-                                    Text="✎"
+                                    Text="âœŽ"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -141,7 +142,7 @@
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=EditGroupFromCardCommand}"
                                     CommandParameter="{Binding .}" />
                             <Button Grid.Column="1"
-                                    Text="🗑"
+                                    Text="ðŸ—‘"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -243,7 +244,7 @@
                               VerticalOptions="End"
                               Margin="0,0,0,-20">
                             <Button Grid.Column="0"
-                                    Text="✎"
+                                    Text="âœŽ"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -258,7 +259,7 @@
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=EditVariableCommand}"
                                     CommandParameter="{Binding .}" />
                             <Button Grid.Column="1"
-                                    Text="⧉"
+                                    Text="â§‰"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -273,7 +274,7 @@
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=CopyVariableCommand}"
                                     CommandParameter="{Binding .}" />
                             <Button Grid.Column="2"
-                                    Text="🗑"
+                                    Text="ðŸ—‘"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -340,3 +341,4 @@
         </Border>
     </Grid>
 </ContentPage>
+

@@ -5,6 +5,7 @@
              xmlns:views="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.ClipboardHistoryPage"
              x:DataType="views:ClipboardHistoryPage"
+             Shell.NavBarIsVisible="False"
              Title="Portapapeles">
 
     <Grid RowDefinitions="Auto,Auto,*">
@@ -102,3 +103,4 @@
     </Grid>
 
 </ContentPage>
+

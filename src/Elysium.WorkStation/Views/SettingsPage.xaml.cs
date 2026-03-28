@@ -2,6 +2,9 @@ using Elysium.WorkStation.Models;
 using Elysium.WorkStation.Services;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+#if WINDOWS
+using Microsoft.UI.Xaml.Controls;
+#endif
 
 namespace Elysium.WorkStation.Views
 {
@@ -435,6 +438,15 @@ namespace Elysium.WorkStation.Views
 
             InitializeComponent();
             BindingContext = this;
+
+#if WINDOWS
+            Loaded += (_, _) => ApplyWindowsThemePickerStyling();
+            ThemePicker.HandlerChanged += (_, _) => ApplyWindowsThemePickerStyling();
+            if (Application.Current is not null)
+            {
+                Application.Current.RequestedThemeChanged += (_, _) => ApplyWindowsThemePickerStyling();
+            }
+#endif
         }
 
         private static bool IsValidUrl(string url) =>
@@ -448,6 +460,9 @@ namespace Elysium.WorkStation.Views
                 return;
 
             Application.Current.UserAppTheme = ResolveThemeMode(SelectedTheme);
+#if WINDOWS
+            ApplyWindowsThemePickerStyling();
+#endif
         }
 
         private static AppTheme ResolveThemeMode(string mode) =>
@@ -471,6 +486,48 @@ namespace Elysium.WorkStation.Views
             await Navigation.PushModalAsync(popup);
             return await popup.ResultTask;
         }
+
+#if WINDOWS
+        private void ApplyWindowsThemePickerStyling()
+        {
+            if (ThemePicker?.Handler?.PlatformView is not ComboBox comboBox)
+                return;
+
+            var isDark = (Application.Current?.UserAppTheme ?? AppTheme.Light) == AppTheme.Dark;
+
+            var background = isDark
+                ? global::Windows.UI.Color.FromArgb(255, 26, 49, 89)
+                : global::Windows.UI.Color.FromArgb(255, 231, 239, 252);
+            var border = isDark
+                ? global::Windows.UI.Color.FromArgb(255, 76, 107, 160)
+                : global::Windows.UI.Color.FromArgb(255, 188, 208, 243);
+            var foreground = isDark
+                ? global::Windows.UI.Color.FromArgb(255, 229, 239, 255)
+                : global::Windows.UI.Color.FromArgb(255, 30, 63, 119);
+            var pointerOver = isDark
+                ? global::Windows.UI.Color.FromArgb(255, 33, 59, 102)
+                : global::Windows.UI.Color.FromArgb(255, 218, 230, 249);
+            var selected = isDark
+                ? global::Windows.UI.Color.FromArgb(255, 43, 74, 125)
+                : global::Windows.UI.Color.FromArgb(255, 201, 219, 245);
+
+            comboBox.RequestedTheme = isDark
+                ? Microsoft.UI.Xaml.ElementTheme.Dark
+                : Microsoft.UI.Xaml.ElementTheme.Light;
+            comboBox.Background = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(background);
+            comboBox.BorderBrush = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(border);
+            comboBox.Foreground = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(foreground);
+
+            comboBox.Resources["ComboBoxDropDownBackground"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(background);
+            comboBox.Resources["ComboBoxDropDownBorderBrush"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(border);
+            comboBox.Resources["ComboBoxItemBackground"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(background);
+            comboBox.Resources["ComboBoxItemForeground"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(foreground);
+            comboBox.Resources["ComboBoxItemBackgroundPointerOver"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(pointerOver);
+            comboBox.Resources["ComboBoxItemForegroundPointerOver"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(foreground);
+            comboBox.Resources["ComboBoxItemBackgroundSelected"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(selected);
+            comboBox.Resources["ComboBoxItemForegroundSelected"] = new global::Microsoft.UI.Xaml.Media.SolidColorBrush(foreground);
+        }
+#endif
     }
 }
 

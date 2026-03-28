@@ -25,6 +25,7 @@
     <Color x:Key="Gray400">#9AAED0</Color>
     <Color x:Key="Gray500">#6E83AA</Color>
     <Color x:Key="Gray600">#4B6086</Color>
+    <Color x:Key="GRay600">#4B6086</Color>
     <Color x:Key="Gray700">#32476B</Color>
     <Color x:Key="Gray800">#1F3150</Color>
     <Color x:Key="Gray900">#14213D</Color>
@@ -42,6 +43,7 @@
     <SolidColorBrush x:Key="Gray400Brush" Color="{StaticResource Gray400}" />
     <SolidColorBrush x:Key="Gray500Brush" Color="{StaticResource Gray500}" />
     <SolidColorBrush x:Key="Gray600Brush" Color="{StaticResource Gray600}" />
+    <SolidColorBrush x:Key="GRay600Brush" Color="{StaticResource GRay600}" />
     <SolidColorBrush x:Key="Gray800Brush" Color="{StaticResource Gray800}" />
     <SolidColorBrush x:Key="Gray900Brush" Color="{StaticResource Gray900}" />
     <SolidColorBrush x:Key="Gray950Brush" Color="{StaticResource Gray950}" />

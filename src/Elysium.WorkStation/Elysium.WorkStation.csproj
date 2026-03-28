@@ -11,7 +11,7 @@
 		<Nullable>disable</Nullable>
 
 		<!-- Display name -->
-		<ApplicationTitle>Elysium.WorkStation</ApplicationTitle>
+		<ApplicationTitle>MyWorkStation</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.companyname.elysium.workstation</ApplicationId>

@@ -1,11 +1,12 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:models="clr-namespace:Elysium.WorkStation.Models"
              xmlns:views="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.NotesPage"
              x:DataType="views:NotesPage"
-             Title="Notas rápidas">
+             Shell.NavBarIsVisible="False"
+             Title="Notas rÃ¡pidas">
 
     <Grid RowDefinitions="Auto,*">
 
@@ -21,7 +22,7 @@
                    TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}"
                    VerticalOptions="Center" />
             <Button Grid.Column="1"
-                    Text="📝 Nueva"
+                    Text="ðŸ“ Nueva"
                     Command="{Binding AddCommand}"
                     FontFamily="OpenSansSemibold"
                     FontSize="12"
@@ -49,10 +50,10 @@
                                      VerticalOptions="Center"
                                      Spacing="10"
                                      Margin="0,80,0,0">
-                    <Label Text="📝"
+                    <Label Text="ðŸ“"
                            FontSize="52"
                            HorizontalOptions="Center" />
-                    <Label Text="No hay notas todavía"
+                    <Label Text="No hay notas todavÃ­a"
                            FontFamily="OpenSansRegular"
                            FontSize="14"
                            TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
@@ -106,7 +107,7 @@
                                             Command="{Binding Source={RelativeSource AncestorType={x:Type views:NotesPage}}, Path=CopyCommand}"
                                             CommandParameter="{Binding .}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="📋"
+                                    <Label Text="ðŸ“‹"
                                            FontSize="14"
                                            HorizontalOptions="Center"
                                            VerticalOptions="Center" />
@@ -123,7 +124,7 @@
                                             Command="{Binding Source={RelativeSource AncestorType={x:Type views:NotesPage}}, Path=DeleteCommand}"
                                             CommandParameter="{Binding .}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="✕"
+                                    <Label Text="âœ•"
                                            FontSize="14"
                                            TextColor="White"
                                            HorizontalOptions="Center"
@@ -166,3 +167,4 @@
     </Grid>
 
 </ContentPage>
+

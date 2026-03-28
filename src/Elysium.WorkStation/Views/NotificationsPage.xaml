@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:models="clr-namespace:Elysium.WorkStation.Models"
@@ -6,11 +6,12 @@
              x:Class="Elysium.WorkStation.Views.NotificationsPage"
              x:DataType="views:NotificationsPage"
              x:Name="thisPage"
+             Shell.NavBarIsVisible="False"
              Title="Notificaciones">
 
     <Grid RowDefinitions="Auto,*">
 
-        <!-- Header: conteo + botón limpiar -->
+        <!-- Header: conteo + botÃ³n limpiar -->
         <Grid Grid.Row="0"
               ColumnDefinitions="*,Auto"
               Padding="16,10,16,6">
@@ -42,7 +43,7 @@
                                      VerticalOptions="Center"
                                      Spacing="10"
                                      Margin="0,80,0,0">
-                    <Label Text="🔔"
+                    <Label Text="ðŸ””"
                            FontSize="52"
                            HorizontalOptions="Center" />
                     <Label Text="Sin notificaciones recientes"
@@ -99,3 +100,4 @@
     </Grid>
 
 </ContentPage>
+

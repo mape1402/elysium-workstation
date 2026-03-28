@@ -4,6 +4,7 @@
              xmlns:views="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.SettingsPage"
              x:DataType="views:SettingsPage"
+             Shell.NavBarIsVisible="False"
              Title="Configuración">
 
     <Grid RowDefinitions="*,Auto,Auto" RowSpacing="0">
@@ -75,6 +76,7 @@
                                VerticalOptions="Center"
                                TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
                         <Picker Grid.Column="1"
+                                x:Name="ThemePicker"
                                 WidthRequest="130"
                                 ItemsSource="{Binding ThemeOptions}"
                                 SelectedItem="{Binding SelectedTheme}" />
@@ -387,7 +389,7 @@
         </VerticalStackLayout>
     </ScrollView>
 
-    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12" Padding="24,12,24,0">
+    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12" Padding="24,12,24,12">
                 <Button Grid.Column="0"
                         Text="💾  Guardar"
                         Command="{Binding SaveCommand}"
@@ -421,3 +423,4 @@
     </Grid>
 
 </ContentPage>
+
