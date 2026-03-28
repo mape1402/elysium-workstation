@@ -12,6 +12,7 @@ namespace Elysium.WorkStation
 
         private Microsoft.UI.Xaml.Window _nativeWindow;
         private bool _isReallyExiting;
+        private bool _isNativeWindowClosed;
         private bool _isWindowsTitleBarConfigured;
         private Microsoft.Maui.Controls.TitleBar _windowsTitleBar;
         private Microsoft.Maui.Controls.Button _windowsHamburgerButton;
@@ -34,17 +35,17 @@ namespace Elysium.WorkStation
 
             RequestedThemeChanged += (_, _) =>
             {
-                if (_nativeWindow is not null && _isWindowsTitleBarConfigured)
+                if (_isWindowsTitleBarConfigured && TryGetOpenNativeWindow(out var nativeWindow))
                 {
-                    UpdateWindowsTitleBarColors(_nativeWindow);
+                    UpdateWindowsTitleBarColors(nativeWindow);
                 }
             };
 
             _appShell.Navigated += (_, _) => MainThread.BeginInvokeOnMainThread(() =>
             {
-                if (_nativeWindow is not null && _isWindowsTitleBarConfigured)
+                if (_isWindowsTitleBarConfigured && TryGetOpenNativeWindow(out var nativeWindow))
                 {
-                    UpdateWindowsWindowTitle(_nativeWindow);
+                    UpdateWindowsWindowTitle(nativeWindow);
                 }
             });
         }
@@ -79,6 +80,9 @@ namespace Elysium.WorkStation
                 }
 
                 _nativeWindow = nativeWindow;
+                _isNativeWindowClosed = false;
+                nativeWindow.Closed -= OnNativeWindowClosed;
+                nativeWindow.Closed += OnNativeWindowClosed;
                 ConfigureWindowsTitleBar(window, nativeWindow);
 
 #if !DEBUG
@@ -90,22 +94,25 @@ namespace Elysium.WorkStation
                     }
 
                     args.Cancel = true;
-                    _nativeWindow.AppWindow.Hide();
+                    HideNativeWindowSafe();
                 };
 #endif
             };
 
             // Inicializar el icono de la bandeja del sistema
             _trayService.Initialize(
-                onShow: () => _nativeWindow?.AppWindow.Show(true),
+                onShow: ShowNativeWindowSafe,
                 onExit: () =>
                 {
                     ExitApplication();
                 },
                 onQuickNote: () =>
                 {
-                    _nativeWindow?.AppWindow.Show(true);
-                    _ = Shell.Current.GoToAsync("note-editor");
+                    ShowNativeWindowSafe();
+                    if (Shell.Current is not null)
+                    {
+                        _ = Shell.Current.GoToAsync("note-editor");
+                    }
                 }
             );
 #endif
@@ -145,7 +152,8 @@ namespace Elysium.WorkStation
 
             window.TitleBar = _windowsTitleBar;
             nativeWindow.SystemBackdrop = null;
-            nativeWindow.Activated += (_, _) => UpdateWindowsTitleBarColors(nativeWindow);
+            nativeWindow.Activated -= OnNativeWindowActivated;
+            nativeWindow.Activated += OnNativeWindowActivated;
 
             var nativeTitleBar = nativeWindow.AppWindow.TitleBar;
             nativeTitleBar.IconShowOptions = Microsoft.UI.Windowing.IconShowOptions.HideIconAndSystemMenu;
@@ -158,6 +166,11 @@ namespace Elysium.WorkStation
 
         private void UpdateWindowsTitleBarColors(Microsoft.UI.Xaml.Window nativeWindow)
         {
+            if (!IsNativeWindowAvailable(nativeWindow))
+            {
+                return;
+            }
+
             var effectiveTheme = UserAppTheme == AppTheme.Unspecified
                 ? (Current?.RequestedTheme ?? AppTheme.Light)
                 : UserAppTheme;
@@ -208,6 +221,11 @@ namespace Elysium.WorkStation
 
         private void UpdateWindowsWindowTitle(Microsoft.UI.Xaml.Window nativeWindow)
         {
+            if (!IsNativeWindowAvailable(nativeWindow))
+            {
+                return;
+            }
+
             var fullTitle = BuildWindowTitle();
             nativeWindow.Title = fullTitle;
 
@@ -241,6 +259,97 @@ namespace Elysium.WorkStation
             if (nativeWindow.Content is Microsoft.UI.Xaml.Controls.Control control)
             {
                 control.Background = brush;
+            }
+        }
+
+        private void OnNativeWindowActivated(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
+        {
+            if (sender is Microsoft.UI.Xaml.Window nativeWindow && IsNativeWindowAvailable(nativeWindow))
+            {
+                UpdateWindowsTitleBarColors(nativeWindow);
+            }
+        }
+
+        private void OnNativeWindowClosed(object sender, Microsoft.UI.Xaml.WindowEventArgs args)
+        {
+            if (sender is Microsoft.UI.Xaml.Window nativeWindow)
+            {
+                nativeWindow.Activated -= OnNativeWindowActivated;
+                nativeWindow.Closed -= OnNativeWindowClosed;
+            }
+
+            _isNativeWindowClosed = true;
+            _isWindowsTitleBarConfigured = false;
+            _windowsTitleBar = null;
+            _windowsHamburgerButton = null;
+
+            if (ReferenceEquals(_nativeWindow, sender))
+            {
+                _nativeWindow = null;
+            }
+        }
+
+        private bool TryGetOpenNativeWindow(out Microsoft.UI.Xaml.Window nativeWindow)
+        {
+            nativeWindow = _nativeWindow;
+            return IsNativeWindowAvailable(nativeWindow);
+        }
+
+        private bool IsNativeWindowAvailable(Microsoft.UI.Xaml.Window nativeWindow)
+        {
+            if (nativeWindow is null || _isNativeWindowClosed)
+            {
+                return false;
+            }
+
+            try
+            {
+                _ = nativeWindow.AppWindow;
+                return true;
+            }
+            catch
+            {
+                _isNativeWindowClosed = true;
+                if (ReferenceEquals(_nativeWindow, nativeWindow))
+                {
+                    _nativeWindow = null;
+                }
+
+                return false;
+            }
+        }
+
+        private void ShowNativeWindowSafe()
+        {
+            if (!TryGetOpenNativeWindow(out var nativeWindow))
+            {
+                return;
+            }
+
+            try
+            {
+                nativeWindow.AppWindow.Show(true);
+            }
+            catch
+            {
+                _isNativeWindowClosed = true;
+            }
+        }
+
+        private void HideNativeWindowSafe()
+        {
+            if (!TryGetOpenNativeWindow(out var nativeWindow))
+            {
+                return;
+            }
+
+            try
+            {
+                nativeWindow.AppWindow.Hide();
+            }
+            catch
+            {
+                _isNativeWindowClosed = true;
             }
         }
 #endif
