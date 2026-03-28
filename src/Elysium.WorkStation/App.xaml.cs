@@ -45,12 +45,14 @@
                 if (window.Handler?.PlatformView is not Microsoft.UI.Xaml.Window nativeWindow) return;
                 _nativeWindow = nativeWindow;
 
+#if !DEBUG
                 _nativeWindow.AppWindow.Closing += (sender, args) =>
                 {
                     if (_isReallyExiting) return;
                     args.Cancel = true;
                     _nativeWindow.AppWindow.Hide();
                 };
+#endif
             };
 
             // Inicializar el icono de la bandeja del sistema
@@ -58,11 +60,7 @@
                 onShow: () => _nativeWindow?.AppWindow.Show(true),
                 onExit: () =>
                 {
-                    _isReallyExiting = true;
-                    _trayService.Dispose();
-                    _mouseService.Stop();
-                    _ = _webHostService.StopAsync();
-                    Application.Current?.Quit();
+                    ExitApplication();
                 },
                 onQuickNote: () =>
                 {
@@ -73,6 +71,16 @@
 #endif
 
             return window;
+        }
+
+        private void ExitApplication()
+        {
+            if (_isReallyExiting) return;
+            _isReallyExiting = true;
+            _trayService.Dispose();
+            _mouseService.Stop();
+            _ = _webHostService.StopAsync();
+            Application.Current?.Quit();
         }
     }
 }
