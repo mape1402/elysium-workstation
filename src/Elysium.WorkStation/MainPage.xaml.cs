@@ -28,6 +28,7 @@ namespace Elysium.WorkStation
             new() { Icon = "📂", Title = "Archivos",         Description = "Env\u00eda y recibe archivos en la red",  Route = "files" },
             new() { Icon = "📝", Title = "Notas rápidas",     Description = "Crea notas tipo post-it",                Route = "notes" },
             new() { Icon = "📌", Title = "Kanban",             Description = "Tablero de tareas con estatus",          Route = "kanban" },
+            new() { Icon = "💡", Title = "Brainstorming",      Description = "Arbol de temas e ideas anidadas",       Route = "brainstorming" },
             new() { Icon = "🔐", Title = "Variables",          Description = "Clave, valor y secretos por grupo",      Route = "variables" },
         ];
 

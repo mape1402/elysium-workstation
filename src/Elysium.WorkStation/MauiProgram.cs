@@ -32,6 +32,7 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.INoteRepository,         Services.NoteRepository>();
             builder.Services.AddSingleton<Services.IKanbanTaskRepository,   Services.KanbanTaskRepository>();
             builder.Services.AddSingleton<Services.IKanbanCleanupService,   Services.KanbanCleanupService>();
+            builder.Services.AddSingleton<Services.IBrainstormNodeRepository, Services.BrainstormNodeRepository>();
             builder.Services.AddSingleton<Services.IVariableRepository,     Services.VariableRepository>();
             builder.Services.AddSingleton<Services.ISecretVaultService,     Services.SecretVaultService>();
             builder.Services.AddSingleton<Services.IToastService,            Services.ToastService>();
@@ -41,6 +42,7 @@ namespace Elysium.WorkStation
             builder.Services.AddTransient<Views.NotesPage>();
             builder.Services.AddTransient<Views.NoteEditorPage>();
             builder.Services.AddTransient<Views.KanbanPage>();
+            builder.Services.AddTransient<Views.BrainstormPage>();
             builder.Services.AddTransient<Views.SettingsPage>();
             builder.Services.AddTransient<Views.VariablesPage>();
 

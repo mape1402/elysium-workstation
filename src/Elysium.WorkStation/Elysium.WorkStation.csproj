@@ -74,6 +74,15 @@
 	  <MauiXaml Update="Views\KanbanTaskEditorPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\BrainstormPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\BrainstormNodeEditorPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\BrainstormNodeViewPopupPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\NoteEditorPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

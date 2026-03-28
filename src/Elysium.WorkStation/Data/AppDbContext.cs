@@ -12,6 +12,7 @@ namespace Elysium.WorkStation.Data
         public DbSet<FileEntry>         FileHistory      => Set<FileEntry>();
         public DbSet<NoteEntry>         Notes            => Set<NoteEntry>();
         public DbSet<KanbanTask>        KanbanTasks      => Set<KanbanTask>();
+        public DbSet<BrainstormNode>    BrainstormNodes  => Set<BrainstormNode>();
         public DbSet<VariableGroup>     VariableGroups   => Set<VariableGroup>();
         public DbSet<WorkVariable>      WorkVariables    => Set<WorkVariable>();
     }

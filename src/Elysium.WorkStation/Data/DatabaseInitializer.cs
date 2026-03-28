@@ -21,6 +21,7 @@ namespace Elysium.WorkStation.Data
             EnsureFileHistoryTable(db);
             EnsureNotesTable(db);
             EnsureKanbanTasksTable(db);
+            EnsureBrainstormNodesTable(db);
             EnsureVariableGroupsTable(db);
             EnsureWorkVariablesTable(db);
         }
@@ -191,6 +192,56 @@ namespace Elysium.WorkStation.Data
             AddKanbanColumnIfMissing(db, "Priority",    "INTEGER NOT NULL DEFAULT 1");
             AddKanbanColumnIfMissing(db, "Visible",     "INTEGER NOT NULL DEFAULT 1");
             AddKanbanColumnIfMissing(db, "CompletedOn", "TEXT");
+        }
+
+        private static void EnsureBrainstormNodesTable(AppDbContext db)
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "BrainstormNodes" (
+                    "Id"          INTEGER NOT NULL CONSTRAINT "PK_BrainstormNodes" PRIMARY KEY AUTOINCREMENT,
+                    "ParentId"    INTEGER,
+                    "Title"       TEXT    NOT NULL,
+                    "Description" TEXT    NOT NULL DEFAULT '',
+                    "CreatedAt"   TEXT    NOT NULL,
+                    "UpdatedAt"   TEXT    NOT NULL,
+                    CONSTRAINT "FK_BrainstormNodes_BrainstormNodes_ParentId"
+                        FOREIGN KEY ("ParentId") REFERENCES "BrainstormNodes" ("Id") ON DELETE CASCADE
+                )
+                """);
+
+            db.Database.ExecuteSqlRaw("""
+                CREATE INDEX IF NOT EXISTS "IX_BrainstormNodes_ParentId"
+                ON "BrainstormNodes" ("ParentId")
+                """);
+
+            AddBrainstormNodeColumnIfMissing(db, "Description", "TEXT NOT NULL DEFAULT ''");
+            AddBrainstormNodeColumnIfMissing(db, "CreatedAt", "TEXT NOT NULL DEFAULT ''");
+            AddBrainstormNodeColumnIfMissing(db, "UpdatedAt", "TEXT NOT NULL DEFAULT ''");
+        }
+
+        private static void AddBrainstormNodeColumnIfMissing(AppDbContext db, string column, string definition)
+        {
+            var conn = db.Database.GetDbConnection();
+            bool shouldClose = conn.State != ConnectionState.Open;
+            if (shouldClose) conn.Open();
+
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('BrainstormNodes') WHERE name = '{column}'";
+                bool hasColumn = Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+
+                if (!hasColumn)
+                {
+                    using var alter = conn.CreateCommand();
+                    alter.CommandText = $"""ALTER TABLE "BrainstormNodes" ADD COLUMN "{column}" {definition}""";
+                    alter.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                if (shouldClose) conn.Close();
+            }
         }
 
         private static void AddKanbanColumnIfMissing(AppDbContext db, string column, string definition)
