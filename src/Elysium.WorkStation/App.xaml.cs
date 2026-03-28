@@ -1,4 +1,4 @@
-﻿namespace Elysium.WorkStation
+namespace Elysium.WorkStation
 {
     public partial class App : Application
     {
@@ -6,31 +6,32 @@
         private readonly Services.ISettingsService _settingsService;
 #if WINDOWS
         private readonly Services.IWebHostService _webHostService;
-        private readonly Services.IMouseService   _mouseService;
-        private readonly Services.ITrayService    _trayService;
-        private readonly AppShell                 _appShell;
+        private readonly Services.IMouseService _mouseService;
+        private readonly Services.ITrayService _trayService;
+        private readonly AppShell _appShell;
 
         private Microsoft.UI.Xaml.Window _nativeWindow;
         private bool _isReallyExiting;
         private bool _isWindowsTitleBarConfigured;
-        private Microsoft.UI.Xaml.Controls.Grid _windowsRootGrid;
-        private Microsoft.UI.Xaml.Controls.Grid _windowsTitleBarGrid;
-        private Microsoft.UI.Xaml.Controls.TextBlock _windowsTitleText;
-        private Microsoft.UI.Xaml.Controls.FontIcon _windowsHamburgerIcon;
+        private Microsoft.Maui.Controls.TitleBar _windowsTitleBar;
+        private Microsoft.Maui.Controls.Button _windowsHamburgerButton;
 
-        public App(AppShell                  appShell,
-                   Services.ISettingsService settingsService,
-                   Services.IWebHostService  webHostService,
-                   Services.IMouseService    mouseService,
-                   Services.ITrayService     trayService)
+        public App(
+            AppShell appShell,
+            Services.ISettingsService settingsService,
+            Services.IWebHostService webHostService,
+            Services.IMouseService mouseService,
+            Services.ITrayService trayService)
         {
-            _appShell       = appShell;
+            _appShell = appShell;
             _settingsService = settingsService;
             _webHostService = webHostService;
-            _mouseService   = mouseService;
-            _trayService    = trayService;
+            _mouseService = mouseService;
+            _trayService = trayService;
+
             InitializeComponent();
             UserAppTheme = ResolveTheme(_settingsService.ThemeMode);
+
             RequestedThemeChanged += (_, _) =>
             {
                 if (_nativeWindow is not null && _isWindowsTitleBarConfigured)
@@ -38,6 +39,7 @@
                     UpdateWindowsTitleBarColors(_nativeWindow);
                 }
             };
+
             _appShell.Navigated += (_, _) => MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (_nativeWindow is not null && _isWindowsTitleBarConfigured)
@@ -60,7 +62,10 @@
 
         protected override Window CreateWindow(IActivationState activationState)
         {
-            var window = new Window(_appShell);
+            var window = new Window(_appShell)
+            {
+                Title = AppDisplayName
+            };
 
 #if WINDOWS
             window.Created += (s, e) => _mouseService.Start(1);
@@ -68,14 +73,22 @@
             // Interceptar el cierre nativo para ocultar en vez de cerrar
             window.HandlerChanged += (s, e) =>
             {
-                if (window.Handler?.PlatformView is not Microsoft.UI.Xaml.Window nativeWindow) return;
+                if (window.Handler?.PlatformView is not Microsoft.UI.Xaml.Window nativeWindow)
+                {
+                    return;
+                }
+
                 _nativeWindow = nativeWindow;
-                ConfigureWindowsTitleBar(nativeWindow);
+                ConfigureWindowsTitleBar(window, nativeWindow);
 
 #if !DEBUG
                 _nativeWindow.AppWindow.Closing += (sender, args) =>
                 {
-                    if (_isReallyExiting) return;
+                    if (_isReallyExiting)
+                    {
+                        return;
+                    }
+
                     args.Cancel = true;
                     _nativeWindow.AppWindow.Hide();
                 };
@@ -101,96 +114,42 @@
         }
 
 #if WINDOWS
-        private void ConfigureWindowsTitleBar(Microsoft.UI.Xaml.Window nativeWindow)
+        private void ConfigureWindowsTitleBar(Window window, Microsoft.UI.Xaml.Window nativeWindow)
         {
             if (_isWindowsTitleBarConfigured)
             {
                 return;
             }
 
-            if (nativeWindow.Content is not Microsoft.UI.Xaml.FrameworkElement originalContent)
+            _windowsHamburgerButton = new Microsoft.Maui.Controls.Button
             {
-                nativeWindow.DispatcherQueue.TryEnqueue(() => ConfigureWindowsTitleBar(nativeWindow));
-                return;
-            }
-
-            var rootGrid = new Microsoft.UI.Xaml.Controls.Grid();
-            rootGrid.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition
-            {
-                Height = new Microsoft.UI.Xaml.GridLength(34)
-            });
-            rootGrid.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition
-            {
-                Height = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star)
-            });
-
-            var titleBarGrid = new Microsoft.UI.Xaml.Controls.Grid();
-            titleBarGrid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition
-            {
-                Width = Microsoft.UI.Xaml.GridLength.Auto
-            });
-            titleBarGrid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition
-            {
-                Width = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star)
-            });
-
-            var hamburgerButton = new Microsoft.UI.Xaml.Controls.Button
-            {
-                Width = 34,
-                Height = 28,
-                Margin = new Microsoft.UI.Xaml.Thickness(6, 3, 6, 3),
-                HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Left,
-                VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
-                Padding = new Microsoft.UI.Xaml.Thickness(0),
-                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 255, 255, 255)),
-                BorderThickness = new Microsoft.UI.Xaml.Thickness(0),
-                Content = new Microsoft.UI.Xaml.Controls.FontIcon
-                {
-                    Glyph = "\uE700",
-                    FontSize = 16,
-                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
-                }
+                Text = "\u2630",
+                FontSize = 16,
+                WidthRequest = 34,
+                HeightRequest = 30,
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 0, 6, 0),
+                HorizontalOptions = LayoutOptions.Start,
+                VerticalOptions = LayoutOptions.Center,
+                CornerRadius = 6,
+                BorderWidth = 0,
+                BackgroundColor = Colors.Transparent
             };
-            _windowsHamburgerIcon = (Microsoft.UI.Xaml.Controls.FontIcon)hamburgerButton.Content;
-            hamburgerButton.Click += (_, _) => _appShell.ToggleSidebarCommand.Execute(null);
-            Microsoft.UI.Xaml.Controls.Grid.SetColumn(hamburgerButton, 0);
+            _windowsHamburgerButton.Clicked += (_, _) => _appShell.ToggleSidebarCommand.Execute(null);
 
-            var dragRegion = new Microsoft.UI.Xaml.Controls.Grid
+            _windowsTitleBar = new Microsoft.Maui.Controls.TitleBar
             {
-                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 255, 255, 255))
+                Title = BuildWindowTitle(),
+                LeadingContent = _windowsHamburgerButton
             };
-            var titleText = new Microsoft.UI.Xaml.Controls.TextBlock
-            {
-                Text = AppDisplayName,
-                Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 1),
-                VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
-                FontSize = 14,
-                IsHitTestVisible = false
-            };
-            _windowsTitleText = titleText;
-            dragRegion.Children.Add(titleText);
-            Microsoft.UI.Xaml.Controls.Grid.SetColumn(dragRegion, 1);
 
-            titleBarGrid.Children.Add(hamburgerButton);
-            titleBarGrid.Children.Add(dragRegion);
-
-            Microsoft.UI.Xaml.Controls.Grid.SetRow(titleBarGrid, 0);
-            Microsoft.UI.Xaml.Controls.Grid.SetRow(originalContent, 1);
-
-            rootGrid.Children.Add(titleBarGrid);
-            rootGrid.Children.Add(originalContent);
-
-            nativeWindow.ExtendsContentIntoTitleBar = true;
+            window.TitleBar = _windowsTitleBar;
             nativeWindow.SystemBackdrop = null;
-            nativeWindow.Content = rootGrid;
-            nativeWindow.SetTitleBar(dragRegion);
             nativeWindow.Activated += (_, _) => UpdateWindowsTitleBarColors(nativeWindow);
-            _windowsRootGrid = rootGrid;
-            _windowsTitleBarGrid = titleBarGrid;
 
-            var titleBar = nativeWindow.AppWindow.TitleBar;
-            titleBar.IconShowOptions = Microsoft.UI.Windowing.IconShowOptions.HideIconAndSystemMenu;
+            var nativeTitleBar = nativeWindow.AppWindow.TitleBar;
+            nativeTitleBar.IconShowOptions = Microsoft.UI.Windowing.IconShowOptions.HideIconAndSystemMenu;
+
             UpdateWindowsWindowTitle(nativeWindow);
             UpdateWindowsTitleBarColors(nativeWindow);
 
@@ -210,9 +169,6 @@
             var barForeground = isDarkTheme
                 ? global::Windows.UI.Color.FromArgb(255, 255, 255, 255)
                 : global::Windows.UI.Color.FromArgb(255, 30, 63, 119);
-            var windowBackground = isDarkTheme
-                ? global::Windows.UI.Color.FromArgb(255, 11, 19, 38)
-                : global::Windows.UI.Color.FromArgb(255, 242, 247, 255);
             var buttonHoverBackground = isDarkTheme
                 ? global::Windows.UI.Color.FromArgb(255, 23, 39, 66)
                 : global::Windows.UI.Color.FromArgb(255, 221, 232, 250);
@@ -221,53 +177,70 @@
                 : global::Windows.UI.Color.FromArgb(255, 201, 219, 245);
             var buttonTransparentBackground = global::Windows.UI.Color.FromArgb(0, 255, 255, 255);
 
-            if (_windowsRootGrid is not null)
+            if (_windowsTitleBar is not null)
             {
-                _windowsRootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(windowBackground);
+                _windowsTitleBar.BackgroundColor = Color.FromArgb(isDarkTheme ? "#081527" : "#F2F7FF");
+                _windowsTitleBar.ForegroundColor = Color.FromArgb(isDarkTheme ? "#FFFFFF" : "#1E3F77");
             }
 
-            if (_windowsTitleBarGrid is not null)
+            if (_windowsHamburgerButton is not null)
             {
-                _windowsTitleBarGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(barBackground);
+                _windowsHamburgerButton.BackgroundColor = Colors.Transparent;
+                _windowsHamburgerButton.TextColor = Color.FromArgb(isDarkTheme ? "#FFFFFF" : "#1E3F77");
             }
 
-            if (_windowsTitleText is not null)
-            {
-                _windowsTitleText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(barForeground);
-            }
+            var nativeTitleBar = nativeWindow.AppWindow.TitleBar;
+            nativeTitleBar.BackgroundColor = barBackground;
+            nativeTitleBar.ForegroundColor = barForeground;
+            nativeTitleBar.InactiveBackgroundColor = barBackground;
+            nativeTitleBar.InactiveForegroundColor = barForeground;
+            nativeTitleBar.ButtonBackgroundColor = buttonTransparentBackground;
+            nativeTitleBar.ButtonInactiveBackgroundColor = buttonTransparentBackground;
+            nativeTitleBar.ButtonForegroundColor = barForeground;
+            nativeTitleBar.ButtonInactiveForegroundColor = barForeground;
+            nativeTitleBar.ButtonHoverBackgroundColor = buttonHoverBackground;
+            nativeTitleBar.ButtonPressedBackgroundColor = buttonPressedBackground;
+            nativeTitleBar.ButtonHoverForegroundColor = barForeground;
+            nativeTitleBar.ButtonPressedForegroundColor = barForeground;
 
-            if (_windowsHamburgerIcon is not null)
-            {
-                _windowsHamburgerIcon.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(barForeground);
-            }
-
-            var titleBar = nativeWindow.AppWindow.TitleBar;
-            titleBar.BackgroundColor = barBackground;
-            titleBar.ForegroundColor = barForeground;
-            titleBar.InactiveBackgroundColor = barBackground;
-            titleBar.InactiveForegroundColor = barForeground;
-            titleBar.ButtonBackgroundColor = buttonTransparentBackground;
-            titleBar.ButtonInactiveBackgroundColor = buttonTransparentBackground;
-            titleBar.ButtonForegroundColor = barForeground;
-            titleBar.ButtonInactiveForegroundColor = barForeground;
-            titleBar.ButtonHoverBackgroundColor = buttonHoverBackground;
-            titleBar.ButtonPressedBackgroundColor = buttonPressedBackground;
-            titleBar.ButtonHoverForegroundColor = barForeground;
-            titleBar.ButtonPressedForegroundColor = barForeground;
+            UpdateWindowsWindowBackground(nativeWindow, isDarkTheme);
         }
 
         private void UpdateWindowsWindowTitle(Microsoft.UI.Xaml.Window nativeWindow)
         {
-            var sectionTitle = _appShell?.CurrentItem?.CurrentItem?.CurrentItem?.Title;
-            var fullTitle = string.IsNullOrWhiteSpace(sectionTitle)
-                ? AppDisplayName
-                : $"{AppDisplayName} - {sectionTitle}";
-
+            var fullTitle = BuildWindowTitle();
             nativeWindow.Title = fullTitle;
 
-            if (_windowsTitleText is not null)
+            if (_windowsTitleBar is not null)
             {
-                _windowsTitleText.Text = fullTitle;
+                _windowsTitleBar.Title = fullTitle;
+            }
+        }
+
+        private string BuildWindowTitle()
+        {
+            var sectionTitle = _appShell?.CurrentItem?.CurrentItem?.CurrentItem?.Title;
+            return string.IsNullOrWhiteSpace(sectionTitle)
+                ? AppDisplayName
+                : $"{AppDisplayName} - {sectionTitle}";
+        }
+
+        private static void UpdateWindowsWindowBackground(Microsoft.UI.Xaml.Window nativeWindow, bool isDarkTheme)
+        {
+            var windowBackground = isDarkTheme
+                ? global::Windows.UI.Color.FromArgb(255, 14, 24, 48)
+                : global::Windows.UI.Color.FromArgb(255, 247, 250, 255);
+            var brush = new Microsoft.UI.Xaml.Media.SolidColorBrush(windowBackground);
+
+            if (nativeWindow.Content is Microsoft.UI.Xaml.Controls.Panel panel)
+            {
+                panel.Background = brush;
+                return;
+            }
+
+            if (nativeWindow.Content is Microsoft.UI.Xaml.Controls.Control control)
+            {
+                control.Background = brush;
             }
         }
 #endif
@@ -280,7 +253,11 @@
 #if WINDOWS
         private void ExitApplication()
         {
-            if (_isReallyExiting) return;
+            if (_isReallyExiting)
+            {
+                return;
+            }
+
             _isReallyExiting = true;
             _trayService.Dispose();
             _mouseService.Stop();

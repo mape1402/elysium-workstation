@@ -173,7 +173,7 @@ namespace Elysium.WorkStation.Views
         private async Task AddNodeAsync()
         {
             var editor = new BrainstormNodeEditorPage(isRootLevel: _currentParentId is null);
-            await Navigation.PushModalAsync(editor);
+            await PushModalRootAsync(editor);
             var result = await editor.GetResultAsync();
             if (result is null) return;
 
@@ -191,14 +191,13 @@ namespace Elysium.WorkStation.Views
 
         private async Task GoBackAsync()
         {
-            try
-            {
-                await Shell.Current.GoToAsync("..");
-            }
-            catch
+            if (_currentParentId is null)
             {
                 await GoMenuAsync();
+                return;
             }
+
+            await NavigateToParentAsync();
         }
 
         private async Task GoMenuAsync()
@@ -212,27 +211,25 @@ namespace Elysium.WorkStation.Views
 
             if (item.NodeId is null)
             {
-                await Shell.Current.GoToAsync("brainstorming");
+                await NavigateToNodeAsync(null, string.Empty);
                 return;
             }
 
-            string escapedTitle = Uri.EscapeDataString(item.Title ?? string.Empty);
-            await Shell.Current.GoToAsync($"brainstorming?parentId={item.NodeId.Value}&parentTitle={escapedTitle}");
+            await NavigateToNodeAsync(item.NodeId.Value, item.Title ?? string.Empty);
         }
 
         private async Task OpenChildrenAsync(BrainstormNode node)
         {
             if (node is null) return;
 
-            string escapedTitle = Uri.EscapeDataString(node.Title);
-            await Shell.Current.GoToAsync($"brainstorming?parentId={node.Id}&parentTitle={escapedTitle}");
+            await NavigateToNodeAsync(node.Id, node.Title);
         }
 
         private async Task ViewNodeAsync(BrainstormNode node)
         {
             if (node is null) return;
             var popup = new BrainstormNodeViewPopupPage(node.Title, node.Description);
-            await Navigation.PushModalAsync(popup);
+            await PushModalRootAsync(popup);
             await popup.ResultTask;
         }
 
@@ -246,7 +243,7 @@ namespace Elysium.WorkStation.Views
                 existingTitle: node.Title,
                 existingDescription: node.Description);
 
-            await Navigation.PushModalAsync(editor);
+            await PushModalRootAsync(editor);
             var result = await editor.GetResultAsync();
             if (result is null) return;
 
@@ -272,6 +269,64 @@ namespace Elysium.WorkStation.Views
             await _repository.DeleteBranchAsync(node.Id);
             await LoadNodesAsync();
             await _toastService.ShowAsync("Elemento eliminado");
+        }
+
+        private async Task NavigateToNodeAsync(int? parentId, string parentTitle)
+        {
+            _currentParentId = parentId;
+            _currentParentTitle = parentTitle ?? string.Empty;
+
+            RefreshHeaderBindings();
+            await EnsureParentContextAsync();
+            await LoadBreadcrumbsAsync();
+            await LoadNodesAsync();
+        }
+
+        private async Task NavigateToParentAsync()
+        {
+            if (_currentParentId is not int parentId)
+            {
+                await NavigateToNodeAsync(null, string.Empty);
+                return;
+            }
+
+            var currentParent = await _repository.GetByIdAsync(parentId);
+            if (currentParent?.ParentId is not int nextParentId)
+            {
+                await NavigateToNodeAsync(null, string.Empty);
+                return;
+            }
+
+            var nextParent = await _repository.GetByIdAsync(nextParentId);
+            await NavigateToNodeAsync(nextParentId, nextParent?.Title ?? string.Empty);
+        }
+
+        private async Task PushModalRootAsync(global::Microsoft.Maui.Controls.Page modalPage)
+        {
+            await EnsureLoadedAsync();
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                var navigation = Shell.Current?.Navigation
+                                 ?? Window?.Page?.Navigation
+                                 ?? Navigation;
+                await navigation.PushModalAsync(modalPage);
+            });
+        }
+
+        private async Task EnsureLoadedAsync()
+        {
+            if (IsLoaded && Window is not null)
+                return;
+
+            var tcs = new TaskCompletionSource();
+            void OnLoaded(object? sender, EventArgs args)
+            {
+                Loaded -= OnLoaded;
+                tcs.TrySetResult();
+            }
+
+            Loaded += OnLoaded;
+            await tcs.Task;
         }
 
         private void RefreshHeaderBindings()
