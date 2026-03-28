@@ -13,6 +13,7 @@ namespace Elysium.WorkStation.Services
 
         int KanbanCleanupRetentionDays { get; set; }
         int KanbanCleanupIntervalHours { get; set; }
+        string ThemeMode { get; set; }
 
         bool MouseEnabled { get; set; }
         bool MouseUseGeneralSchedule { get; set; }

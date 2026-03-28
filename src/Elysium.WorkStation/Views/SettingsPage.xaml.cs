@@ -59,6 +59,7 @@ namespace Elysium.WorkStation.Views
         private int _kanbanCleanupRetentionDays;
         private int _kanbanCleanupIntervalHours;
         private int _signalRReconnectMinutes;
+        private string _selectedTheme = "Light";
 
         public string ServerUrl
         {
@@ -124,6 +125,22 @@ namespace Elysium.WorkStation.Views
         {
             get => _signalRReconnectMinutes;
             set { _signalRReconnectMinutes = value; OnPropertyChanged(); }
+        }
+
+        public IReadOnlyList<string> ThemeOptions { get; } = ["Light", "Dark"];
+
+        public string SelectedTheme
+        {
+            get => _selectedTheme;
+            set
+            {
+                if (string.Equals(_selectedTheme, value, StringComparison.Ordinal))
+                    return;
+
+                _selectedTheme = value;
+                OnPropertyChanged();
+                ApplyThemePreview();
+            }
         }
 
         public string FeedbackText { get; private set; } = string.Empty;
@@ -203,6 +220,7 @@ namespace Elysium.WorkStation.Views
             _kanbanCleanupRetentionDays = settingsService.KanbanCleanupRetentionDays;
             _kanbanCleanupIntervalHours = settingsService.KanbanCleanupIntervalHours;
             _signalRReconnectMinutes = settingsService.SignalRReconnectMinutes;
+            _selectedTheme = settingsService.ThemeMode;
             _startWithWindows = startupService.IsEnabled;
 
             _mouseEnabled = settingsService.MouseEnabled;
@@ -233,6 +251,8 @@ namespace Elysium.WorkStation.Views
                 _settingsService.KanbanCleanupRetentionDays = KanbanCleanupRetentionDays;
                 _settingsService.KanbanCleanupIntervalHours = KanbanCleanupIntervalHours;
                 _settingsService.SignalRReconnectMinutes = SignalRReconnectMinutes;
+                _settingsService.ThemeMode = SelectedTheme;
+                ApplyThemePreview();
 
                 _settingsService.MouseEnabled = MouseEnabled;
                 _settingsService.MouseUseGeneralSchedule = MouseUseGeneralSchedule;
@@ -421,6 +441,19 @@ namespace Elysium.WorkStation.Views
             !string.IsNullOrWhiteSpace(url) &&
             Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
             (uri.Scheme == "http" || uri.Scheme == "https");
+
+        private void ApplyThemePreview()
+        {
+            if (Application.Current is null)
+                return;
+
+            Application.Current.UserAppTheme = ResolveThemeMode(SelectedTheme);
+        }
+
+        private static AppTheme ResolveThemeMode(string mode) =>
+            string.Equals(mode, "Dark", StringComparison.OrdinalIgnoreCase)
+                ? AppTheme.Dark
+                : AppTheme.Light;
 
         private void ShowFeedback(string text, Color color)
         {

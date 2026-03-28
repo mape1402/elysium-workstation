@@ -36,8 +36,7 @@
                     CornerRadius="8"
                     HeightRequest="32"
                     Padding="12,0"
-                    BackgroundColor="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
-                    TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray200}}" />
+                    StyleClass="SecondaryButton" />
         </Grid>
 
         <!-- Post-it grid -->

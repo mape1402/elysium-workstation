@@ -2,6 +2,7 @@
 {
     public partial class App : Application
     {
+        private readonly Services.ISettingsService _settingsService;
 #if WINDOWS
         private readonly Services.IWebHostService _webHostService;
         private readonly Services.IMouseService   _mouseService;
@@ -12,23 +13,28 @@
         private bool _isReallyExiting;
 
         public App(AppShell                  appShell,
+                   Services.ISettingsService settingsService,
                    Services.IWebHostService  webHostService,
                    Services.IMouseService    mouseService,
                    Services.ITrayService     trayService)
         {
             _appShell       = appShell;
+            _settingsService = settingsService;
             _webHostService = webHostService;
             _mouseService   = mouseService;
             _trayService    = trayService;
             InitializeComponent();
+            UserAppTheme = ResolveTheme(_settingsService.ThemeMode);
         }
 #else
         private readonly AppShell _appShell;
 
-        public App(AppShell appShell)
+        public App(AppShell appShell, Services.ISettingsService settingsService)
         {
             _appShell = appShell;
+            _settingsService = settingsService;
             InitializeComponent();
+            UserAppTheme = ResolveTheme(_settingsService.ThemeMode);
         }
 #endif
 
@@ -73,6 +79,12 @@
             return window;
         }
 
+        private static AppTheme ResolveTheme(string mode) =>
+            string.Equals(mode, "Dark", StringComparison.OrdinalIgnoreCase)
+                ? AppTheme.Dark
+                : AppTheme.Light;
+
+#if WINDOWS
         private void ExitApplication()
         {
             if (_isReallyExiting) return;
@@ -82,5 +94,6 @@
             _ = _webHostService.StopAsync();
             Application.Current?.Quit();
         }
+#endif
     }
 }

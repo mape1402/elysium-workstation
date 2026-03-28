@@ -7,11 +7,23 @@
              x:DataType="local:MainPage"
              Title="Workspace">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*">
 
-        <Border Grid.Row="0"
+        <VerticalStackLayout Grid.Row="0"
+                             Padding="16,18,16,6"
+                             Spacing="4">
+            <Label Text="Workspace"
+                   StyleClass="PageTitle" />
+            <Label Text="Tu centro de trabajo en una sola vista"
+                   StyleClass="Muted" />
+        </VerticalStackLayout>
+
+        <Border Grid.Row="1"
                 BackgroundColor="{Binding RoleStatusColor}"
-                Padding="12,6">
+                Padding="12,6"
+                Margin="16,2,16,8"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 10">
             <Label Text="{Binding RoleStatusText}"
                    FontFamily="OpenSansRegular"
                    FontSize="12"
@@ -20,9 +32,9 @@
         </Border>
 
         <CollectionView x:Name="MenuCollectionView"
-                    Grid.Row="1"
+                    Grid.Row="2"
                     ItemsSource="{Binding MenuItems}"
-                    Margin="16,12">
+                    Margin="16,0,16,14">
         <CollectionView.ItemsLayout>
             <GridItemsLayout Orientation="Vertical"
                              Span="2"
@@ -34,9 +46,9 @@
                 <Border Padding="16,20"
                         HeightRequest="{Binding Source={RelativeSource AncestorType={x:Type local:MainPage}}, Path=CardHeight}"
                         StrokeShape="RoundRectangle 16"
-                        Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                        Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
                         StrokeThickness="1"
-                        BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                        BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray900}}">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer
                             Command="{Binding Source={RelativeSource AncestorType={x:Type local:MainPage}}, Path=NavigateCommand}"

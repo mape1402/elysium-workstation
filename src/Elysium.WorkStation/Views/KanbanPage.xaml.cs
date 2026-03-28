@@ -14,6 +14,7 @@ public partial class KanbanPage : ContentPage, INotifyPropertyChanged
 
         private KanbanTask? _draggedTask;
         private List<KanbanTask> _allTasks = [];
+        private readonly Dictionary<Border, CancellationTokenSource> _deleteHideTimers = [];
 
         public ObservableCollection<KanbanTask> PendingTasks { get; } = [];
         public ObservableCollection<KanbanTask> InProgressTasks { get; } = [];
@@ -135,20 +136,99 @@ public partial class KanbanPage : ContentPage, INotifyPropertyChanged
 
         private void OnCardPointerEntered(object? sender, PointerEventArgs e)
         {
-            if (sender is Border border && border.Content is Grid grid)
+            if (sender is Border border)
             {
-                var del = grid.Children.OfType<Border>().FirstOrDefault();
-                if (del is not null) del.FadeTo(1, 150);
+                var del = FindDeleteOverlay(border);
+                if (del is not null)
+                    ShowDeleteOverlay(del);
             }
         }
 
         private void OnCardPointerExited(object? sender, PointerEventArgs e)
         {
-            if (sender is Border border && border.Content is Grid grid)
+            if (sender is Border border)
             {
-                var del = grid.Children.OfType<Border>().FirstOrDefault();
-                if (del is not null) del.FadeTo(0, 150);
+                var del = FindDeleteOverlay(border);
+                if (del is not null)
+                    ScheduleHideDeleteOverlay(del);
             }
+        }
+
+        private void OnDeleteOverlayPointerEntered(object? sender, PointerEventArgs e)
+        {
+            if (sender is Border del)
+                ShowDeleteOverlay(del);
+        }
+
+        private void OnDeleteOverlayPointerExited(object? sender, PointerEventArgs e)
+        {
+            if (sender is Border del)
+                ScheduleHideDeleteOverlay(del);
+        }
+
+        private void ShowDeleteOverlay(Border del)
+        {
+            CancelHideDeleteOverlay(del);
+            del.InputTransparent = false;
+            _ = del.FadeTo(1, 120);
+        }
+
+        private void ScheduleHideDeleteOverlay(Border del)
+        {
+            CancelHideDeleteOverlay(del);
+
+            var cts = new CancellationTokenSource();
+            _deleteHideTimers[del] = cts;
+            _ = HideDeleteOverlayAsync(del, cts);
+        }
+
+        private async Task HideDeleteOverlayAsync(Border del, CancellationTokenSource cts)
+        {
+            try
+            {
+                await Task.Delay(140, cts.Token);
+                if (cts.Token.IsCancellationRequested)
+                    return;
+
+                await del.FadeTo(0, 120);
+                del.InputTransparent = true;
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            finally
+            {
+                if (_deleteHideTimers.TryGetValue(del, out var current) && ReferenceEquals(current, cts))
+                    _deleteHideTimers.Remove(del);
+
+                cts.Dispose();
+            }
+        }
+
+        private void CancelHideDeleteOverlay(Border del)
+        {
+            if (_deleteHideTimers.TryGetValue(del, out var existing))
+            {
+                existing.Cancel();
+                _deleteHideTimers.Remove(del);
+            }
+        }
+
+        private static Border? FindDeleteOverlay(Border cardBorder)
+        {
+            if (cardBorder.Parent is Grid container)
+            {
+                return container.Children
+                    .OfType<Border>()
+                    .FirstOrDefault(b => !ReferenceEquals(b, cardBorder));
+            }
+
+            if (cardBorder.Content is Grid contentGrid)
+            {
+                return contentGrid.Children.OfType<Border>().FirstOrDefault();
+            }
+
+            return null;
         }
 
         private void OnDragOver(object? sender, DragEventArgs e)
@@ -167,9 +247,7 @@ public partial class KanbanPage : ContentPage, INotifyPropertyChanged
             if (sender is GestureRecognizer gr && gr.Parent is Border column)
             {
                 column.StrokeThickness = 1;
-                column.Stroke = Application.Current!.RequestedTheme == AppTheme.Dark
-                    ? new SolidColorBrush(Color.FromArgb("#404040"))
-                    : new SolidColorBrush(Color.FromArgb("#E0E0E0"));
+                column.Stroke = new SolidColorBrush(GetColumnBaseStrokeColor(column));
             }
         }
 
@@ -211,10 +289,24 @@ public partial class KanbanPage : ContentPage, INotifyPropertyChanged
             if (sender is GestureRecognizer gr && gr.Parent is Border column)
             {
                 column.StrokeThickness = 1;
-                column.Stroke = Application.Current!.RequestedTheme == AppTheme.Dark
-                    ? new SolidColorBrush(Color.FromArgb("#404040"))
-                    : new SolidColorBrush(Color.FromArgb("#E0E0E0"));
+                column.Stroke = new SolidColorBrush(GetColumnBaseStrokeColor(column));
             }
+        }
+
+        private Color GetColumnBaseStrokeColor(Border column)
+        {
+            bool isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+
+            if (column == ColumnPending)
+                return Color.FromArgb(isDark ? "#69778F" : "#D5D5D5");
+            if (column == ColumnInProgress)
+                return Color.FromArgb(isDark ? "#2D77C8" : "#B3D4FC");
+            if (column == ColumnBlocked)
+                return Color.FromArgb(isDark ? "#D17A26" : "#FFCC80");
+            if (column == ColumnDone)
+                return Color.FromArgb(isDark ? "#3E9E57" : "#A5D6A7");
+
+            return Color.FromArgb(isDark ? "#404040" : "#E0E0E0");
         }
 
         private Color GetColumnAccentColor(Border column)

@@ -1,20 +1,53 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:views="clr-namespace:Elysium.WorkStation.Views"
              x:Class="Elysium.WorkStation.Views.KanbanTaskEditorPage"
              x:DataType="views:KanbanTaskEditorPage"
-             Title="{Binding PageTitle}"
+             BackgroundColor="#66000000"
+             Shell.NavBarIsVisible="False"
              Shell.PresentationMode="ModalAnimated">
 
-    <Grid RowDefinitions="*,Auto" Padding="20,16">
+    <Grid Padding="16">
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnBackdropTapped" />
+        </Grid.GestureRecognizers>
 
-        <!-- ── Form ── -->
-        <ScrollView Grid.Row="0">
-            <VerticalStackLayout Spacing="16">
+        <Border HorizontalOptions="Center"
+                VerticalOptions="Center"
+                MaximumWidthRequest="560"
+                StrokeShape="RoundRectangle 16"
+                Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#43608B}"
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=#F9FBFF, Dark=#1D2736}"
+                Padding="16">
+            <Border.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnDialogTapped" />
+            </Border.GestureRecognizers>
 
-                <!-- Status badge -->
-                <Border HorizontalOptions="Start"
+            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <Label Grid.Column="0"
+                           Text="{Binding PageTitle}"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="18"
+                           VerticalOptions="Center"
+                           TextColor="{AppThemeBinding Light=#183A7A, Dark=#CFE3FF}" />
+                    <Button Grid.Column="1"
+                            Text="X"
+                            Command="{Binding CancelCommand}"
+                            WidthRequest="30"
+                            HeightRequest="30"
+                            CornerRadius="15"
+                            Padding="0"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="12"
+                            BackgroundColor="{AppThemeBinding Light=#E5EEFF, Dark=#2B3C56}"
+                            TextColor="{AppThemeBinding Light=#2454A5, Dark=#B7D1FF}" />
+                </Grid>
+
+                <Border Grid.Row="1"
+                        HorizontalOptions="Start"
                         Padding="10,4"
                         StrokeShape="RoundRectangle 12"
                         StrokeThickness="0"
@@ -25,95 +58,94 @@
                            TextColor="White" />
                 </Border>
 
-                <!-- Title -->
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Título"
-                           FontFamily="OpenSansSemibold"
-                           FontSize="11"
-                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
-                    <Border StrokeShape="RoundRectangle 8"
-                            Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
-                            StrokeThickness="1"
-                            Padding="12,8"
-                            BackgroundColor="{AppThemeBinding Light=White, Dark=#2A2A2A}">
-                        <Entry Text="{Binding TaskTitle, Mode=TwoWay}"
-                               Placeholder="Ej: Revisar documentación"
-                               FontFamily="OpenSansSemibold"
-                               FontSize="16"
-                               MaxLength="200"
-                               BackgroundColor="Transparent"
-                               TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
-                               PlaceholderColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
-                    </Border>
-                </VerticalStackLayout>
+                <ScrollView Grid.Row="2" HeightRequest="320">
+                    <VerticalStackLayout Spacing="12">
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Titulo"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="11"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                            <Border StrokeShape="RoundRectangle 10"
+                                    Stroke="{AppThemeBinding Light=#C6D4EB, Dark=#4A607F}"
+                                    StrokeThickness="1"
+                                    Padding="12,8"
+                                    BackgroundColor="{AppThemeBinding Light=White, Dark=#253248}">
+                                <Entry Text="{Binding TaskTitle, Mode=TwoWay}"
+                                       Placeholder="Ej: Revisar documentacion"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="15"
+                                       MaxLength="200"
+                                       BackgroundColor="Transparent"
+                                       TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
+                                       PlaceholderColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+                            </Border>
+                        </VerticalStackLayout>
 
-                <!-- Description -->
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Descripción"
-                           FontFamily="OpenSansSemibold"
-                           FontSize="11"
-                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
-                    <Border StrokeShape="RoundRectangle 8"
-                            Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
-                            StrokeThickness="1"
-                            Padding="12,8"
-                            MinimumHeightRequest="120"
-                            BackgroundColor="{AppThemeBinding Light=White, Dark=#2A2A2A}">
-                        <Editor Text="{Binding TaskDescription, Mode=TwoWay}"
-                                Placeholder="Detalles adicionales..."
-                                FontFamily="OpenSansRegular"
-                                FontSize="14"
-                                MaxLength="500"
-                                AutoSize="TextChanges"
-                                BackgroundColor="Transparent"
-                                TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
-                                PlaceholderColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
-                    </Border>
-                </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Descripcion"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="11"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                            <Border StrokeShape="RoundRectangle 10"
+                                    Stroke="{AppThemeBinding Light=#C6D4EB, Dark=#4A607F}"
+                                    StrokeThickness="1"
+                                    Padding="12,8"
+                                    MinimumHeightRequest="120"
+                                    BackgroundColor="{AppThemeBinding Light=White, Dark=#253248}">
+                                <Editor Text="{Binding TaskDescription, Mode=TwoWay}"
+                                        Placeholder="Detalles adicionales..."
+                                        FontFamily="OpenSansRegular"
+                                        FontSize="14"
+                                        MaxLength="500"
+                                        AutoSize="TextChanges"
+                                        BackgroundColor="Transparent"
+                                        TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
+                                        PlaceholderColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}" />
+                            </Border>
+                        </VerticalStackLayout>
 
-                <!-- Priority -->
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Prioridad"
-                           FontFamily="OpenSansSemibold"
-                           FontSize="11"
-                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
-                    <Border StrokeShape="RoundRectangle 8"
-                            Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
-                            StrokeThickness="1"
-                            Padding="4"
-                            BackgroundColor="{AppThemeBinding Light=White, Dark=#2A2A2A}">
-                        <Picker ItemsSource="{Binding PriorityOptions}"
-                                SelectedItem="{Binding SelectedPriority, Mode=TwoWay}"
-                                FontFamily="OpenSansRegular"
-                                FontSize="14"
-                                TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
-                    </Border>
-                </VerticalStackLayout>
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Prioridad"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="11"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+                            <Border StrokeShape="RoundRectangle 10"
+                                    Stroke="{AppThemeBinding Light=#C6D4EB, Dark=#4A607F}"
+                                    StrokeThickness="1"
+                                    Padding="4"
+                                    BackgroundColor="{AppThemeBinding Light=White, Dark=#253248}">
+                                <Picker ItemsSource="{Binding PriorityOptions}"
+                                        SelectedItem="{Binding SelectedPriority, Mode=TwoWay}"
+                                        FontFamily="OpenSansRegular"
+                                        FontSize="14"
+                                        TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </ScrollView>
 
-            </VerticalStackLayout>
-        </ScrollView>
-
-        <!-- ── Action buttons ── -->
-        <Grid Grid.Row="1"
-              ColumnDefinitions="*,*"
-              ColumnSpacing="12"
-              Margin="0,16,0,0">
-            <Button Grid.Column="0"
-                    Text="Cancelar"
-                    Command="{Binding CancelCommand}"
-                    FontFamily="OpenSansSemibold"
-                    FontSize="14"
-                    CornerRadius="12"
-                    BackgroundColor="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
-                    TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
-            <Button Grid.Column="1"
-                    Text="💾  Guardar"
-                    Command="{Binding SaveCommand}"
-                    FontFamily="OpenSansSemibold"
-                    FontSize="14"
-                    CornerRadius="12" />
-        </Grid>
-
+                <Grid Grid.Row="3"
+                      ColumnDefinitions="*,*"
+                      ColumnSpacing="10">
+                    <Button Grid.Column="0"
+                            Text="Cancelar"
+                            Command="{Binding CancelCommand}"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="13"
+                            CornerRadius="12"
+                            BackgroundColor="{AppThemeBinding Light=#E7ECF6, Dark=#37465D}"
+                            TextColor="{AppThemeBinding Light=#2D3E5C, Dark=#D9E3F5}" />
+                    <Button Grid.Column="1"
+                            Text="Guardar"
+                            Command="{Binding SaveCommand}"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="13"
+                            CornerRadius="12"
+                            BackgroundColor="{AppThemeBinding Light=#2F64C8, Dark=#4A7FDF}"
+                            TextColor="White" />
+                </Grid>
+            </Grid>
+        </Border>
     </Grid>
 
 </ContentPage>

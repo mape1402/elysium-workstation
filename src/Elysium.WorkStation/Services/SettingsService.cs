@@ -16,6 +16,7 @@ namespace Elysium.WorkStation.Services
         private const string MouseGeneralStartKey = "mouse_general_start";
         private const string MouseGeneralEndKey = "mouse_general_end";
         private const string MouseDaySchedulesKey = "mouse_day_schedules";
+        private const string ThemeModeKey = "theme_mode";
         private const int DefaultRetentionHours = 72;
         private const int DefaultKanbanCleanupRetentionDays = 7;
         private const int DefaultKanbanCleanupIntervalHours = 1;
@@ -98,6 +99,20 @@ namespace Elysium.WorkStation.Services
         }
 
         public TimeSpan SignalRReconnectDelay => TimeSpan.FromMinutes(SignalRReconnectMinutes);
+
+        public string ThemeMode
+        {
+            get
+            {
+                var mode = Preferences.Default.Get(ThemeModeKey, "Light");
+                return string.Equals(mode, "Dark", StringComparison.OrdinalIgnoreCase) ? "Dark" : "Light";
+            }
+            set
+            {
+                var normalized = string.Equals(value, "Dark", StringComparison.OrdinalIgnoreCase) ? "Dark" : "Light";
+                Preferences.Default.Set(ThemeModeKey, normalized);
+            }
+        }
 
         public List<MouseScheduleEntry> MouseDaySchedules
         {

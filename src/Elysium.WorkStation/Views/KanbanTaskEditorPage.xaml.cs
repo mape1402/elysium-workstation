@@ -1,4 +1,4 @@
-using Elysium.WorkStation.Models;
+﻿using Elysium.WorkStation.Models;
 
 namespace Elysium.WorkStation.Views
 {
@@ -18,20 +18,20 @@ namespace Elysium.WorkStation.Views
 
         public string StatusBadgeText => Status switch
         {
-            KanbanStatus.Pending    => "⏳ Pendiente",
-            KanbanStatus.InProgress => "🔄 En Progreso",
-            KanbanStatus.Blocked    => "⚠️ Bloqueado",
-            KanbanStatus.Done       => "✅ Terminado",
-            _                       => Status.ToString()
+            KanbanStatus.Pending => "Pendiente",
+            KanbanStatus.InProgress => "En Progreso",
+            KanbanStatus.Blocked => "Bloqueado",
+            KanbanStatus.Done => "Terminado",
+            _ => Status.ToString()
         };
 
         public Color StatusBadgeColor => Status switch
         {
-            KanbanStatus.Pending    => Color.FromArgb("#9E9E9E"),
+            KanbanStatus.Pending => Color.FromArgb("#9E9E9E"),
             KanbanStatus.InProgress => Color.FromArgb("#1E88E5"),
-            KanbanStatus.Blocked    => Color.FromArgb("#FB8C00"),
-            KanbanStatus.Done       => Color.FromArgb("#43A047"),
-            _                       => Colors.Grey
+            KanbanStatus.Blocked => Color.FromArgb("#FB8C00"),
+            KanbanStatus.Done => Color.FromArgb("#43A047"),
+            _ => Colors.Grey
         };
 
         public Command SaveCommand { get; }
@@ -54,11 +54,19 @@ namespace Elysium.WorkStation.Views
 
         public Task<KanbanTaskEditorResult?> GetResultAsync() => _tcs.Task;
 
+        protected override void OnDisappearing()
+        {
+            if (!_tcs.Task.IsCompleted)
+                _tcs.TrySetResult(null);
+
+            base.OnDisappearing();
+        }
+
         private async void OnSave()
         {
             if (string.IsNullOrWhiteSpace(TaskTitle))
             {
-                await DisplayAlert("Campo requerido", "El título no puede estar vacío.", "OK");
+                await DisplayAlert("Campo requerido", "El titulo no puede estar vacio.", "OK");
                 return;
             }
 
@@ -70,6 +78,16 @@ namespace Elysium.WorkStation.Views
         {
             _tcs.TrySetResult(null);
             await Navigation.PopModalAsync();
+        }
+
+        private async void OnBackdropTapped(object sender, TappedEventArgs e)
+        {
+            await OnCancel();
+        }
+
+        private void OnDialogTapped(object sender, TappedEventArgs e)
+        {
+            // Keep taps inside dialog from closing the popup.
         }
 
         protected override bool OnBackButtonPressed()

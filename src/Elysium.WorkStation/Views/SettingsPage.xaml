@@ -11,6 +11,13 @@
     <ScrollView Grid.Row="0">
         <VerticalStackLayout Padding="24,20" Spacing="24">
 
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Configuracion"
+                       StyleClass="PageTitle" />
+                <Label Text="Ajustes visuales y operativos del workspace"
+                       StyleClass="Muted" />
+            </VerticalStackLayout>
+
             <Border Padding="20,16"
                     StrokeShape="RoundRectangle 16"
                     Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
@@ -38,6 +45,40 @@
                            Keyboard="Url"
                            ClearButtonVisibility="WhileEditing" />
 
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Padding="20,16"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeThickness="1"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Apariencia"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="15"
+                           TextColor="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource SecondaryDarkText}}" />
+
+                    <Label Text="Selecciona un tema manual. No depende del tema del sistema."
+                           FontFamily="OpenSansRegular"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0"
+                               Text="Tema de la aplicacion"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray300}}" />
+                        <Picker Grid.Column="1"
+                                WidthRequest="130"
+                                ItemsSource="{Binding ThemeOptions}"
+                                SelectedItem="{Binding SelectedTheme}" />
+                    </Grid>
                 </VerticalStackLayout>
             </Border>
 
@@ -174,8 +215,7 @@
                             FontFamily="OpenSansSemibold"
                             FontSize="13"
                             CornerRadius="10"
-                            BackgroundColor="#C62828"
-                            TextColor="White" />
+                            StyleClass="DangerButton" />
                 </VerticalStackLayout>
             </Border>
 
@@ -360,8 +400,7 @@
                         FontFamily="OpenSansSemibold"
                         FontSize="14"
                         CornerRadius="12"
-                        BackgroundColor="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
-                        TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+                        StyleClass="SecondaryButton" />
             </Grid>
 
             <Border Grid.Row="2"

@@ -9,7 +9,7 @@
 
     <Grid RowDefinitions="Auto,*" RowSpacing="0">
 
-        <!-- ═══ Barra de filtros (Search) ═══ -->
+        <!-- Barra de filtros (Search) -->
         <Grid Grid.Row="0" Padding="12,8,12,4">
             <Border Padding="6,0"
                     StrokeShape="RoundRectangle 8"
@@ -20,7 +20,7 @@
                     VerticalOptions="Center"
                     HorizontalOptions="FillAndExpand">
                 <Entry Text="{Binding SearchText}"
-                       Placeholder="🔍 Buscar por título o descripción…"
+                       Placeholder="Buscar por titulo o descripcion..."
                        FontFamily="OpenSansRegular"
                        FontSize="12"
                        VerticalOptions="Center"
@@ -28,25 +28,24 @@
             </Border>
         </Grid>
 
-        <!-- ═══ Columnas Kanban ═══ -->
-        <ScrollView Grid.Row="1" Orientation="Horizontal">
-        <Grid ColumnDefinitions="*,*,*,*"
+        <!-- Columnas Kanban -->
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*,*,*,*"
               ColumnSpacing="8"
-              Padding="12,8,12,12"
-              MinimumWidthRequest="900">
+              Padding="12,8,12,12">
 
-                <!-- ═══ Pendiente ═══ -->
+                <!-- Pendiente -->
                 <Border x:Name="ColumnPending"
                         Grid.Column="0"
                         Padding="10,8"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{AppThemeBinding Light=#D5D5D5, Dark=#555555}"
+                        Stroke="{AppThemeBinding Light=#D5D5D5, Dark=#69778F}"
                         StrokeThickness="1">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="{AppThemeBinding Light=#F5F5F5, Dark=#2E2E2E}" Offset="0.0" />
-                            <GradientStop Color="{AppThemeBinding Light=#EEEEEE, Dark=#252525}" Offset="0.5" />
-                            <GradientStop Color="{AppThemeBinding Light=#E0E0E0, Dark=#1E1E1E}" Offset="1.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#F5F5F5, Dark=#334057}" Offset="0.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#EEEEEE, Dark=#2B374D}" Offset="0.5" />
+                            <GradientStop Color="{AppThemeBinding Light=#E0E0E0, Dark=#222C3E}" Offset="1.0" />
                         </LinearGradientBrush>
                     </Border.Background>
                     <Border.GestureRecognizers>
@@ -58,33 +57,44 @@
                     <Grid RowDefinitions="Auto,*" RowSpacing="8">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
                             <Label Grid.Row="0" Grid.Column="0"
-                                   Text="⏳ Pendiente"
+                                   Text="Pendiente"
                                    FontFamily="OpenSansSemibold"
                                    FontSize="14"
-                                   TextColor="{AppThemeBinding Light=#757575, Dark=#BDBDBD}"
+                                   TextColor="{AppThemeBinding Light=#757575, Dark=#D2DEEF}"
                                    VerticalOptions="Center" />
                             <Border Grid.Row="0" Grid.Column="1"
-                                    HeightRequest="22" WidthRequest="22"
-                                    StrokeShape="Ellipse"
-                                    Stroke="{AppThemeBinding Light=#BDBDBD, Dark=#616161}"
+                                    HeightRequest="24" WidthRequest="24"
+                                    StrokeShape="RoundRectangle 12"
+                                    Stroke="{AppThemeBinding Light=#1D4ED8, Dark=#8FB7FF}"
                                     StrokeThickness="1"
-                                    BackgroundColor="Transparent"
                                     ToolTipProperties.Text="Agregar tarea">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="{AppThemeBinding Light=#3B82F6, Dark=#4A7BD6}" Offset="0.0" />
+                                        <GradientStop Color="{AppThemeBinding Light=#1D4ED8, Dark=#2F5FAF}" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Shadow>
+                                    <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
+                                </Border.Shadow>
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Pending" />
                                 </Border.GestureRecognizers>
-                                <Label Text="➕"
-                                       FontSize="10"
+                                <Label Text="+"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="13"
+                                       TextColor="White"
                                        HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
                             <BoxView Grid.Row="1" Grid.ColumnSpan="2"
-                                     HeightRequest="2" Color="{AppThemeBinding Light=#BDBDBD, Dark=#616161}" Margin="0,0,0,4" />
+                                     HeightRequest="2" Color="{AppThemeBinding Light=#BDBDBD, Dark=#7C8DA9}" Margin="0,0,0,4" />
                         </Grid>
                         <CollectionView Grid.Row="1"
                                         ItemsSource="{Binding PendingTasks}"
+                                        HorizontalOptions="Fill"
                                         x:DataType="views:KanbanPage">
                             <CollectionView.EmptyView>
-                                <Label Text="Arrastra tareas aquí"
+                                <Label Text="Arrastra tareas aqui"
                                        FontFamily="OpenSansRegular"
                                        FontSize="12"
                                        TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}"
@@ -96,90 +106,95 @@
                             </CollectionView.ItemsLayout>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="models:KanbanTask">
-                                    <Border Padding="10,8"
-                                            StrokeShape="RoundRectangle 8"
-                                            Stroke="{AppThemeBinding Light=#E0E0E0, Dark=#484848}"
-                                            StrokeThickness="0.5"
-                                            BackgroundColor="{AppThemeBinding Light=#FAFAFA, Dark=#333333}">
-                                        <Border.Shadow>
-                                            <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
-                                        </Border.Shadow>
-                                        <Border.GestureRecognizers>
-                                            <DragGestureRecognizer CanDrag="True"
-                                                                   DragStarting="OnDragStarting" />
-                                            <TapGestureRecognizer
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
-                                                CommandParameter="{Binding .}" />
-                                            <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
-                                                                     PointerExited="OnCardPointerExited" />
-                                        </Border.GestureRecognizers>
-                                        <Grid>
-                                            <VerticalStackLayout Spacing="4">
-                                                <Label Text="{Binding Title}"
-                                                       FontFamily="OpenSansSemibold"
-                                                       FontSize="13"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextColor="{AppThemeBinding Light=#424242, Dark=#E0E0E0}" />
-                                                <Label Text="{Binding Description}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="11"
-                                                       MaxLines="2"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextColor="{AppThemeBinding Light=#757575, Dark=#BDBDBD}"
-                                                       IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <Label Grid.Column="0"
-                                                           Text="{Binding PriorityDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{Binding PriorityColor}"
-                                                           VerticalOptions="End" />
-                                                    <Label Grid.Column="1"
-                                                           Text="{Binding TimeDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{AppThemeBinding Light=#9E9E9E, Dark=#757575}"
-                                                           VerticalOptions="End" />
-                                                </Grid>
-                                            </VerticalStackLayout>
-                                            <Border HeightRequest="20" WidthRequest="20"
-                                                    StrokeShape="Ellipse"
-                                                    Stroke="{AppThemeBinding Light=#BDBDBD, Dark=#757575}"
-                                                    StrokeThickness="1"
-                                                    BackgroundColor="Transparent"
-                                                    HorizontalOptions="End" VerticalOptions="Start"
-                                                    Margin="0,-4,-4,0"
-                                                    Opacity="0"
-                                                    ToolTipProperties.Text="Eliminar">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer
-                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
-                                                        CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="🗑"
-                                                       FontSize="10"
-                                                       HorizontalOptions="Center" VerticalOptions="Center" />
-                                            </Border>
-                                        </Grid>
-                                    </Border>
+                                    <Grid RowDefinitions="Auto">
+                                        <Border Grid.Row="0"
+                                                Padding="10,8"
+                                                HeightRequest="62"
+                                                HorizontalOptions="Fill"
+                                                StrokeShape="RoundRectangle 8"
+                                                Stroke="{AppThemeBinding Light=#E0E0E0, Dark=#5D6E89}"
+                                                StrokeThickness="0.5"
+                                                BackgroundColor="{AppThemeBinding Light=#FAFAFA, Dark=#263247}">
+                                            <Border.Shadow>
+                                                <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
+                                            </Border.Shadow>
+                                            <Border.GestureRecognizers>
+                                                <DragGestureRecognizer CanDrag="True"
+                                                                       DragStarting="OnDragStarting" />
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
+                                                                         PointerExited="OnCardPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Grid>
+                                                <VerticalStackLayout Spacing="4">
+                                                    <Label Text="{Binding Title}"
+                                                           FontFamily="OpenSansSemibold"
+                                                           FontSize="13"
+                                                           MaxLines="1"
+                                                           LineBreakMode="TailTruncation"
+                                                           TextColor="{AppThemeBinding Light=#424242, Dark=#EAF1FF}" />
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding PriorityDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{Binding PriorityColor}"
+                                                               VerticalOptions="End" />
+                                                        <Label Grid.Column="1"
+                                                               Text="{Binding TimeDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{AppThemeBinding Light=#9E9E9E, Dark=#9EACC6}"
+                                                               VerticalOptions="End" />
+                                                    </Grid>
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </Border>
+                                        <Border Grid.Row="0"
+                                HeightRequest="24" WidthRequest="86"
+                                StrokeShape="RoundRectangle 12"
+                                                StrokeThickness="1"
+                                                Stroke="{AppThemeBinding Light=#B71C1C, Dark=#FF8A95}"
+                                                BackgroundColor="{AppThemeBinding Light=#E53935, Dark=#D6455D}"
+                                                HorizontalOptions="Center" VerticalOptions="End"
+                                                Margin="0,0,0,-6"
+                                                Opacity="0"
+                                                InputTransparent="True"
+                                                ToolTipProperties.Text="Eliminar">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnDeleteOverlayPointerEntered"
+                                                                         PointerExited="OnDeleteOverlayPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="Eliminar"
+                                                   FontFamily="OpenSansSemibold"
+                                        FontSize="9"
+                                                   TextColor="White"
+                                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                    </Grid>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
                     </Grid>
                 </Border>
 
-                <!-- ═══ En Progreso ═══ -->
+                <!-- En Progreso -->
                 <Border x:Name="ColumnInProgress"
                         Grid.Column="1"
                         Padding="10,8"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{AppThemeBinding Light=#B3D4FC, Dark=#1565C0}"
+                        Stroke="{AppThemeBinding Light=#B3D4FC, Dark=#2D77C8}"
                         StrokeThickness="1">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="{AppThemeBinding Light=#E3F2FD, Dark=#0D2137}" Offset="0.0" />
-                            <GradientStop Color="{AppThemeBinding Light=#BBDEFB, Dark=#0A1929}" Offset="0.5" />
-                            <GradientStop Color="{AppThemeBinding Light=#90CAF9, Dark=#071320}" Offset="1.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#E3F2FD, Dark=#12385E}" Offset="0.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#BBDEFB, Dark=#0F2E4E}" Offset="0.5" />
+                            <GradientStop Color="{AppThemeBinding Light=#90CAF9, Dark=#0B233D}" Offset="1.0" />
                         </LinearGradientBrush>
                     </Border.Background>
                     <Border.GestureRecognizers>
@@ -191,33 +206,44 @@
                     <Grid RowDefinitions="Auto,*" RowSpacing="8">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
                             <Label Grid.Row="0" Grid.Column="0"
-                                   Text="🔄 En Progreso"
+                                   Text="En Progreso"
                                    FontFamily="OpenSansSemibold"
                                    FontSize="14"
-                                   TextColor="{AppThemeBinding Light=#1565C0, Dark=#64B5F6}"
+                                   TextColor="{AppThemeBinding Light=#1565C0, Dark=#A6D8FF}"
                                    VerticalOptions="Center" />
                             <Border Grid.Row="0" Grid.Column="1"
-                                    HeightRequest="22" WidthRequest="22"
-                                    StrokeShape="Ellipse"
-                                    Stroke="{AppThemeBinding Light=#42A5F5, Dark=#1E88E5}"
+                                    HeightRequest="24" WidthRequest="24"
+                                    StrokeShape="RoundRectangle 12"
+                                    Stroke="{AppThemeBinding Light=#1D4ED8, Dark=#8FB7FF}"
                                     StrokeThickness="1"
-                                    BackgroundColor="Transparent"
                                     ToolTipProperties.Text="Agregar tarea">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="{AppThemeBinding Light=#3B82F6, Dark=#4A7BD6}" Offset="0.0" />
+                                        <GradientStop Color="{AppThemeBinding Light=#1D4ED8, Dark=#2F5FAF}" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Shadow>
+                                    <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
+                                </Border.Shadow>
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="InProgress" />
                                 </Border.GestureRecognizers>
-                                <Label Text="➕"
-                                       FontSize="10"
+                                <Label Text="+"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="13"
+                                       TextColor="White"
                                        HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
                             <BoxView Grid.Row="1" Grid.ColumnSpan="2"
-                                     HeightRequest="2" Color="{AppThemeBinding Light=#42A5F5, Dark=#1E88E5}" Margin="0,0,0,4" />
+                                     HeightRequest="2" Color="{AppThemeBinding Light=#42A5F5, Dark=#4F9FDD}" Margin="0,0,0,4" />
                         </Grid>
                         <CollectionView Grid.Row="1"
                                         ItemsSource="{Binding InProgressTasks}"
+                                        HorizontalOptions="Fill"
                                         x:DataType="views:KanbanPage">
                             <CollectionView.EmptyView>
-                                <Label Text="Arrastra tareas aquí"
+                                <Label Text="Arrastra tareas aqui"
                                        FontFamily="OpenSansRegular"
                                        FontSize="12"
                                        TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}"
@@ -229,90 +255,95 @@
                             </CollectionView.ItemsLayout>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="models:KanbanTask">
-                                    <Border Padding="10,8"
-                                            StrokeShape="RoundRectangle 8"
-                                            Stroke="{AppThemeBinding Light=#D6EAF8, Dark=#1A3A5C}"
-                                            StrokeThickness="0.5"
-                                            BackgroundColor="{AppThemeBinding Light=#E8F4FD, Dark=#1C2E3E}">
-                                        <Border.Shadow>
-                                            <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
-                                        </Border.Shadow>
-                                        <Border.GestureRecognizers>
-                                            <DragGestureRecognizer CanDrag="True"
-                                                                   DragStarting="OnDragStarting" />
-                                            <TapGestureRecognizer
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
-                                                CommandParameter="{Binding .}" />
-                                            <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
-                                                                     PointerExited="OnCardPointerExited" />
-                                        </Border.GestureRecognizers>
-                                        <Grid>
-                                            <VerticalStackLayout Spacing="4">
-                                                <Label Text="{Binding Title}"
-                                                       FontFamily="OpenSansSemibold"
-                                                       FontSize="13"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextColor="{AppThemeBinding Light=#1A237E, Dark=#B3D4FC}" />
-                                                <Label Text="{Binding Description}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="11"
-                                                       MaxLines="2"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextColor="{AppThemeBinding Light=#5472A0, Dark=#7DA5CC}"
-                                                       IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <Label Grid.Column="0"
-                                                           Text="{Binding PriorityDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{Binding PriorityColor}"
-                                                           VerticalOptions="End" />
-                                                    <Label Grid.Column="1"
-                                                           Text="{Binding TimeDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{AppThemeBinding Light=#90A4AE, Dark=#607D8B}"
-                                                           VerticalOptions="End" />
-                                                </Grid>
-                                            </VerticalStackLayout>
-                                            <Border HeightRequest="20" WidthRequest="20"
-                                                    StrokeShape="Ellipse"
-                                                    Stroke="{AppThemeBinding Light=#90CAF9, Dark=#1565C0}"
-                                                    StrokeThickness="1"
-                                                    BackgroundColor="Transparent"
-                                                    HorizontalOptions="End" VerticalOptions="Start"
-                                                    Margin="0,-4,-4,0"
-                                                    Opacity="0"
-                                                    ToolTipProperties.Text="Eliminar">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer
-                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
-                                                        CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="🗑"
-                                                       FontSize="10"
-                                                       HorizontalOptions="Center" VerticalOptions="Center" />
-                                            </Border>
-                                        </Grid>
-                                    </Border>
+                                    <Grid RowDefinitions="Auto">
+                                        <Border Grid.Row="0"
+                                                Padding="10,8"
+                                                HeightRequest="62"
+                                                HorizontalOptions="Fill"
+                                                StrokeShape="RoundRectangle 8"
+                                                Stroke="{AppThemeBinding Light=#D6EAF8, Dark=#2E5C88}"
+                                                StrokeThickness="0.5"
+                                                BackgroundColor="{AppThemeBinding Light=#E8F4FD, Dark=#1A3552}">
+                                            <Border.Shadow>
+                                                <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
+                                            </Border.Shadow>
+                                            <Border.GestureRecognizers>
+                                                <DragGestureRecognizer CanDrag="True"
+                                                                       DragStarting="OnDragStarting" />
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
+                                                                         PointerExited="OnCardPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Grid>
+                                                <VerticalStackLayout Spacing="4">
+                                                    <Label Text="{Binding Title}"
+                                                           FontFamily="OpenSansSemibold"
+                                                           FontSize="13"
+                                                           MaxLines="1"
+                                                           LineBreakMode="TailTruncation"
+                                                           TextColor="{AppThemeBinding Light=#1A237E, Dark=#D2E8FF}" />
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding PriorityDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{Binding PriorityColor}"
+                                                               VerticalOptions="End" />
+                                                        <Label Grid.Column="1"
+                                                               Text="{Binding TimeDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{AppThemeBinding Light=#90A4AE, Dark=#88AFCB}"
+                                                               VerticalOptions="End" />
+                                                    </Grid>
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </Border>
+                                        <Border Grid.Row="0"
+                                HeightRequest="24" WidthRequest="86"
+                                StrokeShape="RoundRectangle 12"
+                                                StrokeThickness="1"
+                                                Stroke="{AppThemeBinding Light=#B71C1C, Dark=#FF8A95}"
+                                                BackgroundColor="{AppThemeBinding Light=#E53935, Dark=#D6455D}"
+                                                HorizontalOptions="Center" VerticalOptions="End"
+                                                Margin="0,0,0,-6"
+                                                Opacity="0"
+                                                InputTransparent="True"
+                                                ToolTipProperties.Text="Eliminar">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnDeleteOverlayPointerEntered"
+                                                                         PointerExited="OnDeleteOverlayPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="Eliminar"
+                                                   FontFamily="OpenSansSemibold"
+                                        FontSize="9"
+                                                   TextColor="White"
+                                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                    </Grid>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
                     </Grid>
                 </Border>
 
-                <!-- ═══ Bloqueado ═══ -->
+                <!-- Bloqueado -->
                 <Border x:Name="ColumnBlocked"
                         Grid.Column="2"
                         Padding="10,8"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{AppThemeBinding Light=#FFCC80, Dark=#E65100}"
+                        Stroke="{AppThemeBinding Light=#FFCC80, Dark=#D17A26}"
                         StrokeThickness="1">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="{AppThemeBinding Light=#FFF3E0, Dark=#3E2200}" Offset="0.0" />
-                            <GradientStop Color="{AppThemeBinding Light=#FFE0B2, Dark=#2E1A00}" Offset="0.5" />
-                            <GradientStop Color="{AppThemeBinding Light=#FFCC80, Dark=#1F1200}" Offset="1.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#FFF3E0, Dark=#4A2B0F}" Offset="0.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#FFE0B2, Dark=#3B230D}" Offset="0.5" />
+                            <GradientStop Color="{AppThemeBinding Light=#FFCC80, Dark=#2E1B0A}" Offset="1.0" />
                         </LinearGradientBrush>
                     </Border.Background>
                     <Border.GestureRecognizers>
@@ -324,33 +355,44 @@
                     <Grid RowDefinitions="Auto,*" RowSpacing="8">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
                             <Label Grid.Row="0" Grid.Column="0"
-                                   Text="⚠️ Bloqueado"
+                                   Text="Bloqueado"
                                    FontFamily="OpenSansSemibold"
                                    FontSize="14"
-                                   TextColor="{AppThemeBinding Light=#E65100, Dark=#FFB74D}"
+                                   TextColor="{AppThemeBinding Light=#E65100, Dark=#FFD39A}"
                                    VerticalOptions="Center" />
                             <Border Grid.Row="0" Grid.Column="1"
-                                    HeightRequest="22" WidthRequest="22"
-                                    StrokeShape="Ellipse"
-                                    Stroke="{AppThemeBinding Light=#FB8C00, Dark=#F57C00}"
+                                    HeightRequest="24" WidthRequest="24"
+                                    StrokeShape="RoundRectangle 12"
+                                    Stroke="{AppThemeBinding Light=#1D4ED8, Dark=#8FB7FF}"
                                     StrokeThickness="1"
-                                    BackgroundColor="Transparent"
                                     ToolTipProperties.Text="Agregar tarea">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="{AppThemeBinding Light=#3B82F6, Dark=#4A7BD6}" Offset="0.0" />
+                                        <GradientStop Color="{AppThemeBinding Light=#1D4ED8, Dark=#2F5FAF}" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Shadow>
+                                    <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
+                                </Border.Shadow>
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Blocked" />
                                 </Border.GestureRecognizers>
-                                <Label Text="➕"
-                                       FontSize="10"
+                                <Label Text="+"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="13"
+                                       TextColor="White"
                                        HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
                             <BoxView Grid.Row="1" Grid.ColumnSpan="2"
-                                     HeightRequest="2" Color="{AppThemeBinding Light=#FB8C00, Dark=#F57C00}" Margin="0,0,0,4" />
+                                     HeightRequest="2" Color="{AppThemeBinding Light=#FB8C00, Dark=#CF731E}" Margin="0,0,0,4" />
                         </Grid>
                         <CollectionView Grid.Row="1"
                                         ItemsSource="{Binding BlockedTasks}"
+                                        HorizontalOptions="Fill"
                                         x:DataType="views:KanbanPage">
                             <CollectionView.EmptyView>
-                                <Label Text="Arrastra tareas aquí"
+                                <Label Text="Arrastra tareas aqui"
                                        FontFamily="OpenSansRegular"
                                        FontSize="12"
                                        TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}"
@@ -362,90 +404,95 @@
                             </CollectionView.ItemsLayout>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="models:KanbanTask">
-                                    <Border Padding="10,8"
-                                            StrokeShape="RoundRectangle 8"
-                                            Stroke="{AppThemeBinding Light=#FFE0B2, Dark=#5D3A00}"
-                                            StrokeThickness="0.5"
-                                            BackgroundColor="{AppThemeBinding Light=#FFF8E1, Dark=#3E2D10}">
-                                        <Border.Shadow>
-                                            <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
-                                        </Border.Shadow>
-                                        <Border.GestureRecognizers>
-                                            <DragGestureRecognizer CanDrag="True"
-                                                                   DragStarting="OnDragStarting" />
-                                            <TapGestureRecognizer
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
-                                                CommandParameter="{Binding .}" />
-                                            <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
-                                                                     PointerExited="OnCardPointerExited" />
-                                        </Border.GestureRecognizers>
-                                        <Grid>
-                                            <VerticalStackLayout Spacing="4">
-                                                <Label Text="{Binding Title}"
-                                                       FontFamily="OpenSansSemibold"
-                                                       FontSize="13"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextColor="{AppThemeBinding Light=#BF360C, Dark=#FFCC80}" />
-                                                <Label Text="{Binding Description}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="11"
-                                                       MaxLines="2"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextColor="{AppThemeBinding Light=#A1887F, Dark=#BCAAA4}"
-                                                       IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <Label Grid.Column="0"
-                                                           Text="{Binding PriorityDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{Binding PriorityColor}"
-                                                           VerticalOptions="End" />
-                                                    <Label Grid.Column="1"
-                                                           Text="{Binding TimeDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{AppThemeBinding Light=#BCAAA4, Dark=#8D6E63}"
-                                                           VerticalOptions="End" />
-                                                </Grid>
-                                            </VerticalStackLayout>
-                                            <Border HeightRequest="20" WidthRequest="20"
-                                                    StrokeShape="Ellipse"
-                                                    Stroke="{AppThemeBinding Light=#FFCC80, Dark=#E65100}"
-                                                    StrokeThickness="1"
-                                                    BackgroundColor="Transparent"
-                                                    HorizontalOptions="End" VerticalOptions="Start"
-                                                    Margin="0,-4,-4,0"
-                                                    Opacity="0"
-                                                    ToolTipProperties.Text="Eliminar">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer
-                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
-                                                        CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="🗑"
-                                                       FontSize="10"
-                                                       HorizontalOptions="Center" VerticalOptions="Center" />
-                                            </Border>
-                                        </Grid>
-                                    </Border>
+                                    <Grid RowDefinitions="Auto">
+                                        <Border Grid.Row="0"
+                                                Padding="10,8"
+                                                HeightRequest="62"
+                                                HorizontalOptions="Fill"
+                                                StrokeShape="RoundRectangle 8"
+                                                Stroke="{AppThemeBinding Light=#FFE0B2, Dark=#8B5B29}"
+                                                StrokeThickness="0.5"
+                                                BackgroundColor="{AppThemeBinding Light=#FFF8E1, Dark=#4A3316}">
+                                            <Border.Shadow>
+                                                <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
+                                            </Border.Shadow>
+                                            <Border.GestureRecognizers>
+                                                <DragGestureRecognizer CanDrag="True"
+                                                                       DragStarting="OnDragStarting" />
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
+                                                                         PointerExited="OnCardPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Grid>
+                                                <VerticalStackLayout Spacing="4">
+                                                    <Label Text="{Binding Title}"
+                                                           FontFamily="OpenSansSemibold"
+                                                           FontSize="13"
+                                                           MaxLines="1"
+                                                           LineBreakMode="TailTruncation"
+                                                           TextColor="{AppThemeBinding Light=#BF360C, Dark=#FFE2BE}" />
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding PriorityDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{Binding PriorityColor}"
+                                                               VerticalOptions="End" />
+                                                        <Label Grid.Column="1"
+                                                               Text="{Binding TimeDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{AppThemeBinding Light=#BCAAA4, Dark=#C6A082}"
+                                                               VerticalOptions="End" />
+                                                    </Grid>
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </Border>
+                                        <Border Grid.Row="0"
+                                HeightRequest="24" WidthRequest="86"
+                                StrokeShape="RoundRectangle 12"
+                                                StrokeThickness="1"
+                                                Stroke="{AppThemeBinding Light=#B71C1C, Dark=#FF8A95}"
+                                                BackgroundColor="{AppThemeBinding Light=#E53935, Dark=#D6455D}"
+                                                HorizontalOptions="Center" VerticalOptions="End"
+                                                Margin="0,0,0,-6"
+                                                Opacity="0"
+                                                InputTransparent="True"
+                                                ToolTipProperties.Text="Eliminar">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnDeleteOverlayPointerEntered"
+                                                                         PointerExited="OnDeleteOverlayPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="Eliminar"
+                                                   FontFamily="OpenSansSemibold"
+                                        FontSize="9"
+                                                   TextColor="White"
+                                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                    </Grid>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
                     </Grid>
                 </Border>
 
-                <!-- ═══ Terminado ═══ -->
+                <!-- Terminado -->
                 <Border x:Name="ColumnDone"
                         Grid.Column="3"
                         Padding="10,8"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{AppThemeBinding Light=#A5D6A7, Dark=#2E7D32}"
+                        Stroke="{AppThemeBinding Light=#A5D6A7, Dark=#3E9E57}"
                         StrokeThickness="1">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="{AppThemeBinding Light=#E8F5E9, Dark=#0A2E0A}" Offset="0.0" />
-                            <GradientStop Color="{AppThemeBinding Light=#C8E6C9, Dark=#072107}" Offset="0.5" />
-                            <GradientStop Color="{AppThemeBinding Light=#A5D6A7, Dark=#051A05}" Offset="1.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#E8F5E9, Dark=#143821}" Offset="0.0" />
+                            <GradientStop Color="{AppThemeBinding Light=#C8E6C9, Dark=#102D1A}" Offset="0.5" />
+                            <GradientStop Color="{AppThemeBinding Light=#A5D6A7, Dark=#0B2214}" Offset="1.0" />
                         </LinearGradientBrush>
                     </Border.Background>
                     <Border.GestureRecognizers>
@@ -457,33 +504,44 @@
                     <Grid RowDefinitions="Auto,*" RowSpacing="8">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
                             <Label Grid.Row="0" Grid.Column="0"
-                                   Text="✅ Terminado"
+                                   Text="Terminado"
                                    FontFamily="OpenSansSemibold"
                                    FontSize="14"
-                                   TextColor="{AppThemeBinding Light=#2E7D32, Dark=#81C784}"
+                                   TextColor="{AppThemeBinding Light=#2E7D32, Dark=#A8E5B6}"
                                    VerticalOptions="Center" />
                             <Border Grid.Row="0" Grid.Column="1"
-                                    HeightRequest="22" WidthRequest="22"
-                                    StrokeShape="Ellipse"
-                                    Stroke="{AppThemeBinding Light=#66BB6A, Dark=#43A047}"
+                                    HeightRequest="24" WidthRequest="24"
+                                    StrokeShape="RoundRectangle 12"
+                                    Stroke="{AppThemeBinding Light=#1D4ED8, Dark=#8FB7FF}"
                                     StrokeThickness="1"
-                                    BackgroundColor="Transparent"
                                     ToolTipProperties.Text="Agregar tarea">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="{AppThemeBinding Light=#3B82F6, Dark=#4A7BD6}" Offset="0.0" />
+                                        <GradientStop Color="{AppThemeBinding Light=#1D4ED8, Dark=#2F5FAF}" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Shadow>
+                                    <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.18" />
+                                </Border.Shadow>
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding AddCommand}" CommandParameter="Done" />
                                 </Border.GestureRecognizers>
-                                <Label Text="➕"
-                                       FontSize="10"
+                                <Label Text="+"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="13"
+                                       TextColor="White"
                                        HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
                             <BoxView Grid.Row="1" Grid.ColumnSpan="2"
-                                     HeightRequest="2" Color="{AppThemeBinding Light=#66BB6A, Dark=#43A047}" Margin="0,0,0,4" />
+                                     HeightRequest="2" Color="{AppThemeBinding Light=#66BB6A, Dark=#5BB26F}" Margin="0,0,0,4" />
                         </Grid>
                         <CollectionView Grid.Row="1"
                                         ItemsSource="{Binding DoneTasks}"
+                                        HorizontalOptions="Fill"
                                         x:DataType="views:KanbanPage">
                             <CollectionView.EmptyView>
-                                <Label Text="Arrastra tareas aquí"
+                                <Label Text="Arrastra tareas aqui"
                                        FontFamily="OpenSansRegular"
                                        FontSize="12"
                                        TextColor="{AppThemeBinding Light={StaticResource Gray400}, Dark={StaticResource Gray500}}"
@@ -495,82 +553,87 @@
                             </CollectionView.ItemsLayout>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="models:KanbanTask">
-                                    <Border Padding="10,8"
-                                            StrokeShape="RoundRectangle 8"
-                                            Stroke="{AppThemeBinding Light=#C8E6C9, Dark=#1B4A1B}"
-                                            StrokeThickness="0.5"
-                                            BackgroundColor="{AppThemeBinding Light=#F1F8E9, Dark=#1A2E1A}">
-                                        <Border.Shadow>
-                                            <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
-                                        </Border.Shadow>
-                                        <Border.GestureRecognizers>
-                                            <DragGestureRecognizer CanDrag="True"
-                                                                   DragStarting="OnDragStarting" />
-                                            <TapGestureRecognizer
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
-                                                CommandParameter="{Binding .}" />
-                                            <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
-                                                                     PointerExited="OnCardPointerExited" />
-                                        </Border.GestureRecognizers>
-                                        <Grid>
-                                            <VerticalStackLayout Spacing="4">
-                                                <Label Text="{Binding Title}"
-                                                       FontFamily="OpenSansSemibold"
-                                                       FontSize="13"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextDecorations="Strikethrough"
-                                                       TextColor="{AppThemeBinding Light=#66BB6A, Dark=#558B2F}" />
-                                                <Label Text="{Binding Description}"
-                                                       FontFamily="OpenSansRegular"
-                                                       FontSize="11"
-                                                       MaxLines="2"
-                                                       LineBreakMode="TailTruncation"
-                                                       TextColor="{AppThemeBinding Light=#A5D6A7, Dark=#4E6E4E}"
-                                                       IsVisible="{Binding Description, Converter={StaticResource IsNotNullOrEmptyConverter}}" />
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <Label Grid.Column="0"
-                                                           Text="{Binding PriorityDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{Binding PriorityColor}"
-                                                           VerticalOptions="End" />
-                                                    <Label Grid.Column="1"
-                                                           Text="{Binding TimeDisplay}"
-                                                           FontFamily="OpenSansRegular"
-                                                           FontSize="10"
-                                                           TextColor="{AppThemeBinding Light=#A5D6A7, Dark=#4E6E4E}"
-                                                           VerticalOptions="End" />
-                                                </Grid>
-                                            </VerticalStackLayout>
-                                            <Border HeightRequest="20" WidthRequest="20"
-                                                    StrokeShape="Ellipse"
-                                                    Stroke="{AppThemeBinding Light=#A5D6A7, Dark=#2E7D32}"
-                                                    StrokeThickness="1"
-                                                    BackgroundColor="Transparent"
-                                                    HorizontalOptions="End" VerticalOptions="Start"
-                                                    Margin="0,-4,-4,0"
-                                                    Opacity="0"
-                                                    ToolTipProperties.Text="Eliminar">
-                                                <Border.GestureRecognizers>
-                                                    <TapGestureRecognizer
-                                                        Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
-                                                        CommandParameter="{Binding .}" />
-                                                </Border.GestureRecognizers>
-                                                <Label Text="🗑"
-                                                       FontSize="10"
-                                                       HorizontalOptions="Center" VerticalOptions="Center" />
-                                            </Border>
-                                        </Grid>
-                                    </Border>
+                                    <Grid RowDefinitions="Auto">
+                                        <Border Grid.Row="0"
+                                                Padding="10,8"
+                                                HeightRequest="62"
+                                                HorizontalOptions="Fill"
+                                                StrokeShape="RoundRectangle 8"
+                                                Stroke="{AppThemeBinding Light=#C8E6C9, Dark=#2C6B38}"
+                                                StrokeThickness="0.5"
+                                                BackgroundColor="{AppThemeBinding Light=#F1F8E9, Dark=#1B3923}">
+                                            <Border.Shadow>
+                                                <Shadow Brush="Black" Offset="1,2" Radius="6" Opacity="0.12" />
+                                            </Border.Shadow>
+                                            <Border.GestureRecognizers>
+                                                <DragGestureRecognizer CanDrag="True"
+                                                                       DragStarting="OnDragStarting" />
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=EditCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnCardPointerEntered"
+                                                                         PointerExited="OnCardPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Grid>
+                                                <VerticalStackLayout Spacing="4">
+                                                    <Label Text="{Binding Title}"
+                                                           FontFamily="OpenSansSemibold"
+                                                           FontSize="13"
+                                                           MaxLines="1"
+                                                           LineBreakMode="TailTruncation"
+                                                           TextDecorations="Strikethrough"
+                                                           TextColor="{AppThemeBinding Light=#66BB6A, Dark=#98D7A5}" />
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding PriorityDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{Binding PriorityColor}"
+                                                               VerticalOptions="End" />
+                                                        <Label Grid.Column="1"
+                                                               Text="{Binding TimeDisplay}"
+                                                               FontFamily="OpenSansRegular"
+                                                               FontSize="10"
+                                                               TextColor="{AppThemeBinding Light=#A5D6A7, Dark=#7FAF8A}"
+                                                               VerticalOptions="End" />
+                                                    </Grid>
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </Border>
+                                        <Border Grid.Row="0"
+                                HeightRequest="24" WidthRequest="86"
+                                StrokeShape="RoundRectangle 12"
+                                                StrokeThickness="1"
+                                                Stroke="{AppThemeBinding Light=#B71C1C, Dark=#FF8A95}"
+                                                BackgroundColor="{AppThemeBinding Light=#E53935, Dark=#D6455D}"
+                                                HorizontalOptions="Center" VerticalOptions="End"
+                                                Margin="0,0,0,-6"
+                                                Opacity="0"
+                                                InputTransparent="True"
+                                                ToolTipProperties.Text="Eliminar">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type views:KanbanPage}}, Path=DeleteCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                                <PointerGestureRecognizer PointerEntered="OnDeleteOverlayPointerEntered"
+                                                                         PointerExited="OnDeleteOverlayPointerExited" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="Eliminar"
+                                                   FontFamily="OpenSansSemibold"
+                                        FontSize="9"
+                                                   TextColor="White"
+                                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                    </Grid>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
                     </Grid>
                 </Border>
-
-                    </Grid>
-                </ScrollView>
+        </Grid>
 
             </Grid>
 
             </ContentPage>
+
+
