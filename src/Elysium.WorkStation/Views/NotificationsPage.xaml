@@ -11,7 +11,7 @@
 
     <Grid RowDefinitions="Auto,*">
 
-        <!-- Header: conteo + botÃ³n limpiar -->
+        <!-- Header: conteo + botón limpiar -->
         <Grid Grid.Row="0"
               ColumnDefinitions="*,Auto"
               Padding="16,10,16,6">
@@ -43,7 +43,8 @@
                                      VerticalOptions="Center"
                                      Spacing="10"
                                      Margin="0,80,0,0">
-                    <Label Text="ðŸ””"
+                    <Label Text="🔔"
+                           FontFamily="Segoe UI Emoji"
                            FontSize="52"
                            HorizontalOptions="Center" />
                     <Label Text="Sin notificaciones recientes"

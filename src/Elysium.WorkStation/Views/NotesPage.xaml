@@ -6,7 +6,7 @@
              x:Class="Elysium.WorkStation.Views.NotesPage"
              x:DataType="views:NotesPage"
              Shell.NavBarIsVisible="False"
-             Title="Notas rÃ¡pidas">
+             Title="Notas rápidas">
 
     <Grid RowDefinitions="Auto,*">
 
@@ -22,9 +22,9 @@
                    TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}"
                    VerticalOptions="Center" />
             <Button Grid.Column="1"
-                    Text="ðŸ“ Nueva"
+                    Text="📝 Nueva"
+                    FontFamily="Segoe UI Emoji"
                     Command="{Binding AddCommand}"
-                    FontFamily="OpenSansSemibold"
                     FontSize="12"
                     CornerRadius="8"
                     HeightRequest="32"
@@ -50,10 +50,11 @@
                                      VerticalOptions="Center"
                                      Spacing="10"
                                      Margin="0,80,0,0">
-                    <Label Text="ðŸ“"
+                    <Label Text="📝"
+                           FontFamily="Segoe UI Emoji"
                            FontSize="52"
                            HorizontalOptions="Center" />
-                    <Label Text="No hay notas todavÃ­a"
+                    <Label Text="No hay notas todavía"
                            FontFamily="OpenSansRegular"
                            FontSize="14"
                            TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
@@ -107,7 +108,8 @@
                                             Command="{Binding Source={RelativeSource AncestorType={x:Type views:NotesPage}}, Path=CopyCommand}"
                                             CommandParameter="{Binding .}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="ðŸ“‹"
+                                    <Label Text="📋"
+                                           FontFamily="Segoe UI Emoji"
                                            FontSize="14"
                                            HorizontalOptions="Center"
                                            VerticalOptions="Center" />
@@ -124,7 +126,7 @@
                                             Command="{Binding Source={RelativeSource AncestorType={x:Type views:NotesPage}}, Path=DeleteCommand}"
                                             CommandParameter="{Binding .}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="âœ•"
+                                    <Label Text="✕"
                                            FontSize="14"
                                            TextColor="White"
                                            HorizontalOptions="Center"

@@ -31,7 +31,7 @@
                   ColumnDefinitions="Auto,*"
                   ColumnSpacing="8">
                 <Button Grid.Column="0"
-                        Text="â†"
+                        Text="←"
                         WidthRequest="30"
                         HeightRequest="30"
                         Padding="0"
@@ -127,7 +127,7 @@
                               VerticalOptions="End"
                               Margin="0,0,0,-20">
                             <Button Grid.Column="0"
-                                    Text="âœŽ"
+                                    Text="✎"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -142,11 +142,12 @@
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=EditGroupFromCardCommand}"
                                     CommandParameter="{Binding .}" />
                             <Button Grid.Column="1"
-                                    Text="ðŸ—‘"
+                                    Text="🗑"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
                                     MinimumHeightRequest="35"
+                                    FontFamily="Segoe UI Emoji"
                                     FontSize="10"
                                     Padding="0"
                                     CornerRadius="7"
@@ -244,7 +245,7 @@
                               VerticalOptions="End"
                               Margin="0,0,0,-20">
                             <Button Grid.Column="0"
-                                    Text="âœŽ"
+                                    Text="✎"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -259,7 +260,7 @@
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=EditVariableCommand}"
                                     CommandParameter="{Binding .}" />
                             <Button Grid.Column="1"
-                                    Text="â§‰"
+                                    Text="⧉"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
@@ -274,11 +275,12 @@
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type views:VariablesPage}}, Path=CopyVariableCommand}"
                                     CommandParameter="{Binding .}" />
                             <Button Grid.Column="2"
-                                    Text="ðŸ—‘"
+                                    Text="🗑"
                                     WidthRequest="35"
                                     HeightRequest="35"
                                     MinimumWidthRequest="35"
                                     MinimumHeightRequest="35"
+                                    FontFamily="Segoe UI Emoji"
                                     FontSize="10"
                                     Padding="0"
                                     CornerRadius="7"
