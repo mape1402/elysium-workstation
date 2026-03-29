@@ -79,5 +79,13 @@ namespace Elysium.WorkStation.Hubs
                 enabled,
                 emitterClientId,
                 changedByClientId);
+
+        public async Task AnnounceFolderSyncUnlinked(
+            string syncId,
+            string changedByClientId)
+            => await Clients.Others.SendAsync(
+                "ReceiveFolderSyncUnlinked",
+                syncId,
+                changedByClientId);
     }
 }

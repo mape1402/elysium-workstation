@@ -416,6 +416,11 @@ namespace Elysium.WorkStation.Services
                 StopWatcher(link.SyncId);
             }
 
+            if (link.IsAccepted)
+            {
+                await BroadcastFolderSyncUnlinkedAsync(link.SyncId);
+            }
+
             lock (_runtimeGate)
             {
                 _logsBySync.Remove(link.SyncId);
@@ -545,6 +550,18 @@ namespace Elysium.WorkStation.Services
                 "ReceiveFolderSyncState",
                 (syncId, enabled, emitterClientId, changedByClientId) =>
                     _ = HandleFolderSyncStateAsync(syncId, enabled, emitterClientId, changedByClientId));
+
+            connection.On<string, string>(
+                "ReceiveFolderSyncUnlinked",
+                (syncId, changedByClientId) =>
+                    _ = HandleFolderSyncUnlinkedAsync(syncId, changedByClientId));
+
+            connection.On<JsonElement>(
+                "ReceiveFolderSyncUnlinkedPayload",
+                payload =>
+                    _ = HandleFolderSyncUnlinkedAsync(
+                        ReadString(payload, "SyncId"),
+                        ReadString(payload, "ChangedByClientId")));
         }
 
         private async Task HandleInviteAsync(
@@ -698,6 +715,42 @@ namespace Elysium.WorkStation.Services
                 AddLog(syncId, "role-receiver", string.Empty, "Este cliente ahora es receptor.", isOutgoing: false);
             }
 
+            RaiseStateChanged();
+        }
+
+        private async Task HandleFolderSyncUnlinkedAsync(string syncId, string changedByClientId)
+        {
+            if (string.Equals(changedByClientId, ClientId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var link = await _repository.GetBySyncIdAsync(syncId);
+            if (link is null)
+            {
+                return;
+            }
+
+            if (link.IsEmitter)
+            {
+                await StopEmitterAsync(link, persistSnapshot: false, "Vinculacion eliminada por remoto.");
+            }
+            else
+            {
+                StopWatcher(syncId);
+            }
+
+            link.ContinuousSyncEnabled = false;
+            link.IsEmitter = false;
+            link.IsAccepted = false;
+            link.IsPendingOutgoing = false;
+            link.IsPendingIncoming = false;
+            link.RemoteClientId = string.Empty;
+            link.RemoteClientName = string.Empty;
+            link = await _repository.SaveAsync(link);
+            await UpsertLinkInMemoryAsync(link);
+
+            AddLog(syncId, "unlink-remote", string.Empty, "La carpeta fue desvinculada desde el otro extremo.", isOutgoing: false);
             RaiseStateChanged();
         }
 
@@ -1257,6 +1310,33 @@ namespace Elysium.WorkStation.Services
                 enabled,
                 emitterClientId ?? string.Empty,
                 ClientId);
+        }
+
+        private async Task BroadcastFolderSyncUnlinkedAsync(string syncId)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            try
+            {
+                await _connection.InvokeAsync(
+                    "AnnounceFolderSyncUnlinked",
+                    syncId,
+                    ClientId);
+            }
+            catch (Exception ex) when (IsMethodMissingHubError(ex))
+            {
+                await _connection.InvokeAsync(
+                    "Broadcast",
+                    "ReceiveFolderSyncUnlinkedPayload",
+                    new
+                    {
+                        SyncId = syncId,
+                        ChangedByClientId = ClientId
+                    });
+            }
         }
 
         private async Task SendFolderSyncInviteAsync(string inviteId, FolderSyncLink link)
