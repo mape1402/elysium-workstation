@@ -661,8 +661,7 @@ namespace Elysium.WorkStation.Views
                 return false;
             }
 
-            return IgnorePaths.Any(path =>
-                string.Equals(NormalizeRelativePath(path), relativePath, StringComparison.OrdinalIgnoreCase));
+            return IgnorePathMatcher.IsIgnored(relativePath, IgnorePaths);
         }
 
         private static string ToRelativePath(string rootPath, string fullPath)

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Elysium.WorkStation.Views"
@@ -22,13 +22,11 @@
                 <Label Text="Rutas ignoradas"
                        StyleClass="SectionTitle"
                        FontSize="20" />
-
                 <Label Grid.Row="1"
                        Text="{Binding RootPath}"
-                       FontFamily="OpenSansRegular"
                        FontSize="12"
-                       LineBreakMode="TailTruncation"
-                       TextColor="{AppThemeBinding Light=#4E6287, Dark=#B5C7E7}" />
+                       TextColor="{AppThemeBinding Light=#5B7098, Dark=#A7BDDF}"
+                       LineBreakMode="TailTruncation" />
 
                 <CollectionView Grid.Row="2"
                                 ItemsSource="{Binding IgnorePathItems}"
@@ -43,15 +41,20 @@
                                     StrokeShape="RoundRectangle 10"
                                     Stroke="{AppThemeBinding Light=#D7E2F7, Dark=#3B4F70}"
                                     BackgroundColor="{AppThemeBinding Light=#EDF3FF, Dark=#24334A}">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                     <Label Grid.Column="0"
+                                           Text="{Binding Icon}"
+                                           FontSize="17"
+                                           VerticalOptions="Center"
+                                           TextColor="{AppThemeBinding Light=#2C4779, Dark=#D6E5FF}" />
+                                    <Label Grid.Column="1"
                                            Text="{Binding Path}"
                                            FontFamily="OpenSansRegular"
                                            FontSize="12"
                                            LineBreakMode="TailTruncation"
                                            VerticalOptions="Center"
                                            TextColor="{AppThemeBinding Light=#1E325A, Dark=#E2ECFF}" />
-                                    <Button Grid.Column="1"
+                                    <Button Grid.Column="2"
                                             Text="Quitar"
                                             StyleClass="DangerButton"
                                             Padding="10,6"
@@ -66,7 +69,7 @@
 
                 <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                     <Button Grid.Column="0"
-                            Text="Agregar ruta"
+                            Text="Agregar patron"
                             Command="{Binding AddPathCommand}" />
                     <Button Grid.Column="2"
                             Text="Cancelar"

@@ -80,6 +80,9 @@
 	  <MauiXaml Update="Views\IgnorePathPickerPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\IgnorePatternPromptPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\KanbanPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

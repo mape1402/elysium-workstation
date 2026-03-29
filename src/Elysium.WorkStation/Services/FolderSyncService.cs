@@ -1088,7 +1088,7 @@ namespace Elysium.WorkStation.Services
         private static IReadOnlyList<string> NormalizeIgnorePaths(IEnumerable<string> ignorePaths)
         {
             return (ignorePaths ?? [])
-                .Select(path => NormalizeRelativePath(path))
+                .Select(IgnorePathMatcher.NormalizeEntry)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -1096,20 +1096,7 @@ namespace Elysium.WorkStation.Services
 
         private static bool IsIgnored(string relativePath, IReadOnlyList<string> ignorePaths)
         {
-            foreach (var ignore in ignorePaths)
-            {
-                if (string.Equals(relativePath, ignore, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-
-                if (relativePath.StartsWith(ignore + "/", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return IgnorePathMatcher.IsIgnored(relativePath, ignorePaths);
         }
 
         private static string NormalizeFolderPath(string folderPath)
