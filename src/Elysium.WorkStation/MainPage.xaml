@@ -1,58 +1,343 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Elysium.WorkStation"
+             xmlns:models="clr-namespace:Elysium.WorkStation.Models"
              x:Class="Elysium.WorkStation.MainPage"
+             x:Name="HomePageRoot"
              x:DataType="local:MainPage"
              Shell.NavBarIsVisible="False"
              Title="Workspace">
 
-    <Grid Padding="18" RowDefinitions="Auto,Auto,*" RowSpacing="12">
-        <VerticalStackLayout Grid.Row="0" Spacing="4">
-            <Label Text="Workspace"
-                   StyleClass="PageTitle" />
-            <Label Text="Selecciona un modulo desde el sidebar"
-                   StyleClass="Muted" />
-        </VerticalStackLayout>
+    <ScrollView>
+        <VerticalStackLayout Padding="18,14,18,18" Spacing="14">
+            <Border Padding="18"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 20">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Offset="0.0"
+                                      Color="{AppThemeBinding Light=#1E56D9, Dark=#1A2E57}" />
+                        <GradientStop Offset="0.55"
+                                      Color="{AppThemeBinding Light=#2D6BFF, Dark=#274D8A}" />
+                        <GradientStop Offset="1.0"
+                                      Color="{AppThemeBinding Light=#4A8BFF, Dark=#2F6BBA}" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="10">
+                    <Label Text="{Binding WelcomeTitle}"
+                           Grid.Row="0"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="35"
+                           TextColor="White" />
 
-        <Border Grid.Row="1"
-                BackgroundColor="{Binding RoleStatusColor}"
-                Padding="12,7"
-                StrokeThickness="0"
-                StrokeShape="RoundRectangle 10">
-            <Label Text="{Binding RoleStatusText}"
-                   FontFamily="OpenSansRegular"
-                   FontSize="12"
-                   TextColor="White"
-                   HorizontalOptions="Center" />
-        </Border>
+                    <Label Grid.Row="1"
+                           Text="{Binding WelcomeSubtitle}"
+                           FontFamily="OpenSansRegular"
+                           FontSize="14"
+                           TextColor="#EAF2FF"
+                           MaxLines="2"
+                           LineBreakMode="TailTruncation" />
 
-        <Border Grid.Row="2"
-                Padding="16"
-                Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
-                BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}"
-                StrokeShape="RoundRectangle 14">
-            <VerticalStackLayout Spacing="10">
-                <Label Text="Panel principal"
-                       StyleClass="SectionTitle" />
-                <Label Text="Ahora la app usa un sidebar real para navegar entre modulos dentro del contenedor principal."
-                       FontFamily="OpenSansRegular"
-                       FontSize="13"
-                       TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
-                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" Margin="0,4,0,0">
-                    <Button Grid.Column="0"
-                            Text="Variables"
-                            Command="{Binding OpenVariablesCommand}" />
-                    <Button Grid.Column="1"
-                            Text="Kanban"
-                            Command="{Binding OpenKanbanCommand}" />
-                    <Button Grid.Column="2"
-                            Text="Notas"
-                            Command="{Binding OpenNotesCommand}" />
+                    <HorizontalStackLayout Grid.Row="2" Spacing="8">
+                        <Border Padding="10,5"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 10"
+                                BackgroundColor="#2AFFFFFF">
+                            <HorizontalStackLayout Spacing="7">
+                                <Border WidthRequest="9"
+                                        HeightRequest="9"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 5"
+                                        VerticalOptions="Center"
+                                        BackgroundColor="{Binding RoleStatusColor}" />
+                                <Label Text="{Binding RoleStatusText}"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="12"
+                                       TextColor="White"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+
+                        <Border Padding="10,5"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 10"
+                                BackgroundColor="#2AFFFFFF">
+                            <Label Text="{Binding CurrentDateText}"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="12"
+                                   TextColor="White"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </HorizontalStackLayout>
+
+                    <Grid Grid.Column="1"
+                          Grid.RowSpan="3"
+                          WidthRequest="112"
+                          HeightRequest="112"
+                          HorizontalOptions="End"
+                          VerticalOptions="Center">
+                        <Border WidthRequest="112"
+                                HeightRequest="112"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 56"
+                                BackgroundColor="#22FFFFFF"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
+                        <Border WidthRequest="74"
+                                HeightRequest="74"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 37"
+                                BackgroundColor="#42FFFFFF"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+                            <Label Text="&#xE80F;"
+                                   FontFamily="Segoe Fluent Icons"
+                                   FontSize="30"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"
+                                   TextColor="White" />
+                        </Border>
+                    </Grid>
                 </Grid>
-            </VerticalStackLayout>
-        </Border>
-    </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                <Border Padding="12"
+                        Stroke="{AppThemeBinding Light=#D3E1FB, Dark=#3B527E}"
+                        BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#172743}"
+                        StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Portapapeles"
+                               StyleClass="SectionTitle"
+                               FontSize="14" />
+                        <Label Text="{Binding ClipboardSummaryText}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="19"
+                               TextColor="{AppThemeBinding Light=#1E56D9, Dark=#89AEFF}" />
+                        <Label Text="{Binding ClipboardConnectionText}"
+                               StyleClass="Muted" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Column="1"
+                        Padding="12"
+                        Stroke="{AppThemeBinding Light=#D3E1FB, Dark=#3B527E}"
+                        BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#172743}"
+                        StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Archivos"
+                               StyleClass="SectionTitle"
+                               FontSize="14" />
+                        <Label Text="{Binding FileTransferSummaryText}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="19"
+                               TextColor="{AppThemeBinding Light=#1E56D9, Dark=#89AEFF}" />
+                        <Label Text="{Binding FileTransferConnectionText}"
+                               StyleClass="Muted" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Column="2"
+                        Padding="12"
+                        Stroke="{AppThemeBinding Light=#D3E1FB, Dark=#3B527E}"
+                        BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#172743}"
+                        StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Sync carpeta"
+                               StyleClass="SectionTitle"
+                               FontSize="14" />
+                        <Label Text="{Binding FolderSyncSummaryText}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="19"
+                               TextColor="{AppThemeBinding Light=#1E56D9, Dark=#89AEFF}" />
+                        <Label Text="{Binding FolderSyncConnectionText}"
+                               StyleClass="Muted" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <Border Padding="14"
+                    Stroke="{AppThemeBinding Light=#D2E0FC, Dark=#3B537E}"
+                    BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#162740}"
+                    StrokeShape="RoundRectangle 16">
+                <VerticalStackLayout Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Accesos rapidos"
+                                   StyleClass="SectionTitle"
+                                   FontSize="18" />
+                            <Label Text="Navega al modulo que necesites en un solo clic."
+                                   StyleClass="Muted" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1"
+                               Text="{Binding ServerSummaryText}"
+                               StyleClass="Muted"
+                               VerticalOptions="Center"
+                               HorizontalTextAlignment="End" />
+                    </Grid>
+
+                    <FlexLayout BindableLayout.ItemsSource="{Binding QuickActions}"
+                                Wrap="Wrap"
+                                Direction="Row"
+                                JustifyContent="Start"
+                                AlignItems="Start">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="models:HomeQuickActionItem">
+                                <Border WidthRequest="262"
+                                        Padding="12"
+                                        Margin="0,0,8,8"
+                                        Stroke="{AppThemeBinding Light=#C8DAFB, Dark=#3A517D}"
+                                        BackgroundColor="{AppThemeBinding Light=#F3F8FF, Dark=#1E3150}"
+                                        StrokeShape="RoundRectangle 14">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnQuickActionTapped" />
+                                        <PointerGestureRecognizer PointerEntered="OnQuickCardPointerEntered"
+                                                                  PointerExited="OnQuickCardPointerExited"
+                                                                  PointerPressed="OnQuickCardPointerPressed"
+                                                                  PointerReleased="OnQuickCardPointerReleased" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="2">
+                                        <Border WidthRequest="40"
+                                                HeightRequest="40"
+                                                Padding="0"
+                                                StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 12"
+                                                BackgroundColor="{Binding IconBackgroundColor}">
+                                            <Label Text="{Binding IconGlyph}"
+                                                   FontFamily="Segoe Fluent Icons"
+                                                   FontSize="18"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center"
+                                                   TextColor="{Binding IconColor}" />
+                                        </Border>
+
+                                        <Label Grid.Column="1"
+                                               Text="{Binding Title}"
+                                               FontFamily="OpenSansSemibold"
+                                               FontSize="15"
+                                               TextColor="{AppThemeBinding Light=#173D83, Dark=#D5E5FF}"
+                                               VerticalTextAlignment="Center" />
+                                        <Label Grid.Row="1"
+                                               Grid.Column="1"
+                                               Text="{Binding Subtitle}"
+                                               StyleClass="Muted"
+                                               MaxLines="2"
+                                               LineBreakMode="TailTruncation" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Border Padding="14"
+                        Stroke="{AppThemeBinding Light=#D3E2FD, Dark=#3B527D}"
+                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#162841}"
+                        StrokeShape="RoundRectangle 16">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Estado de servicios"
+                               StyleClass="SectionTitle" />
+
+                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="8">
+                            <Border WidthRequest="9"
+                                    HeightRequest="9"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 5"
+                                    BackgroundColor="{Binding ClipboardStatusColor}"
+                                    VerticalOptions="Center" />
+                            <Label Grid.Column="1"
+                                   Text="Portapapeles"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13" />
+                            <Label Grid.Column="2"
+                                   Text="{Binding ClipboardConnectionText}"
+                                   StyleClass="Muted"
+                                   HorizontalTextAlignment="End" />
+
+                            <Border Grid.Row="1"
+                                    WidthRequest="9"
+                                    HeightRequest="9"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 5"
+                                    BackgroundColor="{Binding FileTransferStatusColor}"
+                                    VerticalOptions="Center" />
+                            <Label Grid.Row="1"
+                                   Grid.Column="1"
+                                   Text="Transferencias"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13" />
+                            <Label Grid.Row="1"
+                                   Grid.Column="2"
+                                   Text="{Binding FileTransferConnectionText}"
+                                   StyleClass="Muted"
+                                   HorizontalTextAlignment="End" />
+
+                            <Border Grid.Row="2"
+                                    WidthRequest="9"
+                                    HeightRequest="9"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 5"
+                                    BackgroundColor="{Binding FolderSyncStatusColor}"
+                                    VerticalOptions="Center" />
+                            <Label Grid.Row="2"
+                                   Grid.Column="1"
+                                   Text="Sync carpeta"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13" />
+                            <Label Grid.Row="2"
+                                   Grid.Column="2"
+                                   Text="{Binding FolderSyncConnectionText}"
+                                   StyleClass="Muted"
+                                   HorizontalTextAlignment="End" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Column="1"
+                        Padding="14"
+                        Stroke="{AppThemeBinding Light=#D3E2FD, Dark=#3B527D}"
+                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#162841}"
+                        StrokeShape="RoundRectangle 16">
+                    <VerticalStackLayout Spacing="9">
+                        <Label Text="Flujo recomendado"
+                               StyleClass="SectionTitle" />
+
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Label Text="&#xE8A5;"
+                                   FontFamily="Segoe Fluent Icons"
+                                   FontSize="13"
+                                   TextColor="{AppThemeBinding Light=#2D6BFF, Dark=#82A8FF}" />
+                            <Label Grid.Column="1"
+                                   Text="Revisa notificaciones y pendientes antes de iniciar cambios."
+                                   StyleClass="Muted" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Label Text="&#xE7C3;"
+                                   FontFamily="Segoe Fluent Icons"
+                                   FontSize="13"
+                                   TextColor="{AppThemeBinding Light=#2D6BFF, Dark=#82A8FF}" />
+                            <Label Grid.Column="1"
+                                   Text="Ordena tus ideas en Brainstorming y conviertelas a tareas en Kanban."
+                                   StyleClass="Muted" />
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Label Text="&#xE895;"
+                                   FontFamily="Segoe Fluent Icons"
+                                   FontSize="13"
+                                   TextColor="{AppThemeBinding Light=#2D6BFF, Dark=#82A8FF}" />
+                            <Label Grid.Column="1"
+                                   Text="Activa Sync carpeta para mantener continuidad entre equipos."
+                                   StyleClass="Muted" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+        </VerticalStackLayout>
+    </ScrollView>
 
 </ContentPage>
-
