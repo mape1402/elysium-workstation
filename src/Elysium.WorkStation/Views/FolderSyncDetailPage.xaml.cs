@@ -474,7 +474,9 @@ namespace Elysium.WorkStation.Views
                 }
 
                 Summary.Clear();
-                foreach (var item in _folderSyncService.GetSummary(_link.SyncId))
+                foreach (var item in _folderSyncService
+                    .GetSummary(_link.SyncId)
+                    .Where(s => !string.IsNullOrWhiteSpace(s.RelativePath)))
                 {
                     Summary.Add(item);
                 }

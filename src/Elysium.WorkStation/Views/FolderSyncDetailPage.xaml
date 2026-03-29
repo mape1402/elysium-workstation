@@ -195,7 +195,7 @@
                         StrokeShape="RoundRectangle 12"
                         Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
                         BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
-                    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                             <Label Grid.Column="0"
                                    Text="Contenido de carpeta"
@@ -213,14 +213,8 @@
                                     BorderColor="{AppThemeBinding Light=#AFC6EC, Dark=#45628C}"
                                     BackgroundColor="{AppThemeBinding Light=#E8F1FF, Dark=#2A3D5C}" />
                         </Grid>
-                        <Label Grid.Row="1"
-                               Text="{Binding CurrentFolderViewPath}"
-                               FontFamily="OpenSansRegular"
-                               FontSize="12"
-                               LineBreakMode="TailTruncation"
-                               TextColor="{AppThemeBinding Light=#4E6287, Dark=#B5C7E7}" />
 
-                        <CollectionView Grid.Row="2"
+                        <CollectionView Grid.Row="1"
                                         ItemsSource="{Binding FolderEntries}"
                                         VerticalOptions="FillAndExpand">
                             <CollectionView.ItemsLayout>
@@ -276,7 +270,7 @@
                             </CollectionView.ItemTemplate>
                         </CollectionView>
 
-                        <Grid Grid.Row="3" ColumnDefinitions="Auto,*">
+                        <Grid Grid.Row="2" ColumnDefinitions="Auto,*">
                             <Button Grid.Column="0"
                                     Text="Volver"
                                     IsVisible="{Binding CanGoBackFolderView}"
@@ -369,36 +363,55 @@
                                   RowDefinitions="Auto,*"
                                   RowSpacing="8">
                                 <Label Grid.Row="0"
-                                       Text="Resumen deduplicado"
+                                       Text="Resumen de archivos afectados"
                                        StyleClass="SectionTitle" />
                                 <CollectionView Grid.Row="1"
                                                 ItemsSource="{Binding Summary}"
                                                 VerticalOptions="FillAndExpand">
                                     <CollectionView.ItemsLayout>
-                                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="1" />
                                     </CollectionView.ItemsLayout>
                                     <CollectionView.ItemTemplate>
                                         <DataTemplate x:DataType="models:FolderSyncSummaryEntry">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Padding="0,2">
-                                                <Label Grid.Column="0"
+                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto"
+                                                  ColumnSpacing="8"
+                                                  Padding="2,3"
+                                                  MinimumHeightRequest="24">
+                                                <Border Grid.Column="0"
+                                                        WidthRequest="10"
+                                                        HeightRequest="10"
+                                                        VerticalOptions="Center"
+                                                        HorizontalOptions="Center"
+                                                        StrokeThickness="0"
+                                                        StrokeShape="RoundRectangle 5"
+                                                        BackgroundColor="{Binding OperationColor}" />
+                                                <Label Grid.Column="1"
+                                                       Text="&#x1F4C4;"
+                                                       FontSize="13"
+                                                       VerticalOptions="Center" />
+                                                <Label Grid.Column="2"
                                                        Text="{Binding RelativePath}"
                                                        FontFamily="OpenSansRegular"
                                                        FontSize="11"
-                                                       LineBreakMode="TailTruncation" />
-                                                <Label Grid.Column="1"
-                                                       FontFamily="OpenSansSemibold"
-                                                       FontSize="11">
-                                                    <Label.FormattedText>
-                                                        <FormattedString>
-                                                            <Span Text="S:" />
-                                                            <Span Text="{Binding SentCount}" />
-                                                            <Span Text=" R:" />
-                                                            <Span Text="{Binding ReceivedCount}" />
-                                                            <Span Text=" D:" />
-                                                            <Span Text="{Binding DeletedCount}" />
-                                                        </FormattedString>
-                                                    </Label.FormattedText>
+                                                       VerticalOptions="Center"
+                                                       LineBreakMode="TailTruncation">
+                                                    <Label.Triggers>
+                                                        <DataTrigger TargetType="Label"
+                                                                     Binding="{Binding IsDeleted}"
+                                                                     Value="True">
+                                                            <Setter Property="TextDecorations"
+                                                                    Value="Strikethrough" />
+                                                            <Setter Property="TextColor"
+                                                                    Value="{AppThemeBinding Light=#A14444, Dark=#F0A0A0}" />
+                                                        </DataTrigger>
+                                                    </Label.Triggers>
                                                 </Label>
+                                                <Label Grid.Column="3"
+                                                       Text="{Binding OperationLabel}"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="10"
+                                                       VerticalOptions="Center"
+                                                       TextColor="{Binding OperationColor}" />
                                             </Grid>
                                         </DataTemplate>
                                     </CollectionView.ItemTemplate>

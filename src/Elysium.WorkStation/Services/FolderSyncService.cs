@@ -1381,20 +1381,28 @@ namespace Elysium.WorkStation.Services
                     map[relativePath] = summary;
                 }
 
+                var operation = "modify";
                 if (string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase))
                 {
                     summary.DeletedCount++;
+                    operation = "delete";
                 }
                 else if (isOutgoing)
                 {
+                    var hadActivity = summary.SentCount + summary.ReceivedCount + summary.DeletedCount > 0;
+                    var comesAfterDelete = string.Equals(summary.LastAction, "delete", StringComparison.OrdinalIgnoreCase);
                     summary.SentCount++;
+                    operation = !hadActivity || comesAfterDelete ? "add" : "modify";
                 }
                 else
                 {
+                    var hadActivity = summary.SentCount + summary.ReceivedCount + summary.DeletedCount > 0;
+                    var comesAfterDelete = string.Equals(summary.LastAction, "delete", StringComparison.OrdinalIgnoreCase);
                     summary.ReceivedCount++;
+                    operation = !hadActivity || comesAfterDelete ? "add" : "modify";
                 }
 
-                summary.LastAction = action;
+                summary.LastAction = operation;
                 summary.LastUpdatedAt = DateTime.Now;
             }
         }
