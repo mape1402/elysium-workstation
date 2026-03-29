@@ -680,6 +680,7 @@ namespace Elysium.WorkStation.Services
             if (string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase))
             {
                 DeleteLocalFile(link.LocalFolderPath, normalizedRelative);
+                await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "delete", fileHash: string.Empty);
                 AddLog(syncId, "delete-recv", normalizedRelative, $"Recibido delete: {normalizedRelative}", isOutgoing: false);
                 AddSummary(syncId, normalizedRelative, action: "delete", isOutgoing: false);
                 RaiseStateChanged();
@@ -705,6 +706,7 @@ namespace Elysium.WorkStation.Services
             await source.CopyToAsync(destination);
             await destination.FlushAsync();
 
+            await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "upsert", fileHash: fileHash);
             AddLog(syncId, "upsert-recv", normalizedRelative, $"Recibido update: {normalizedRelative} ({FormatSize(fileSize)}).", isOutgoing: false);
             AddSummary(syncId, normalizedRelative, action: "upsert", isOutgoing: false);
             RaiseStateChanged();
@@ -1237,6 +1239,60 @@ namespace Elysium.WorkStation.Services
                         IgnorePathsJson = link.IgnorePathsJson,
                         RequesterFolderPath = link.LocalFolderPath
                     });
+            }
+        }
+
+        private async Task ApplyIncomingSnapshotAsync(FolderSyncLink link, string relativePath, string action, string fileHash)
+        {
+            if (link is null || string.IsNullOrWhiteSpace(relativePath))
+            {
+                return;
+            }
+
+            var syncLock = GetSyncLock(link.SyncId);
+            await syncLock.WaitAsync();
+            try
+            {
+                var current = await _repository.GetByIdAsync(link.Id) ?? link;
+                var snapshot = DeserializeSnapshot(current.LastSnapshotJson);
+
+                if (string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase))
+                {
+                    snapshot.Remove(relativePath);
+                }
+                else
+                {
+                    var resolvedHash = fileHash;
+                    if (string.IsNullOrWhiteSpace(resolvedHash))
+                    {
+                        var fullPath = BuildSafeDestinationPath(current.LocalFolderPath, relativePath);
+                        if (File.Exists(fullPath))
+                        {
+                            try
+                            {
+                                resolvedHash = await ComputeFileHashAsync(fullPath);
+                            }
+                            catch
+                            {
+                                resolvedHash = string.Empty;
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(resolvedHash))
+                    {
+                        snapshot[relativePath] = resolvedHash;
+                    }
+                }
+
+                current.LastSnapshotJson = JsonSerializer.Serialize(snapshot);
+                current.LastStateHash = ComputeStateHash(snapshot);
+                current = await _repository.SaveAsync(current);
+                await UpsertLinkInMemoryAsync(current);
+            }
+            finally
+            {
+                syncLock.Release();
             }
         }
 
