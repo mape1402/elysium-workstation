@@ -124,25 +124,38 @@
 
     <Shell.FlyoutFooter>
         <Grid Padding="10,8,10,10">
-            <Border Padding="10,8"
-                    Stroke="{AppThemeBinding Light=#C5D6F6, Dark=#3E5C90}"
-                    StrokeShape="RoundRectangle 10"
-                    BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#132443}">
-                <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
-                    <Border WidthRequest="10"
-                            HeightRequest="10"
-                            Padding="0"
-                            StrokeShape="RoundRectangle 5"
-                            StrokeThickness="0"
-                            VerticalOptions="Center"
-                            BackgroundColor="{Binding AppModeColor}" />
-                    <Label Text="{Binding AppModeText, StringFormat='Modo: {0}'}"
+            <VerticalStackLayout Spacing="4">
+                <VerticalStackLayout Spacing="0" Padding="4,0,4,0">
+                    <Label Text="{Binding AppProductVersionText}"
                            FontFamily="OpenSansSemibold"
-                           FontSize="12"
-                           VerticalOptions="Center"
+                           FontSize="11"
                            TextColor="{AppThemeBinding Light=#1E3F77, Dark=#D4E4FF}" />
-                </HorizontalStackLayout>
-            </Border>
+                    <Label Text="{Binding AppPoweredByText}"
+                           FontFamily="OpenSansRegular"
+                           FontSize="11"
+                           TextColor="{AppThemeBinding Light=#6D7FA0, Dark=#9CB2D7}" />
+                </VerticalStackLayout>
+
+                <Border Padding="10,8"
+                        Stroke="{AppThemeBinding Light=#C5D6F6, Dark=#3E5C90}"
+                        StrokeShape="RoundRectangle 10"
+                        BackgroundColor="{AppThemeBinding Light=#F6FAFF, Dark=#132443}">
+                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                        <Border WidthRequest="10"
+                                HeightRequest="10"
+                                Padding="0"
+                                StrokeShape="RoundRectangle 5"
+                                StrokeThickness="0"
+                                VerticalOptions="Center"
+                                BackgroundColor="{Binding AppModeColor}" />
+                        <Label Text="{Binding AppModeText, StringFormat='Modo {0}'}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="12"
+                               VerticalOptions="Center"
+                               TextColor="{AppThemeBinding Light=#1E3F77, Dark=#D4E4FF}" />
+                    </HorizontalStackLayout>
+                </Border>
+            </VerticalStackLayout>
         </Grid>
     </Shell.FlyoutFooter>
 

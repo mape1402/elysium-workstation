@@ -59,6 +59,9 @@ namespace Elysium.WorkStation
             _ => "Detectando..."
         };
 
+        public string AppProductVersionText => $"MyWorkStation v{AppInfo.Current.VersionString}";
+        public string AppPoweredByText => "Powered by Elysium Coding";
+
         public Color AppModeColor => _roleService.CurrentRole switch
         {
             AppRole.Server => Color.FromArgb("#1B5E20"),
@@ -101,6 +104,8 @@ namespace Elysium.WorkStation
             {
                 OnPropertyChanged(nameof(AppModeText));
                 OnPropertyChanged(nameof(AppModeColor));
+                OnPropertyChanged(nameof(AppProductVersionText));
+                OnPropertyChanged(nameof(AppPoweredByText));
             });
         }
 
