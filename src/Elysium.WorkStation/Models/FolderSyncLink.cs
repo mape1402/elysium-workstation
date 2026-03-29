@@ -37,7 +37,7 @@ namespace Elysium.WorkStation.Models
 
         [NotMapped]
         public string ContinuousButtonText => ContinuousSyncEnabled
-            ? "Detener continua"
-            : "Iniciar continua";
+            ? "Detener sincronización continua"
+            : "Iniciar sincronización continua";
     }
 }

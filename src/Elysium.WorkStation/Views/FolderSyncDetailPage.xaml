@@ -20,129 +20,394 @@
                    HorizontalOptions="Center" />
         </Border>
 
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout Padding="16,12,16,18" Spacing="12">
-                <VerticalStackLayout Spacing="2">
-                    <Label Text="{Binding LinkName}" StyleClass="PageTitle" />
-                    <Label Text="{Binding LinkDescription}" StyleClass="Muted" />
-                    <Label Text="{Binding LinkPath}"
+        <Grid Grid.Row="1"
+              Padding="16,12,16,18"
+              RowSpacing="12"
+              RowDefinitions="Auto,Auto,*">
+            <Border Grid.Row="0"
+                    IsVisible="{Binding ArePrimarySectionsVisible}"
+                    Padding="14,12"
+                    StrokeShape="RoundRectangle 14"
+                    Stroke="{AppThemeBinding Light=#C0D4F4, Dark=#415C86}"
+                    BackgroundColor="{AppThemeBinding Light=#F4F8FF, Dark=#1D2C44}">
+                <VerticalStackLayout Spacing="8">
+                    <Grid ColumnDefinitions="Auto,*"
+                          ColumnSpacing="10">
+                        <Border Grid.Column="0"
+                                WidthRequest="14"
+                                HeightRequest="14"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                StrokeShape="RoundRectangle 7"
+                                StrokeThickness="1.5"
+                                Stroke="{Binding LinkOverallStatusStrokeColor}"
+                                BackgroundColor="{Binding LinkOverallStatusFillColor}" />
+                        <Label Grid.Column="1"
+                               Text="{Binding LinkName}"
+                               FontFamily="OpenSansSemibold"
+                               FontSize="28"
+                               LineBreakMode="TailTruncation"
+                               TextColor="{AppThemeBinding Light=#133C79, Dark=#DCE8FF}" />
+                    </Grid>
+
+                    <Label Text="{Binding LinkDescription}"
+                           FontFamily="OpenSansRegular"
+                           FontSize="14"
+                           LineBreakMode="TailTruncation"
+                           TextColor="{AppThemeBinding Light=#4D6286, Dark=#B5C7E6}" />
+
+                    <Border Padding="10,7"
+                            StrokeShape="RoundRectangle 10"
+                            Stroke="{AppThemeBinding Light=#CDDCF8, Dark=#4A6692}"
+                            BackgroundColor="{AppThemeBinding Light=#ECF4FF, Dark=#243857}">
+                        <HorizontalStackLayout Spacing="6">
+                            <Label Text="&#x1F4C1;"
+                                   FontSize="12"
+                                   VerticalOptions="Center" />
+                            <Label Text="{Binding LinkPath}"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="12"
+                                   LineBreakMode="TailTruncation"
+                                   VerticalOptions="Center"
+                                   TextColor="{AppThemeBinding Light=#24406E, Dark=#D0E0FF}" />
+                        </HorizontalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Grid.Row="1"
+                    IsVisible="{Binding ArePrimarySectionsVisible}"
+                    Padding="14"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
+                    BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Control de sincronizacion" StyleClass="SectionTitle" />
+                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Start">
+                        <Border StrokeThickness="0"
+                                Padding="10,6"
+                                BackgroundColor="{AppThemeBinding Light=#EAF2FF, Dark=#2B3B57}">
+                            <HorizontalStackLayout Spacing="6">
+                                <Label Text="Estado:"
+                                       FontSize="11"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{AppThemeBinding Light=#5E6F8D, Dark=#AFC2E5}" />
+                                <Label Text="{Binding LinkStatusText}"
+                                       FontSize="12"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{AppThemeBinding Light=#1F3E73, Dark=#D7E5FF}"
+                                       LineBreakMode="TailTruncation" />
+                            </HorizontalStackLayout>
+                        </Border>
+                        <Border StrokeThickness="0"
+                                Padding="10,6"
+                                BackgroundColor="{AppThemeBinding Light=#EEF8F1, Dark=#2A4136}">
+                            <HorizontalStackLayout Spacing="6">
+                                <Label Text="Rol:"
+                                       FontSize="11"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{AppThemeBinding Light=#5E6F8D, Dark=#AFC2E5}" />
+                                <Label Text="{Binding LinkRoleText}"
+                                       FontSize="12"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{AppThemeBinding Light=#1F3E73, Dark=#D7E5FF}" />
+                            </HorizontalStackLayout>
+                        </Border>
+                    </HorizontalStackLayout>
+                    <FlexLayout Direction="Row"
+                                Wrap="Wrap"
+                                JustifyContent="Start"
+                                AlignItems="Start">
+                        <Button Text="{Binding ToggleContinuousText}"
+                                TextColor="White"
+                                WidthRequest="174"
+                                HeightRequest="40"
+                                Margin="0,0,8,8"
+                                BorderColor="{AppThemeBinding Light=#2A9E53, Dark=#2E7648}"
+                                BackgroundColor="{AppThemeBinding Light=#33B763, Dark=#338452}"
+                                Command="{Binding ToggleContinuousCommand}">
+                            <Button.Triggers>
+                                <DataTrigger TargetType="Button"
+                                             Binding="{Binding IsContinuousEnabled}"
+                                             Value="True">
+                                    <Setter Property="BorderColor"
+                                            Value="{AppThemeBinding Light=#B94D59, Dark=#8A3E47}" />
+                                    <Setter Property="BackgroundColor"
+                                            Value="{AppThemeBinding Light=#D75C6A, Dark=#9E4752}" />
+                                </DataTrigger>
+                            </Button.Triggers>
+                        </Button>
+                        <Button Text="{Binding SendPairRequestText}"
+                                IsVisible="{Binding CanSendPairRequest}"
+                                TextColor="White"
+                                WidthRequest="174"
+                                HeightRequest="40"
+                                Margin="0,0,8,8"
+                                BorderColor="{AppThemeBinding Light=#2B8FB3, Dark=#2B6D88}"
+                                BackgroundColor="{AppThemeBinding Light=#35A7D0, Dark=#2F7D9C}"
+                                Command="{Binding SendPairRequestCommand}" />
+                        <Button Text="{Binding OpenFolderButtonText}"
+                                TextColor="White"
+                                WidthRequest="174"
+                                HeightRequest="40"
+                                Margin="0,0,8,8"
+                                BorderColor="{AppThemeBinding Light=#2E8A67, Dark=#2A6F56}"
+                                BackgroundColor="{AppThemeBinding Light=#39A57B, Dark=#327E62}"
+                                Command="{Binding OpenFolderCommand}" />
+                        <Button Text="{Binding ManageIgnorePathsButtonText}"
+                                IsVisible="{Binding IsSyncStopped}"
+                                TextColor="White"
+                                WidthRequest="174"
+                                HeightRequest="40"
+                                Margin="0,0,8,8"
+                                BorderColor="{AppThemeBinding Light=#5F6A7E, Dark=#4F596D}"
+                                BackgroundColor="{AppThemeBinding Light=#6E7A91, Dark=#5A667B}"
+                                Command="{Binding OpenIgnorePathsEditorCommand}" />
+                        <Button Text="{Binding ToggleMonitorSectionText}"
+                                IsVisible="{Binding CanToggleMonitorSection}"
+                                TextColor="White"
+                                WidthRequest="174"
+                                HeightRequest="40"
+                                Margin="0,0,8,8"
+                                BorderColor="{AppThemeBinding Light=#5A78A7, Dark=#466289}"
+                                BackgroundColor="{AppThemeBinding Light=#6B8AB8, Dark=#5676A3}"
+                                Command="{Binding ToggleMonitorSectionCommand}" />
+                        <Button Text="{Binding SwitchRoleButtonText}"
+                                IsVisible="{Binding CanSwitchRole}"
+                                TextColor="White"
+                                WidthRequest="174"
+                                HeightRequest="40"
+                                Margin="0,0,8,8"
+                                BorderColor="{AppThemeBinding Light=#4A6E9A, Dark=#3E5E84}"
+                                BackgroundColor="{AppThemeBinding Light=#5A84B8, Dark=#4A6F9E}"
+                                Command="{Binding SwitchRoleCommand}" />
+                    </FlexLayout>
+                    <Label Text="{Binding IgnorePathsStatus}"
                            FontFamily="OpenSansRegular"
                            FontSize="11"
-                           LineBreakMode="TailTruncation"
-                           TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
+                           TextColor="{AppThemeBinding Light=#4E6287, Dark=#B5C7E7}" />
                 </VerticalStackLayout>
+            </Border>
 
-                <Border Padding="14"
+            <Grid Grid.Row="2">
+                <Border IsVisible="{Binding IsFolderSectionVisible}"
+                        Padding="14"
                         StrokeShape="RoundRectangle 12"
                         Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
                         BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="Control de sincronizacion" StyleClass="SectionTitle" />
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                             <Label Grid.Column="0"
-                                   Text="{Binding LinkStatusText}"
-                                   FontFamily="OpenSansSemibold"
-                                   FontSize="12" />
-                            <Label Grid.Column="1"
-                                   Text="{Binding LinkRoleText}"
-                                   HorizontalTextAlignment="End"
-                                   FontFamily="OpenSansSemibold"
-                                   FontSize="12" />
-                        </Grid>
-                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
-                            <Button Grid.Column="0"
-                                    Text="Abrir carpeta"
-                                    Command="{Binding OpenFolderCommand}" />
+                                   Text="Contenido de carpeta"
+                                   StyleClass="SectionTitle" />
                             <Button Grid.Column="1"
-                                    Text="{Binding SendPairRequestText}"
-                                    IsVisible="{Binding CanSendPairRequest}"
-                                    Command="{Binding SendPairRequestCommand}" />
-                            <Button Grid.Column="2"
-                                    Text="{Binding ToggleContinuousText}"
-                                    Command="{Binding ToggleContinuousCommand}" />
-                            <Button Grid.Column="3"
-                                    Text="Invertir rol"
-                                    Command="{Binding SwitchRoleCommand}" />
+                                    Text="{Binding FolderMaximizeButtonIcon}"
+                                    Command="{Binding ToggleFolderMaximizeCommand}"
+                                    WidthRequest="34"
+                                    HeightRequest="30"
+                                    Padding="0"
+                                    FontSize="16"
+                                    HorizontalOptions="End"
+                                    VerticalOptions="Start"
+                                    TextColor="{AppThemeBinding Light=#335992, Dark=#D0E0FF}"
+                                    BorderColor="{AppThemeBinding Light=#AFC6EC, Dark=#45628C}"
+                                    BackgroundColor="{AppThemeBinding Light=#E8F1FF, Dark=#2A3D5C}" />
                         </Grid>
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border Padding="14"
-                        StrokeShape="RoundRectangle 12"
-                        Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
-                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="Path ignore" StyleClass="SectionTitle" />
-                        <Label Text="{Binding IgnorePathsStatus}"
+                        <Label Grid.Row="1"
+                               Text="{Binding CurrentFolderViewPath}"
                                FontFamily="OpenSansRegular"
                                FontSize="12"
+                               LineBreakMode="TailTruncation"
                                TextColor="{AppThemeBinding Light=#4E6287, Dark=#B5C7E7}" />
-                        <Button Text="Administrar rutas ignoradas"
-                                Command="{Binding OpenIgnorePathsEditorCommand}" />
-                    </VerticalStackLayout>
+
+                        <CollectionView Grid.Row="2"
+                                        ItemsSource="{Binding FolderEntries}"
+                                        VerticalOptions="FillAndExpand">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="0" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="local:FolderContentEntry">
+                                    <Border Padding="0"
+                                            BackgroundColor="Transparent"
+                                            Stroke="Transparent"
+                                            StrokeThickness="0">
+                                        <Border.GestureRecognizers>
+                                            <PointerGestureRecognizer PointerEntered="OnFolderEntryPointerEntered"
+                                                                      PointerExited="OnFolderEntryPointerExited" />
+                                            <TapGestureRecognizer NumberOfTapsRequired="2"
+                                                                  Command="{Binding Source={x:Reference thisPage}, Path=OpenFolderEntryCommand}"
+                                                                  CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                        <Grid ColumnDefinitions="Auto,Auto,*"
+                                              ColumnSpacing="3"
+                                              MinimumHeightRequest="18">
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding IsTracked, Mode=TwoWay}"
+                                                      CheckedChanged="OnTrackCheckBoxChanged"
+                                                      HeightRequest="20"
+                                                      WidthRequest="20"
+                                                      Scale="0.95"
+                                                      Margin="0"
+                                                      VerticalOptions="Center"
+                                                      HorizontalOptions="Center">
+                                                <CheckBox.Triggers>
+                                                    <Trigger TargetType="CheckBox" Property="IsChecked" Value="True">
+                                                        <Setter Property="Color" Value="{AppThemeBinding Light=#49D87D, Dark=#9DF7C0}" />
+                                                    </Trigger>
+                                                    <Trigger TargetType="CheckBox" Property="IsChecked" Value="False">
+                                                        <Setter Property="Color" Value="{AppThemeBinding Light=#9BA5B5, Dark=#7A8598}" />
+                                                    </Trigger>
+                                                </CheckBox.Triggers>
+                                            </CheckBox>
+                                            <Label Grid.Column="1"
+                                                   Text="{Binding Icon}"
+                                                   FontSize="14.3"
+                                                   VerticalOptions="Center" />
+                                            <Label Grid.Column="2"
+                                                   Text="{Binding Name}"
+                                                   FontFamily="OpenSansRegular"
+                                                   FontSize="11"
+                                                   VerticalOptions="Center"
+                                                   LineBreakMode="TailTruncation" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                        <Grid Grid.Row="3" ColumnDefinitions="Auto,*">
+                            <Button Grid.Column="0"
+                                    Text="Volver"
+                                    IsVisible="{Binding CanGoBackFolderView}"
+                                    Command="{Binding GoUpFolderCommand}" />
+                        </Grid>
+                    </Grid>
                 </Border>
 
-                <Border Padding="14"
+                <Border IsVisible="{Binding IsMonitorSectionVisible}"
+                        Padding="14"
                         StrokeShape="RoundRectangle 12"
                         Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
                         BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="Bitacora de cambios" StyleClass="SectionTitle" />
-                        <CollectionView ItemsSource="{Binding Logs}" HeightRequest="180">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
-                            </CollectionView.ItemsLayout>
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="models:FolderSyncLogEntry">
-                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Padding="0,2">
-                                        <Label Grid.Column="0"
-                                               Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
-                                               FontFamily="OpenSansSemibold"
-                                               FontSize="11" />
-                                        <Label Grid.Column="1"
-                                               Text="{Binding Message}"
-                                               FontFamily="OpenSansRegular"
-                                               FontSize="11"
-                                               LineBreakMode="TailTruncation" />
-                                    </Grid>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                    <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                        <HorizontalStackLayout Grid.Row="0" Spacing="8">
+                            <Button Text="&#x1F9FE; Bitacora"
+                                    WidthRequest="156"
+                                    HeightRequest="36"
+                                    TextColor="{AppThemeBinding Light=#2A426E, Dark=#D7E6FF}"
+                                    BorderColor="{AppThemeBinding Light=#C8D9F7, Dark=#425A82}"
+                                    BackgroundColor="{AppThemeBinding Light=#EAF2FF, Dark=#243754}"
+                                    Command="{Binding SelectLogsTabCommand}">
+                                <Button.Triggers>
+                                    <DataTrigger TargetType="Button"
+                                                 Binding="{Binding IsLogsTabSelected}"
+                                                 Value="True">
+                                        <Setter Property="TextColor" Value="White" />
+                                        <Setter Property="BorderColor"
+                                                Value="{AppThemeBinding Light=#2A5BC8, Dark=#4F86F5}" />
+                                        <Setter Property="BackgroundColor"
+                                                Value="{AppThemeBinding Light=#2F63D8, Dark=#4577DD}" />
+                                    </DataTrigger>
+                                </Button.Triggers>
+                            </Button>
 
-                        <Label Text="Resumen deduplicado" StyleClass="SectionTitle" />
-                        <CollectionView ItemsSource="{Binding Summary}" HeightRequest="180">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
-                            </CollectionView.ItemsLayout>
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="models:FolderSyncSummaryEntry">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Padding="0,2">
-                                        <Label Grid.Column="0"
-                                               Text="{Binding RelativePath}"
-                                               FontFamily="OpenSansRegular"
-                                               FontSize="11"
-                                               LineBreakMode="TailTruncation" />
-                                        <Label Grid.Column="1"
-                                               FontFamily="OpenSansSemibold"
-                                               FontSize="11">
-                                            <Label.FormattedText>
-                                                <FormattedString>
-                                                    <Span Text="S:" />
-                                                    <Span Text="{Binding SentCount}" />
-                                                    <Span Text=" R:" />
-                                                    <Span Text="{Binding ReceivedCount}" />
-                                                    <Span Text=" D:" />
-                                                    <Span Text="{Binding DeletedCount}" />
-                                                </FormattedString>
-                                            </Label.FormattedText>
-                                        </Label>
-                                    </Grid>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
-                    </VerticalStackLayout>
+                            <Button Text="&#x1F4CA; Resumen"
+                                    IsVisible="{Binding CanShowSummaryTab}"
+                                    WidthRequest="156"
+                                    HeightRequest="36"
+                                    TextColor="{AppThemeBinding Light=#2A426E, Dark=#D7E6FF}"
+                                    BorderColor="{AppThemeBinding Light=#C8D9F7, Dark=#425A82}"
+                                    BackgroundColor="{AppThemeBinding Light=#EAF2FF, Dark=#243754}"
+                                    Command="{Binding SelectSummaryTabCommand}">
+                                <Button.Triggers>
+                                    <DataTrigger TargetType="Button"
+                                                 Binding="{Binding IsSummaryTabSelected}"
+                                                 Value="True">
+                                        <Setter Property="TextColor" Value="White" />
+                                        <Setter Property="BorderColor"
+                                                Value="{AppThemeBinding Light=#2A5BC8, Dark=#4F86F5}" />
+                                        <Setter Property="BackgroundColor"
+                                                Value="{AppThemeBinding Light=#2F63D8, Dark=#4577DD}" />
+                                    </DataTrigger>
+                                </Button.Triggers>
+                            </Button>
+                        </HorizontalStackLayout>
+
+                        <Grid Grid.Row="1">
+                            <Grid IsVisible="{Binding IsLogsContentVisible}"
+                                  RowDefinitions="Auto,*"
+                                  RowSpacing="8">
+                                <Label Grid.Row="0"
+                                       Text="Bitacora de cambios"
+                                       StyleClass="SectionTitle" />
+                                <CollectionView Grid.Row="1"
+                                                ItemsSource="{Binding Logs}"
+                                                VerticalOptions="FillAndExpand">
+                                    <CollectionView.ItemsLayout>
+                                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                                    </CollectionView.ItemsLayout>
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:FolderSyncLogEntry">
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Padding="0,2">
+                                                <Label Grid.Column="0"
+                                                       Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="11" />
+                                                <Label Grid.Column="1"
+                                                       Text="{Binding Message}"
+                                                       FontFamily="OpenSansRegular"
+                                                       FontSize="11"
+                                                       LineBreakMode="TailTruncation" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </Grid>
+
+                            <Grid IsVisible="{Binding IsSummaryContentVisible}"
+                                  RowDefinitions="Auto,*"
+                                  RowSpacing="8">
+                                <Label Grid.Row="0"
+                                       Text="Resumen deduplicado"
+                                       StyleClass="SectionTitle" />
+                                <CollectionView Grid.Row="1"
+                                                ItemsSource="{Binding Summary}"
+                                                VerticalOptions="FillAndExpand">
+                                    <CollectionView.ItemsLayout>
+                                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                                    </CollectionView.ItemsLayout>
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="models:FolderSyncSummaryEntry">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Padding="0,2">
+                                                <Label Grid.Column="0"
+                                                       Text="{Binding RelativePath}"
+                                                       FontFamily="OpenSansRegular"
+                                                       FontSize="11"
+                                                       LineBreakMode="TailTruncation" />
+                                                <Label Grid.Column="1"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="11">
+                                                    <Label.FormattedText>
+                                                        <FormattedString>
+                                                            <Span Text="S:" />
+                                                            <Span Text="{Binding SentCount}" />
+                                                            <Span Text=" R:" />
+                                                            <Span Text="{Binding ReceivedCount}" />
+                                                            <Span Text=" D:" />
+                                                            <Span Text="{Binding DeletedCount}" />
+                                                        </FormattedString>
+                                                    </Label.FormattedText>
+                                                </Label>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </Grid>
+                        </Grid>
+                    </Grid>
                 </Border>
-            </VerticalStackLayout>
-        </ScrollView>
+            </Grid>
+        </Grid>
     </Grid>
 </ContentPage>

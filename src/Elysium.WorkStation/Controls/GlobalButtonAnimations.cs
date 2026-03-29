@@ -1,5 +1,6 @@
 #if WINDOWS
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -29,6 +30,14 @@ public static class GlobalButtonAnimations
             platformButton.PointerEntered -= existing.PointerEnteredHandler;
             platformButton.PointerExited -= existing.PointerExitedHandler;
             States.Remove(platformButton);
+        }
+
+        if (ShouldSkipAnimation(element))
+        {
+            element.CancelAnimations();
+            element.Scale = 1;
+            element.Opacity = 1;
+            return;
         }
 
         var state = new State();
@@ -74,6 +83,18 @@ public static class GlobalButtonAnimations
         platformButton.PointerExited += state.PointerExitedHandler;
 
         States[platformButton] = state;
+    }
+
+    private static bool ShouldSkipAnimation(VisualElement element)
+    {
+        if (element is not Microsoft.Maui.Controls.Button button)
+        {
+            return false;
+        }
+
+        var styleClass = button.StyleClass;
+        return styleClass is not null &&
+               styleClass.Any(c => string.Equals(c, "NoGlobalAnimation", StringComparison.OrdinalIgnoreCase));
     }
 }
 #endif
