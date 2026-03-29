@@ -6,6 +6,7 @@ namespace Elysium.WorkStation.Services
     {
         Task SaveAsync(NotificationEntry entry);
         Task<List<NotificationEntry>> GetAllAsync();
+        Task DeleteByIdAsync(int id);
         Task DeleteAllAsync();
         Task<int> DeleteOlderThanAsync(DateTime cutoff);
     }

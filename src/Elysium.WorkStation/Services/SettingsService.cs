@@ -29,8 +29,17 @@ namespace Elysium.WorkStation.Services
 
         public string ServerUrl
         {
-            get => Preferences.Default.Get(ServerUrlKey, string.Empty);
-            set => Preferences.Default.Set(ServerUrlKey, value.TrimEnd('/'));
+            get
+            {
+                var scoped = (ScopedPreferences.Get(ServerUrlKey, string.Empty) ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(scoped))
+                {
+                    return scoped.TrimEnd('/');
+                }
+
+                return string.Empty;
+            }
+            set => ScopedPreferences.Set(ServerUrlKey, (value ?? string.Empty).Trim().TrimEnd('/'));
         }
 
         public bool IsConfigured => !string.IsNullOrWhiteSpace(ServerUrl);
@@ -43,89 +52,89 @@ namespace Elysium.WorkStation.Services
 
         public int FileRetentionHours
         {
-            get => Preferences.Default.Get(FileRetentionHoursKey, DefaultRetentionHours);
-            set => Preferences.Default.Set(FileRetentionHoursKey, Math.Max(1, value));
+            get => ScopedPreferences.Get(FileRetentionHoursKey, DefaultRetentionHours);
+            set => ScopedPreferences.Set(FileRetentionHoursKey, Math.Max(1, value));
         }
 
         public int ClipboardRetentionHours
         {
-            get => Preferences.Default.Get(ClipboardRetentionHoursKey, DefaultRetentionHours);
-            set => Preferences.Default.Set(ClipboardRetentionHoursKey, Math.Max(1, value));
+            get => ScopedPreferences.Get(ClipboardRetentionHoursKey, DefaultRetentionHours);
+            set => ScopedPreferences.Set(ClipboardRetentionHoursKey, Math.Max(1, value));
         }
 
         public int NotificationRetentionHours
         {
-            get => Preferences.Default.Get(NotificationRetentionHoursKey, DefaultRetentionHours);
-            set => Preferences.Default.Set(NotificationRetentionHoursKey, Math.Max(1, value));
+            get => ScopedPreferences.Get(NotificationRetentionHoursKey, DefaultRetentionHours);
+            set => ScopedPreferences.Set(NotificationRetentionHoursKey, Math.Max(1, value));
         }
 
         public int KanbanCleanupRetentionDays
         {
-            get => Preferences.Default.Get(KanbanCleanupRetentionDaysKey, DefaultKanbanCleanupRetentionDays);
-            set => Preferences.Default.Set(KanbanCleanupRetentionDaysKey, Math.Max(1, value));
+            get => ScopedPreferences.Get(KanbanCleanupRetentionDaysKey, DefaultKanbanCleanupRetentionDays);
+            set => ScopedPreferences.Set(KanbanCleanupRetentionDaysKey, Math.Max(1, value));
         }
 
         public int KanbanCleanupIntervalHours
         {
-            get => Preferences.Default.Get(KanbanCleanupIntervalHoursKey, DefaultKanbanCleanupIntervalHours);
-            set => Preferences.Default.Set(KanbanCleanupIntervalHoursKey, Math.Max(1, value));
+            get => ScopedPreferences.Get(KanbanCleanupIntervalHoursKey, DefaultKanbanCleanupIntervalHours);
+            set => ScopedPreferences.Set(KanbanCleanupIntervalHoursKey, Math.Max(1, value));
         }
 
         public bool MouseEnabled
         {
-            get => Preferences.Default.Get(MouseEnabledKey, true);
-            set => Preferences.Default.Set(MouseEnabledKey, value);
+            get => ScopedPreferences.Get(MouseEnabledKey, true);
+            set => ScopedPreferences.Set(MouseEnabledKey, value);
         }
 
         public bool MouseUseGeneralSchedule
         {
-            get => Preferences.Default.Get(MouseUseGeneralScheduleKey, true);
-            set => Preferences.Default.Set(MouseUseGeneralScheduleKey, value);
+            get => ScopedPreferences.Get(MouseUseGeneralScheduleKey, true);
+            set => ScopedPreferences.Set(MouseUseGeneralScheduleKey, value);
         }
 
         public TimeSpan MouseGeneralStartTime
         {
-            get => TimeSpan.TryParse(Preferences.Default.Get(MouseGeneralStartKey, "08:00"), out var t) ? t : new(8, 0, 0);
-            set => Preferences.Default.Set(MouseGeneralStartKey, value.ToString(@"hh\:mm"));
+            get => TimeSpan.TryParse(ScopedPreferences.Get(MouseGeneralStartKey, "08:00"), out var t) ? t : new(8, 0, 0);
+            set => ScopedPreferences.Set(MouseGeneralStartKey, value.ToString(@"hh\:mm"));
         }
 
         public TimeSpan MouseGeneralEndTime
         {
-            get => TimeSpan.TryParse(Preferences.Default.Get(MouseGeneralEndKey, "18:00"), out var t) ? t : new(18, 0, 0);
-            set => Preferences.Default.Set(MouseGeneralEndKey, value.ToString(@"hh\:mm"));
+            get => TimeSpan.TryParse(ScopedPreferences.Get(MouseGeneralEndKey, "18:00"), out var t) ? t : new(18, 0, 0);
+            set => ScopedPreferences.Set(MouseGeneralEndKey, value.ToString(@"hh\:mm"));
         }
 
         // SignalR reconnect delay in minutes (used by client retry policies)
         public int SignalRReconnectMinutes
         {
-            get => Preferences.Default.Get(SignalRReconnectMinutesKey, DefaultSignalRReconnectMinutes);
-            set => Preferences.Default.Set(SignalRReconnectMinutesKey, Math.Max(1, value));
+            get => ScopedPreferences.Get(SignalRReconnectMinutesKey, DefaultSignalRReconnectMinutes);
+            set => ScopedPreferences.Set(SignalRReconnectMinutesKey, Math.Max(1, value));
         }
 
         public TimeSpan SignalRReconnectDelay => TimeSpan.FromMinutes(SignalRReconnectMinutes);
 
         public string ProfileFirstName
         {
-            get => Preferences.Default.Get(ProfileFirstNameKey, string.Empty);
-            set => Preferences.Default.Set(ProfileFirstNameKey, (value ?? string.Empty).Trim());
+            get => ScopedPreferences.Get(ProfileFirstNameKey, string.Empty);
+            set => ScopedPreferences.Set(ProfileFirstNameKey, (value ?? string.Empty).Trim());
         }
 
         public string ProfileLastName
         {
-            get => Preferences.Default.Get(ProfileLastNameKey, string.Empty);
-            set => Preferences.Default.Set(ProfileLastNameKey, (value ?? string.Empty).Trim());
+            get => ScopedPreferences.Get(ProfileLastNameKey, string.Empty);
+            set => ScopedPreferences.Set(ProfileLastNameKey, (value ?? string.Empty).Trim());
         }
 
         public string ProfilePhotoPath
         {
-            get => Preferences.Default.Get(ProfilePhotoPathKey, string.Empty);
-            set => Preferences.Default.Set(ProfilePhotoPathKey, value ?? string.Empty);
+            get => ScopedPreferences.Get(ProfilePhotoPathKey, string.Empty);
+            set => ScopedPreferences.Set(ProfilePhotoPathKey, value ?? string.Empty);
         }
 
         public bool ProfileIsRegistered
         {
-            get => Preferences.Default.Get(ProfileIsRegisteredKey, false);
-            set => Preferences.Default.Set(ProfileIsRegisteredKey, value);
+            get => ScopedPreferences.Get(ProfileIsRegisteredKey, false);
+            set => ScopedPreferences.Set(ProfileIsRegisteredKey, value);
         }
 
         public string SqliteDbPath
@@ -138,13 +147,13 @@ namespace Elysium.WorkStation.Services
         {
             get
             {
-                var mode = Preferences.Default.Get(ThemeModeKey, "Light");
+                var mode = ScopedPreferences.Get(ThemeModeKey, "Light");
                 return string.Equals(mode, "Dark", StringComparison.OrdinalIgnoreCase) ? "Dark" : "Light";
             }
             set
             {
                 var normalized = string.Equals(value, "Dark", StringComparison.OrdinalIgnoreCase) ? "Dark" : "Light";
-                Preferences.Default.Set(ThemeModeKey, normalized);
+                ScopedPreferences.Set(ThemeModeKey, normalized);
             }
         }
 
@@ -152,7 +161,7 @@ namespace Elysium.WorkStation.Services
         {
             get
             {
-                var json = Preferences.Default.Get(MouseDaySchedulesKey, string.Empty);
+                var json = ScopedPreferences.Get(MouseDaySchedulesKey, string.Empty);
                 if (!string.IsNullOrEmpty(json))
                 {
                     try { return JsonSerializer.Deserialize<List<MouseScheduleEntry>>(json); }
@@ -160,7 +169,7 @@ namespace Elysium.WorkStation.Services
                 }
                 return DefaultDaySchedules();
             }
-            set => Preferences.Default.Set(MouseDaySchedulesKey, JsonSerializer.Serialize(value));
+            set => ScopedPreferences.Set(MouseDaySchedulesKey, JsonSerializer.Serialize(value));
         }
 
         private static List<MouseScheduleEntry> DefaultDaySchedules() =>

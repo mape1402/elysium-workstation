@@ -27,8 +27,8 @@ namespace Elysium.WorkStation.Services
         private HubConnection _connection;
         private CancellationTokenSource _startRetryCts;
         private string _baseUrl = string.Empty;
-        private readonly string _clientId;
         private readonly string _clientName;
+        private string ClientId => GetOrCreateClientId();
 
         public ObservableCollection<FolderSyncLink> Links { get; } = [];
         public ObservableCollection<FolderSyncInvite> PendingInvites { get; } = [];
@@ -47,15 +47,6 @@ namespace Elysium.WorkStation.Services
             _settingsService = settingsService;
             _notificationService = notificationService;
             _notificationRepository = notificationRepository;
-
-            var storedClientId = Preferences.Default.Get(ClientIdPreferenceKey, string.Empty);
-            if (string.IsNullOrWhiteSpace(storedClientId))
-            {
-                storedClientId = Guid.NewGuid().ToString("N");
-                Preferences.Default.Set(ClientIdPreferenceKey, storedClientId);
-            }
-
-            _clientId = storedClientId;
             _clientName = BuildClientName();
         }
 
@@ -184,10 +175,10 @@ namespace Elysium.WorkStation.Services
                 Description = description?.Trim() ?? string.Empty,
                 LocalFolderPath = normalizedPath,
                 IgnorePathsJson = JsonSerializer.Serialize(normalizedIgnores),
-                LocalClientId = _clientId,
+                LocalClientId = ClientId,
                 RemoteClientId = string.Empty,
                 RemoteClientName = string.Empty,
-                IsPendingOutgoing = true,
+                IsPendingOutgoing = false,
                 IsPendingIncoming = false,
                 IsAccepted = false,
                 ContinuousSyncEnabled = false,
@@ -199,24 +190,42 @@ namespace Elysium.WorkStation.Services
             link = await _repository.SaveAsync(link);
             await MainThread.InvokeOnMainThreadAsync(() => Links.Add(link));
 
-            AddLog(link.SyncId, "invite-out", string.Empty, $"Solicitud enviada para '{link.Name}'.", isOutgoing: true);
-
-            if (_connection?.State == HubConnectionState.Connected)
-            {
-                var inviteId = Guid.NewGuid().ToString("N");
-                await _connection.InvokeAsync(
-                    "SendFolderSyncInvite",
-                    inviteId,
-                    link.SyncId,
-                    _clientId,
-                    _clientName,
-                    link.Name,
-                    link.Description,
-                    link.IgnorePathsJson);
-            }
+            AddLog(link.SyncId, "config-created", string.Empty, $"Configuracion creada para '{link.Name}'.", isOutgoing: true);
 
             RaiseStateChanged();
             return link;
+        }
+
+        public async Task SendPairRequestAsync(int linkId)
+        {
+            var link = await _repository.GetByIdAsync(linkId);
+            if (link is null)
+            {
+                throw new InvalidOperationException("Sincronizacion no encontrada.");
+            }
+
+            if (link.IsAccepted)
+            {
+                throw new InvalidOperationException("Esta sincronizacion ya esta vinculada.");
+            }
+
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para enviar la solicitud.");
+            }
+
+            var inviteId = Guid.NewGuid().ToString("N");
+            link.IsPendingOutgoing = true;
+            link.IsPendingIncoming = false;
+            link.RemoteClientId = string.Empty;
+            link.RemoteClientName = string.Empty;
+            link = await _repository.SaveAsync(link);
+            await UpsertLinkInMemoryAsync(link);
+
+            await SendFolderSyncInviteAsync(inviteId, link);
+
+            AddLog(link.SyncId, "invite-out", string.Empty, $"Solicitud enviada para '{link.Name}'.", isOutgoing: true);
+            RaiseStateChanged();
         }
 
         public async Task<FolderSyncLink> AcceptInviteAsync(FolderSyncInvite invite, string localFolderPath)
@@ -243,7 +252,7 @@ namespace Elysium.WorkStation.Services
             link.Description = invite.Description;
             link.LocalFolderPath = normalizedPath;
             link.IgnorePathsJson = string.IsNullOrWhiteSpace(invite.IgnorePathsJson) ? "[]" : invite.IgnorePathsJson;
-            link.LocalClientId = _clientId;
+            link.LocalClientId = ClientId;
             link.RemoteClientId = invite.RequesterClientId;
             link.RemoteClientName = invite.RequesterName;
             link.IsPendingIncoming = false;
@@ -260,13 +269,7 @@ namespace Elysium.WorkStation.Services
 
             if (_connection?.State == HubConnectionState.Connected)
             {
-                await _connection.InvokeAsync(
-                    "RespondFolderSyncInvite",
-                    invite.InviteId,
-                    invite.SyncId,
-                    true,
-                    _clientId,
-                    _clientName);
+                await SendFolderSyncInviteResponseAsync(invite.InviteId, invite.SyncId, accepted: true);
             }
 
             RaiseStateChanged();
@@ -284,13 +287,7 @@ namespace Elysium.WorkStation.Services
 
             if (_connection?.State == HubConnectionState.Connected)
             {
-                await _connection.InvokeAsync(
-                    "RespondFolderSyncInvite",
-                    invite.InviteId,
-                    invite.SyncId,
-                    false,
-                    _clientId,
-                    _clientName);
+                await SendFolderSyncInviteResponseAsync(invite.InviteId, invite.SyncId, accepted: false);
             }
 
             RaiseStateChanged();
@@ -318,7 +315,7 @@ namespace Elysium.WorkStation.Services
                 await UpsertLinkInMemoryAsync(link);
 
                 await StartEmitterAsync(link, "Sincronizacion continua iniciada.");
-                await BroadcastFolderSyncStateAsync(link.SyncId, enabled: true, emitterClientId: _clientId);
+                await BroadcastFolderSyncStateAsync(link.SyncId, enabled: true, emitterClientId: ClientId);
             }
             else
             {
@@ -370,7 +367,7 @@ namespace Elysium.WorkStation.Services
                 link = await _repository.SaveAsync(link);
                 await UpsertLinkInMemoryAsync(link);
                 await StartEmitterAsync(link, "Rol cambiado a emisor.");
-                await BroadcastFolderSyncStateAsync(link.SyncId, enabled: true, emitterClientId: _clientId);
+                await BroadcastFolderSyncStateAsync(link.SyncId, enabled: true, emitterClientId: ClientId);
             }
 
             RaiseStateChanged();
@@ -430,9 +427,9 @@ namespace Elysium.WorkStation.Services
 
         private void RegisterHubHandlers(HubConnection connection)
         {
-            connection.On<string, string, string, string, string, string, string>(
+            connection.On<string, string, string, string, string, string, string, string>(
                 "ReceiveFolderSyncInvite",
-                (inviteId, syncId, requesterClientId, requesterName, name, description, ignorePathsJson) =>
+                (inviteId, syncId, requesterClientId, requesterName, name, description, ignorePathsJson, requesterFolderPath) =>
                     _ = HandleInviteAsync(
                         inviteId,
                         syncId,
@@ -440,7 +437,21 @@ namespace Elysium.WorkStation.Services
                         requesterName,
                         name,
                         description,
-                        ignorePathsJson));
+                        ignorePathsJson,
+                        requesterFolderPath));
+
+            connection.On<JsonElement>(
+                "ReceiveFolderSyncInvitePayload",
+                payload =>
+                    _ = HandleInviteAsync(
+                        ReadString(payload, "InviteId"),
+                        ReadString(payload, "SyncId"),
+                        ReadString(payload, "RequesterClientId"),
+                        ReadString(payload, "RequesterName"),
+                        ReadString(payload, "Name"),
+                        ReadString(payload, "Description"),
+                        ReadString(payload, "IgnorePathsJson", "[]"),
+                        ReadString(payload, "RequesterFolderPath")));
 
             connection.On<string, string, bool, string, string>(
                 "ReceiveFolderSyncInviteResponse",
@@ -451,6 +462,16 @@ namespace Elysium.WorkStation.Services
                         accepted,
                         responderClientId,
                         responderName));
+
+            connection.On<JsonElement>(
+                "ReceiveFolderSyncInviteResponsePayload",
+                payload =>
+                    _ = HandleInviteResponseAsync(
+                        ReadString(payload, "InviteId"),
+                        ReadString(payload, "SyncId"),
+                        ReadBool(payload, "Accepted"),
+                        ReadString(payload, "ResponderClientId"),
+                        ReadString(payload, "ResponderName")));
 
             connection.On<string, string, string, string, string, long, string>(
                 "ReceiveFolderSyncChange",
@@ -477,9 +498,10 @@ namespace Elysium.WorkStation.Services
             string requesterName,
             string name,
             string description,
-            string ignorePathsJson)
+            string ignorePathsJson,
+            string requesterFolderPath)
         {
-            if (string.Equals(requesterClientId, _clientId, StringComparison.Ordinal))
+            if (string.Equals(requesterClientId, ClientId, StringComparison.Ordinal))
             {
                 return;
             }
@@ -499,19 +521,38 @@ namespace Elysium.WorkStation.Services
                     RequesterName = requesterName,
                     Name = name,
                     Description = description ?? string.Empty,
-                    IgnorePathsJson = string.IsNullOrWhiteSpace(ignorePathsJson) ? "[]" : ignorePathsJson
+                    IgnorePathsJson = string.IsNullOrWhiteSpace(ignorePathsJson) ? "[]" : ignorePathsJson,
+                    RequesterFolderPath = requesterFolderPath ?? string.Empty
                 });
             });
 
             const string title = "Sincronizacion de carpeta";
             var message = $"{requesterName} solicita sincronizar '{name}'.";
-
-            _ = _notificationRepository.SaveAsync(new NotificationEntry
+            var payload = new FolderSyncInviteNotificationPayload
             {
-                Title = title,
-                Message = message,
-                Timestamp = DateTime.Now
-            });
+                InviteId = inviteId,
+                SyncId = syncId,
+                RequesterClientId = requesterClientId,
+                RequesterName = requesterName,
+                Name = name,
+                Description = description ?? string.Empty,
+                IgnorePathsJson = string.IsNullOrWhiteSpace(ignorePathsJson) ? "[]" : ignorePathsJson,
+                RequesterFolderPath = requesterFolderPath ?? string.Empty
+            };
+
+            try
+            {
+                await _notificationRepository.SaveAsync(new NotificationEntry
+                {
+                    Title = title,
+                    Message = NotificationEntry.BuildFolderSyncInviteMessage(payload),
+                    Timestamp = DateTime.Now
+                });
+            }
+            catch
+            {
+                // Avoid breaking SignalR callback flow if local persistence fails.
+            }
 
             MainThread.BeginInvokeOnMainThread(() => _notificationService.Notify(title, message));
             RaiseStateChanged();
@@ -524,7 +565,7 @@ namespace Elysium.WorkStation.Services
             string responderClientId,
             string responderName)
         {
-            if (string.Equals(responderClientId, _clientId, StringComparison.Ordinal))
+            if (string.Equals(responderClientId, ClientId, StringComparison.Ordinal))
             {
                 return;
             }
@@ -559,7 +600,7 @@ namespace Elysium.WorkStation.Services
             string emitterClientId,
             string changedByClientId)
         {
-            if (string.Equals(changedByClientId, _clientId, StringComparison.Ordinal))
+            if (string.Equals(changedByClientId, ClientId, StringComparison.Ordinal))
             {
                 return;
             }
@@ -585,7 +626,7 @@ namespace Elysium.WorkStation.Services
                 return;
             }
 
-            var amIEmitter = string.Equals(emitterClientId, _clientId, StringComparison.Ordinal);
+            var amIEmitter = string.Equals(emitterClientId, ClientId, StringComparison.Ordinal);
             link.ContinuousSyncEnabled = true;
             link.IsEmitter = amIEmitter;
             link = await _repository.SaveAsync(link);
@@ -613,7 +654,7 @@ namespace Elysium.WorkStation.Services
             long fileSize,
             string fileHash)
         {
-            if (string.Equals(senderClientId, _clientId, StringComparison.Ordinal))
+            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal))
             {
                 return;
             }
@@ -863,7 +904,7 @@ namespace Elysium.WorkStation.Services
             await _connection.InvokeAsync(
                 "AnnounceFolderSyncChange",
                 link.SyncId,
-                _clientId,
+                ClientId,
                 "upsert",
                 relativePath,
                 uploadId,
@@ -885,7 +926,7 @@ namespace Elysium.WorkStation.Services
             await _connection.InvokeAsync(
                 "AnnounceFolderSyncChange",
                 link.SyncId,
-                _clientId,
+                ClientId,
                 "delete",
                 relativePath,
                 string.Empty,
@@ -1170,7 +1211,128 @@ namespace Elysium.WorkStation.Services
                 syncId,
                 enabled,
                 emitterClientId ?? string.Empty,
-                _clientId);
+                ClientId);
+        }
+
+        private async Task SendFolderSyncInviteAsync(string inviteId, FolderSyncLink link)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para enviar la solicitud.");
+            }
+
+            try
+            {
+                await _connection.InvokeAsync(
+                    "SendFolderSyncInvite",
+                    inviteId,
+                    link.SyncId,
+                    ClientId,
+                    _clientName,
+                    link.Name,
+                    link.Description,
+                    link.IgnorePathsJson,
+                    link.LocalFolderPath);
+            }
+            catch (Exception ex) when (IsMethodMissingHubError(ex))
+            {
+                await _connection.InvokeAsync(
+                    "Broadcast",
+                    "ReceiveFolderSyncInvitePayload",
+                    new
+                    {
+                        InviteId = inviteId,
+                        SyncId = link.SyncId,
+                        RequesterClientId = ClientId,
+                        RequesterName = _clientName,
+                        Name = link.Name,
+                        Description = link.Description,
+                        IgnorePathsJson = link.IgnorePathsJson,
+                        RequesterFolderPath = link.LocalFolderPath
+                    });
+            }
+        }
+
+        private async Task SendFolderSyncInviteResponseAsync(string inviteId, string syncId, bool accepted)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            try
+            {
+                await _connection.InvokeAsync(
+                    "RespondFolderSyncInvite",
+                    inviteId,
+                    syncId,
+                    accepted,
+                    ClientId,
+                    _clientName);
+            }
+            catch (Exception ex) when (IsMethodMissingHubError(ex))
+            {
+                await _connection.InvokeAsync(
+                    "Broadcast",
+                    "ReceiveFolderSyncInviteResponsePayload",
+                    new
+                    {
+                        InviteId = inviteId,
+                        SyncId = syncId,
+                        Accepted = accepted,
+                        ResponderClientId = ClientId,
+                        ResponderName = _clientName
+                    });
+            }
+        }
+
+        private static bool IsMethodMissingHubError(Exception ex)
+        {
+            var message = ex.Message ?? string.Empty;
+            return message.Contains("Method does not exist", StringComparison.OrdinalIgnoreCase)
+                   || message.Contains("Failed to invoke", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ReadString(JsonElement payload, string propertyName, string fallback = "")
+        {
+            if (payload.ValueKind != JsonValueKind.Object)
+            {
+                return fallback;
+            }
+
+            if (!payload.TryGetProperty(propertyName, out var value))
+            {
+                return fallback;
+            }
+
+            return value.ValueKind == JsonValueKind.String
+                ? value.GetString() ?? fallback
+                : value.ToString() ?? fallback;
+        }
+
+        private static bool ReadBool(JsonElement payload, string propertyName, bool fallback = false)
+        {
+            if (payload.ValueKind != JsonValueKind.Object)
+            {
+                return fallback;
+            }
+
+            if (!payload.TryGetProperty(propertyName, out var value))
+            {
+                return fallback;
+            }
+
+            if (value.ValueKind == JsonValueKind.True)
+            {
+                return true;
+            }
+
+            if (value.ValueKind == JsonValueKind.False)
+            {
+                return false;
+            }
+
+            return bool.TryParse(value.ToString(), out var parsed) ? parsed : fallback;
         }
 
         private void AddLog(string syncId, string action, string relativePath, string message, bool isOutgoing)
@@ -1244,6 +1406,38 @@ namespace Elysium.WorkStation.Services
                 _logsBySync[syncId] = [];
                 _summaryBySync[syncId] = new Dictionary<string, FolderSyncSummaryEntry>(StringComparer.OrdinalIgnoreCase);
             }
+        }
+
+        private static string GetOrCreateClientId()
+        {
+            var scopedKey = PreferenceScopeProvider.BuildScopedKey(ClientIdPreferenceKey);
+            var storedClientId = Preferences.Default.Get(scopedKey, string.Empty);
+
+#if DEBUG
+            if (!string.IsNullOrWhiteSpace(storedClientId) &&
+                PreferenceScopeProvider.CurrentGroup is PreferenceGroup.DebugClient or PreferenceGroup.DebugServer)
+            {
+                var otherScope = PreferenceScopeProvider.CurrentGroup == PreferenceGroup.DebugClient
+                    ? PreferenceScopeProvider.DebugServerGroupName
+                    : PreferenceScopeProvider.DebugClientGroupName;
+                var otherScopedKey = $"{otherScope}.{ClientIdPreferenceKey}";
+                var otherClientId = Preferences.Default.Get(otherScopedKey, string.Empty);
+                if (!string.IsNullOrWhiteSpace(otherClientId) &&
+                    string.Equals(otherClientId, storedClientId, StringComparison.Ordinal))
+                {
+                    storedClientId = string.Empty;
+                }
+            }
+#endif
+
+            if (!string.IsNullOrWhiteSpace(storedClientId))
+            {
+                return storedClientId;
+            }
+
+            var created = Guid.NewGuid().ToString("N");
+            Preferences.Default.Set(scopedKey, created);
+            return created;
         }
 
         private static string BuildClientName()

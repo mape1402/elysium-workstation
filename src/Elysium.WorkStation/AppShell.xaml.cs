@@ -76,7 +76,7 @@ namespace Elysium.WorkStation
             InitializeComponent();
             BindingContext = this;
 
-            _isSidebarPinned = Preferences.Default.Get(SidebarPinnedPreferenceKey, true);
+            _isSidebarPinned = ScopedPreferences.Get(SidebarPinnedPreferenceKey, true);
             ApplySidebarState();
             LoadProfileFromSettings();
             Loaded += OnShellLoaded;
@@ -107,7 +107,7 @@ namespace Elysium.WorkStation
         private void ToggleSidebar()
         {
             _isSidebarPinned = !_isSidebarPinned;
-            Preferences.Default.Set(SidebarPinnedPreferenceKey, _isSidebarPinned);
+            ScopedPreferences.Set(SidebarPinnedPreferenceKey, _isSidebarPinned);
             ApplySidebarState();
         }
 

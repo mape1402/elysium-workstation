@@ -12,6 +12,7 @@ namespace Elysium.WorkStation.Views
         private readonly IFolderSyncService _folderSyncService;
         private int _linkId;
         private FolderSyncLink _link;
+        private bool _isReloading;
 
         public ObservableCollection<string> IgnorePaths { get; } = [];
         public ObservableCollection<FolderSyncLogEntry> Logs { get; } = [];
@@ -42,12 +43,19 @@ namespace Elysium.WorkStation.Views
         public string LinkStatusText => _link?.StatusText ?? string.Empty;
         public string LinkRoleText => _link?.RoleText ?? string.Empty;
         public string ToggleContinuousText => _link?.ContinuousButtonText ?? "Iniciar continua";
+        public bool CanSendPairRequest => _link is not null && !_link.IsAccepted;
+        public string SendPairRequestText => _link?.IsPendingOutgoing == true
+            ? "Reenviar solicitud"
+            : "Enviar solicitud";
+        public string IgnorePathsStatus => IgnorePaths.Count == 0
+            ? "Sin rutas ignoradas"
+            : $"{IgnorePaths.Count} ruta(s) ignorada(s)";
 
         public Command OpenFolderCommand { get; }
+        public Command SendPairRequestCommand { get; }
         public Command ToggleContinuousCommand { get; }
         public Command SwitchRoleCommand { get; }
-        public Command AddIgnorePathCommand { get; }
-        public Command<string> RemoveIgnorePathCommand { get; }
+        public Command OpenIgnorePathsEditorCommand { get; }
 
         public FolderSyncDetailPage(IFolderSyncService folderSyncService)
         {
@@ -63,120 +71,135 @@ namespace Elysium.WorkStation.Views
                 OpenFolder(_link.LocalFolderPath);
             });
 
+            SendPairRequestCommand = new Command(async () =>
+            {
+                if (_link is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.SendPairRequestAsync(_link.Id);
+                    await ReloadLinkAsync(reloadFromRepository: true);
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Sincronizacion", ex.Message, "OK");
+                }
+            });
+
             ToggleContinuousCommand = new Command(async () =>
             {
                 if (_link is null) return;
                 await _folderSyncService.SetContinuousAsync(_link.Id, !_link.ContinuousSyncEnabled);
-                await ReloadLinkAsync();
+                await ReloadLinkAsync(reloadFromRepository: true);
             });
 
             SwitchRoleCommand = new Command(async () =>
             {
                 if (_link is null) return;
                 await _folderSyncService.SwitchRoleAsync(_link.Id);
-                await ReloadLinkAsync();
+                await ReloadLinkAsync(reloadFromRepository: true);
             });
 
-            AddIgnorePathCommand = new Command(async () =>
+            OpenIgnorePathsEditorCommand = new Command(async () =>
             {
                 if (_link is null) return;
 
-                var picker = new IgnorePathPickerPage(_link.LocalFolderPath);
-                await Navigation.PushModalAsync(picker);
-                var selectedPath = await picker.ResultTask;
-                if (string.IsNullOrWhiteSpace(selectedPath))
+                var editor = new IgnorePathsEditorPage(_link.LocalFolderPath, IgnorePaths);
+                await Navigation.PushModalAsync(editor);
+                var result = await editor.ResultTask;
+                if (result is null)
                 {
                     return;
                 }
 
-                var relative = ToRelativeIgnorePath(_link.LocalFolderPath, selectedPath);
-                if (string.IsNullOrWhiteSpace(relative))
+                IgnorePaths.Clear();
+                foreach (var item in result.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
                 {
-                    await DisplayAlert("Sincronizacion", "La ruta seleccionada debe estar dentro de la carpeta sincronizada.", "OK");
-                    return;
+                    IgnorePaths.Add(item);
                 }
 
-                if (IgnorePaths.Any(path => string.Equals(path, relative, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return;
-                }
-
-                IgnorePaths.Add(relative);
-                await PersistIgnorePathsAsync();
-            });
-
-            RemoveIgnorePathCommand = new Command<string>(async path =>
-            {
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    return;
-                }
-
-                var existing = IgnorePaths.FirstOrDefault(item => string.Equals(item, path, StringComparison.OrdinalIgnoreCase));
-                if (existing is null)
-                {
-                    return;
-                }
-
-                IgnorePaths.Remove(existing);
                 await PersistIgnorePathsAsync();
             });
 
             InitializeComponent();
             BindingContext = this;
-
-            _folderSyncService.StateChanged += OnServiceStateChanged;
         }
 
         protected override async void OnAppearing()
         {
             base.OnAppearing();
-            await ReloadLinkAsync();
+            _folderSyncService.StateChanged -= OnServiceStateChanged;
+            _folderSyncService.StateChanged += OnServiceStateChanged;
+            await ReloadLinkAsync(reloadFromRepository: true);
         }
 
         protected override void OnDisappearing()
         {
+            _folderSyncService.StateChanged -= OnServiceStateChanged;
             base.OnDisappearing();
         }
 
-        private async Task ReloadLinkAsync()
+        private async Task ReloadLinkAsync(bool reloadFromRepository)
         {
-            await _folderSyncService.ReloadAsync();
-            _link = _folderSyncService.Links.FirstOrDefault(item => item.Id == _linkId);
-
-            if (_link is null)
+            if (_isReloading)
             {
-                await DisplayAlert("Sincronizacion", "No se encontro la carpeta de sincronizacion.", "OK");
-                await Shell.Current.GoToAsync("..");
                 return;
             }
 
-            IgnorePaths.Clear();
-            foreach (var path in ParseIgnorePathsJson(_link.IgnorePathsJson))
+            _isReloading = true;
+            try
             {
-                IgnorePaths.Add(path);
-            }
+                if (reloadFromRepository)
+                {
+                    await _folderSyncService.ReloadAsync();
+                }
 
-            Logs.Clear();
-            foreach (var log in _folderSyncService.GetLogs(_link.SyncId))
+                _link = _folderSyncService.Links.FirstOrDefault(item => item.Id == _linkId);
+
+                if (_link is null)
+                {
+                    await DisplayAlert("Sincronizacion", "No se encontro la carpeta de sincronizacion.", "OK");
+                    await Shell.Current.GoToAsync("..");
+                    return;
+                }
+
+                IgnorePaths.Clear();
+                foreach (var path in ParseIgnorePathsJson(_link.IgnorePathsJson))
+                {
+                    IgnorePaths.Add(path);
+                }
+
+                Logs.Clear();
+                foreach (var log in _folderSyncService.GetLogs(_link.SyncId))
+                {
+                    Logs.Add(log);
+                }
+
+                Summary.Clear();
+                foreach (var item in _folderSyncService.GetSummary(_link.SyncId))
+                {
+                    Summary.Add(item);
+                }
+
+                OnPropertyChanged(nameof(StatusText));
+                OnPropertyChanged(nameof(StatusColor));
+                OnPropertyChanged(nameof(LinkName));
+                OnPropertyChanged(nameof(LinkDescription));
+                OnPropertyChanged(nameof(LinkPath));
+                OnPropertyChanged(nameof(LinkStatusText));
+                OnPropertyChanged(nameof(LinkRoleText));
+                OnPropertyChanged(nameof(CanSendPairRequest));
+                OnPropertyChanged(nameof(SendPairRequestText));
+                OnPropertyChanged(nameof(ToggleContinuousText));
+                OnPropertyChanged(nameof(IgnorePathsStatus));
+            }
+            finally
             {
-                Logs.Add(log);
+                _isReloading = false;
             }
-
-            Summary.Clear();
-            foreach (var item in _folderSyncService.GetSummary(_link.SyncId))
-            {
-                Summary.Add(item);
-            }
-
-            OnPropertyChanged(nameof(StatusText));
-            OnPropertyChanged(nameof(StatusColor));
-            OnPropertyChanged(nameof(LinkName));
-            OnPropertyChanged(nameof(LinkDescription));
-            OnPropertyChanged(nameof(LinkPath));
-            OnPropertyChanged(nameof(LinkStatusText));
-            OnPropertyChanged(nameof(LinkRoleText));
-            OnPropertyChanged(nameof(ToggleContinuousText));
         }
 
         private async Task PersistIgnorePathsAsync()
@@ -186,8 +209,9 @@ namespace Elysium.WorkStation.Views
                 return;
             }
 
+            OnPropertyChanged(nameof(IgnorePathsStatus));
             await _folderSyncService.UpdateIgnorePathsAsync(_link.Id, IgnorePaths.ToList());
-            await ReloadLinkAsync();
+            await ReloadLinkAsync(reloadFromRepository: true);
         }
 
         private void OnServiceStateChanged(object sender, EventArgs e)
@@ -199,7 +223,7 @@ namespace Elysium.WorkStation.Views
                     return;
                 }
 
-                await ReloadLinkAsync();
+                await ReloadLinkAsync(reloadFromRepository: false);
             });
         }
 
@@ -218,34 +242,6 @@ namespace Elysium.WorkStation.Views
             {
                 return [];
             }
-        }
-
-        private static string ToRelativeIgnorePath(string rootFolderPath, string selectedPath)
-        {
-            if (string.IsNullOrWhiteSpace(rootFolderPath) || string.IsNullOrWhiteSpace(selectedPath))
-            {
-                return string.Empty;
-            }
-
-            var rootFull = Path.GetFullPath(rootFolderPath.Trim());
-            var selectedFull = Path.GetFullPath(selectedPath.Trim());
-
-            if (!selectedFull.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
-            {
-                return string.Empty;
-            }
-
-            var relative = Path.GetRelativePath(rootFull, selectedFull)
-                .Replace('\\', '/')
-                .Trim()
-                .TrimStart('/');
-
-            if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith("..", StringComparison.Ordinal))
-            {
-                return string.Empty;
-            }
-
-            return relative;
         }
 
         private static void OpenFolder(string path)

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.IgnorePathsEditorPage"
+             x:DataType="local:IgnorePathsEditorPage"
+             x:Name="editorPage"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#66000000"
+             Title="Path ignore">
+    <Grid Padding="20">
+        <Border HorizontalOptions="Center"
+                VerticalOptions="Center"
+                WidthRequest="760"
+                MaximumWidthRequest="940"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#D6DEEE, Dark=#43516A}"
+                StrokeThickness="1"
+                BackgroundColor="{AppThemeBinding Light=#F9FBFF, Dark=#1D2736}"
+                Padding="16">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+                <Label Text="Rutas ignoradas"
+                       StyleClass="SectionTitle"
+                       FontSize="20" />
+
+                <Label Grid.Row="1"
+                       Text="{Binding RootPath}"
+                       FontFamily="OpenSansRegular"
+                       FontSize="12"
+                       LineBreakMode="TailTruncation"
+                       TextColor="{AppThemeBinding Light=#4E6287, Dark=#B5C7E7}" />
+
+                <CollectionView Grid.Row="2"
+                                ItemsSource="{Binding IgnorePathItems}"
+                                HeightRequest="300"
+                                EmptyView="No hay rutas configuradas.">
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" ItemSpacing="6" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="local:IgnorePathItem">
+                            <Border Padding="8"
+                                    StrokeShape="RoundRectangle 10"
+                                    Stroke="{AppThemeBinding Light=#D7E2F7, Dark=#3B4F70}"
+                                    BackgroundColor="{AppThemeBinding Light=#EDF3FF, Dark=#24334A}">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <Label Grid.Column="0"
+                                           Text="{Binding Path}"
+                                           FontFamily="OpenSansRegular"
+                                           FontSize="12"
+                                           LineBreakMode="TailTruncation"
+                                           VerticalOptions="Center"
+                                           TextColor="{AppThemeBinding Light=#1E325A, Dark=#E2ECFF}" />
+                                    <Button Grid.Column="1"
+                                            Text="Quitar"
+                                            StyleClass="DangerButton"
+                                            Padding="10,6"
+                                            MinimumHeightRequest="34"
+                                            Command="{Binding Source={x:Reference editorPage}, Path=BindingContext.RemovePathCommand}"
+                                            CommandParameter="{Binding .}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                    <Button Grid.Column="0"
+                            Text="Agregar ruta"
+                            Command="{Binding AddPathCommand}" />
+                    <Button Grid.Column="2"
+                            Text="Cancelar"
+                            StyleClass="SecondaryButton"
+                            Command="{Binding CancelCommand}" />
+                    <Button Grid.Column="3"
+                            Text="Guardar"
+                            Command="{Binding SaveCommand}" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

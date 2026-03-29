@@ -1,6 +1,6 @@
 namespace Elysium.WorkStation.Models
 {
-    public class FolderSyncInvite
+    public class FolderSyncInviteNotificationPayload
     {
         public string InviteId { get; set; } = string.Empty;
         public string SyncId { get; set; } = string.Empty;
@@ -10,6 +10,5 @@ namespace Elysium.WorkStation.Models
         public string RequesterClientId { get; set; } = string.Empty;
         public string RequesterName { get; set; } = string.Empty;
         public string RequesterFolderPath { get; set; } = string.Empty;
-        public DateTime ReceivedAt { get; set; } = DateTime.Now;
     }
 }

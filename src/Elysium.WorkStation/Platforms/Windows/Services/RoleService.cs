@@ -33,6 +33,7 @@ namespace Elysium.WorkStation.Services
 
         public async Task ActivateServerAsync()
         {
+            PreferenceScopeProvider.SetDebugRole(AppRole.Server);
             await _webHostService.StartAsync();
             _currentRole = AppRole.Server;
             RoleChanged?.Invoke(this, _currentRole);
@@ -40,6 +41,7 @@ namespace Elysium.WorkStation.Services
 
         public void SetClientRole()
         {
+            PreferenceScopeProvider.SetDebugRole(AppRole.Client);
             _currentRole = AppRole.Client;
             RoleChanged?.Invoke(this, _currentRole);
         }

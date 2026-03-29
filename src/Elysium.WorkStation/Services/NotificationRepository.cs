@@ -28,6 +28,14 @@ namespace Elysium.WorkStation.Services
                 .ToListAsync();
         }
 
+        public async Task DeleteByIdAsync(int id)
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            await db.Notifications
+                .Where(n => n.Id == id)
+                .ExecuteDeleteAsync();
+        }
+
         public async Task DeleteAllAsync()
         {
             await using var db = await _factory.CreateDbContextAsync();

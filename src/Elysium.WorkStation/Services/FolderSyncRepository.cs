@@ -4,12 +4,36 @@ using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
+using System.Text;
 
 namespace Elysium.WorkStation.Services
 {
     public class FolderSyncRepository : IFolderSyncRepository
     {
         private readonly IDbContextFactory<AppDbContext> _factory;
+        private static readonly SemaphoreSlim SchemaGate = new(1, 1);
+        private static readonly HashSet<string> VerifiedDatabases = [];
+        private static readonly string[] RequiredColumns =
+        [
+            "Id",
+            "SyncId",
+            "Name",
+            "Description",
+            "LocalFolderPath",
+            "IgnorePathsJson",
+            "LocalClientId",
+            "RemoteClientId",
+            "RemoteClientName",
+            "IsPendingOutgoing",
+            "IsPendingIncoming",
+            "IsAccepted",
+            "ContinuousSyncEnabled",
+            "IsEmitter",
+            "LastSnapshotJson",
+            "LastStateHash",
+            "CreatedAt",
+            "UpdatedAt"
+        ];
 
         public FolderSyncRepository(IDbContextFactory<AppDbContext> factory)
         {
@@ -158,7 +182,92 @@ namespace Elysium.WorkStation.Services
 
         private static async Task EnsureSchemaAsync(AppDbContext db)
         {
-            await db.Database.ExecuteSqlRawAsync("""
+            var key = GetSchemaCacheKey(db);
+            lock (VerifiedDatabases)
+            {
+                if (VerifiedDatabases.Contains(key))
+                {
+                    return;
+                }
+            }
+
+            await SchemaGate.WaitAsync();
+            try
+            {
+                lock (VerifiedDatabases)
+                {
+                    if (VerifiedDatabases.Contains(key))
+                    {
+                        return;
+                    }
+                }
+
+                var conn = db.Database.GetDbConnection();
+                var shouldClose = conn.State != ConnectionState.Open;
+                if (shouldClose)
+                {
+                    await conn.OpenAsync();
+                }
+
+                try
+                {
+                    await EnsureFolderSyncTableExistsAsync(conn);
+
+                    var currentColumns = await GetColumnNamesAsync(conn, "FolderSyncLinks");
+                    var hasAllColumns = RequiredColumns.All(currentColumns.Contains);
+                    var hasUniqueSyncIndex = await HasUniqueSyncIdIndexAsync(conn);
+                    var shouldRebuild = !hasAllColumns || !hasUniqueSyncIndex;
+
+                    if (shouldRebuild)
+                    {
+                        await RebuildFolderSyncTableAsync(conn, currentColumns);
+                    }
+                    else
+                    {
+                        await EnsureSyncIdIndexAsync(conn);
+                    }
+                }
+                finally
+                {
+                    if (shouldClose)
+                    {
+                        await conn.CloseAsync();
+                    }
+                }
+
+                lock (VerifiedDatabases)
+                {
+                    VerifiedDatabases.Add(key);
+                }
+            }
+            finally
+            {
+                SchemaGate.Release();
+            }
+        }
+
+        private static string GetSchemaCacheKey(AppDbContext db)
+        {
+            try
+            {
+                var connectionString = db.Database.GetDbConnection().ConnectionString;
+                if (!string.IsNullOrWhiteSpace(connectionString))
+                {
+                    return connectionString;
+                }
+            }
+            catch
+            {
+                // ignored: fallback below
+            }
+
+            return "default";
+        }
+
+        private static async Task EnsureFolderSyncTableExistsAsync(DbConnection conn)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
                 CREATE TABLE IF NOT EXISTS "FolderSyncLinks" (
                     "Id"                    INTEGER NOT NULL CONSTRAINT "PK_FolderSyncLinks" PRIMARY KEY AUTOINCREMENT,
                     "SyncId"                TEXT    NOT NULL,
@@ -179,63 +288,224 @@ namespace Elysium.WorkStation.Services
                     "CreatedAt"             TEXT    NOT NULL DEFAULT '',
                     "UpdatedAt"             TEXT    NOT NULL DEFAULT ''
                 )
-                """);
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
 
-            await db.Database.ExecuteSqlRawAsync("""
+        private static async Task<HashSet<string>> GetColumnNamesAsync(DbConnection conn, string tableName)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"SELECT name FROM pragma_table_info('{tableName}')";
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var name = Convert.ToString(reader.GetValue(0));
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    result.Add(name);
+                }
+            }
+
+            return result;
+        }
+
+        private static async Task<bool> HasUniqueSyncIdIndexAsync(DbConnection conn)
+        {
+            var uniqueIndexNames = new List<string>();
+            await using var indexList = conn.CreateCommand();
+            indexList.CommandText = "PRAGMA index_list('FolderSyncLinks')";
+            await using var reader = await indexList.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var isUnique = Convert.ToInt32(reader.GetValue(2)) == 1;
+                var indexName = Convert.ToString(reader.GetValue(1)) ?? string.Empty;
+                if (isUnique && !string.IsNullOrWhiteSpace(indexName))
+                {
+                    uniqueIndexNames.Add(indexName);
+                }
+            }
+
+            foreach (var indexName in uniqueIndexNames)
+            {
+                await using var indexInfo = conn.CreateCommand();
+                indexInfo.CommandText = $"PRAGMA index_info('{indexName.Replace("'", "''")}')";
+                await using var cols = await indexInfo.ExecuteReaderAsync();
+
+                var hasOnlySyncId = false;
+                var columnCount = 0;
+                while (await cols.ReadAsync())
+                {
+                    columnCount++;
+                    var colName = Convert.ToString(cols.GetValue(2)) ?? string.Empty;
+                    hasOnlySyncId = string.Equals(colName, "SyncId", StringComparison.OrdinalIgnoreCase);
+                    if (!hasOnlySyncId)
+                    {
+                        break;
+                    }
+                }
+
+                if (columnCount == 1 && hasOnlySyncId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static async Task RebuildFolderSyncTableAsync(DbConnection conn, HashSet<string> currentColumns)
+        {
+            await using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                await ExecuteAsync(conn, tx, """DROP TABLE IF EXISTS "FolderSyncLinks_rebuild" """);
+                await ExecuteAsync(conn, tx, """
+                    CREATE TABLE "FolderSyncLinks_rebuild" (
+                        "Id"                    INTEGER NOT NULL CONSTRAINT "PK_FolderSyncLinks" PRIMARY KEY AUTOINCREMENT,
+                        "SyncId"                TEXT    NOT NULL,
+                        "Name"                  TEXT    NOT NULL,
+                        "Description"           TEXT    NOT NULL DEFAULT '',
+                        "LocalFolderPath"       TEXT    NOT NULL DEFAULT '',
+                        "IgnorePathsJson"       TEXT    NOT NULL DEFAULT '[]',
+                        "LocalClientId"         TEXT    NOT NULL DEFAULT '',
+                        "RemoteClientId"        TEXT    NOT NULL DEFAULT '',
+                        "RemoteClientName"      TEXT    NOT NULL DEFAULT '',
+                        "IsPendingOutgoing"     INTEGER NOT NULL DEFAULT 0,
+                        "IsPendingIncoming"     INTEGER NOT NULL DEFAULT 0,
+                        "IsAccepted"            INTEGER NOT NULL DEFAULT 0,
+                        "ContinuousSyncEnabled" INTEGER NOT NULL DEFAULT 0,
+                        "IsEmitter"             INTEGER NOT NULL DEFAULT 0,
+                        "LastSnapshotJson"      TEXT    NOT NULL DEFAULT '',
+                        "LastStateHash"         TEXT    NOT NULL DEFAULT '',
+                        "CreatedAt"             TEXT    NOT NULL DEFAULT '',
+                        "UpdatedAt"             TEXT    NOT NULL DEFAULT ''
+                    )
+                    """);
+
+                if (await TableExistsAsync(conn, tx, "FolderSyncLinks"))
+                {
+                    var insertSql = BuildCopySql(currentColumns);
+                    await ExecuteAsync(conn, tx, insertSql);
+                }
+
+                await ExecuteAsync(conn, tx, """
+                    UPDATE "FolderSyncLinks_rebuild"
+                    SET "SyncId" = lower(hex(randomblob(16)))
+                    WHERE "SyncId" IS NULL OR trim("SyncId") = ''
+                    """);
+
+                await ExecuteAsync(conn, tx, """
+                    WITH duplicate_rows AS (
+                        SELECT
+                            "Id",
+                            ROW_NUMBER() OVER (PARTITION BY "SyncId" ORDER BY "Id") AS rn
+                        FROM "FolderSyncLinks_rebuild"
+                    )
+                    UPDATE "FolderSyncLinks_rebuild"
+                    SET "SyncId" = lower(hex(randomblob(16)))
+                    WHERE "Id" IN (SELECT "Id" FROM duplicate_rows WHERE rn > 1)
+                    """);
+
+                await ExecuteAsync(conn, tx, """DROP TABLE IF EXISTS "FolderSyncLinks" """);
+                await ExecuteAsync(conn, tx, """ALTER TABLE "FolderSyncLinks_rebuild" RENAME TO "FolderSyncLinks" """);
+                await EnsureSyncIdIndexAsync(conn, tx);
+                await tx.CommitAsync();
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        private static string BuildCopySql(HashSet<string> currentColumns)
+        {
+            string Text(string col, string fallback) =>
+                currentColumns.Contains(col)
+                    ? $"""COALESCE(NULLIF(CAST("{col}" AS TEXT), ''), '{fallback}')"""
+                    : $"'{fallback}'";
+            string Num(string col, string fallback) =>
+                currentColumns.Contains(col)
+                    ? $"""COALESCE(CAST("{col}" AS INTEGER), {fallback})"""
+                    : fallback;
+            string Timestamp(string col) =>
+                currentColumns.Contains(col)
+                    ? $"""COALESCE(NULLIF(CAST("{col}" AS TEXT), ''), strftime('%Y-%m-%dT%H:%M:%fZ','now'))"""
+                    : """strftime('%Y-%m-%dT%H:%M:%fZ','now')""";
+
+            var select = new StringBuilder();
+            select.AppendLine("INSERT INTO \"FolderSyncLinks_rebuild\" (");
+            select.AppendLine("    \"SyncId\",");
+            select.AppendLine("    \"Name\",");
+            select.AppendLine("    \"Description\",");
+            select.AppendLine("    \"LocalFolderPath\",");
+            select.AppendLine("    \"IgnorePathsJson\",");
+            select.AppendLine("    \"LocalClientId\",");
+            select.AppendLine("    \"RemoteClientId\",");
+            select.AppendLine("    \"RemoteClientName\",");
+            select.AppendLine("    \"IsPendingOutgoing\",");
+            select.AppendLine("    \"IsPendingIncoming\",");
+            select.AppendLine("    \"IsAccepted\",");
+            select.AppendLine("    \"ContinuousSyncEnabled\",");
+            select.AppendLine("    \"IsEmitter\",");
+            select.AppendLine("    \"LastSnapshotJson\",");
+            select.AppendLine("    \"LastStateHash\",");
+            select.AppendLine("    \"CreatedAt\",");
+            select.AppendLine("    \"UpdatedAt\"");
+            select.AppendLine(")");
+            select.AppendLine("SELECT");
+            var syncIdExpr = currentColumns.Contains("SyncId")
+                ? """COALESCE(NULLIF(CAST("SyncId" AS TEXT), ''), lower(hex(randomblob(16))))"""
+                : """lower(hex(randomblob(16)))""";
+            select.AppendLine($"""    {syncIdExpr},""");
+            select.AppendLine($"""    {Text("Name", "Sin nombre")},""");
+            select.AppendLine($"""    {Text("Description", string.Empty)},""");
+            select.AppendLine($"""    {Text("LocalFolderPath", string.Empty)},""");
+            select.AppendLine($"""    {Text("IgnorePathsJson", "[]")},""");
+            select.AppendLine($"""    {Text("LocalClientId", string.Empty)},""");
+            select.AppendLine($"""    {Text("RemoteClientId", string.Empty)},""");
+            select.AppendLine($"""    {Text("RemoteClientName", string.Empty)},""");
+            select.AppendLine($"""    {Num("IsPendingOutgoing", "0")},""");
+            select.AppendLine($"""    {Num("IsPendingIncoming", "0")},""");
+            select.AppendLine($"""    {Num("IsAccepted", "0")},""");
+            select.AppendLine($"""    {Num("ContinuousSyncEnabled", "0")},""");
+            select.AppendLine($"""    {Num("IsEmitter", "0")},""");
+            select.AppendLine($"""    {Text("LastSnapshotJson", string.Empty)},""");
+            select.AppendLine($"""    {Text("LastStateHash", string.Empty)},""");
+            select.AppendLine($"""    {Timestamp("CreatedAt")},""");
+            select.AppendLine($"""    {Timestamp("UpdatedAt")}""");
+            select.AppendLine("FROM \"FolderSyncLinks\"");
+            return select.ToString();
+        }
+
+        private static async Task<bool> TableExistsAsync(DbConnection conn, DbTransaction tx, string tableName)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @name";
+            var p = cmd.CreateParameter();
+            p.ParameterName = "@name";
+            p.Value = tableName;
+            cmd.Parameters.Add(p);
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+        }
+
+        private static Task EnsureSyncIdIndexAsync(DbConnection conn, DbTransaction tx = null) =>
+            ExecuteAsync(
+                conn,
+                tx,
+                """
                 CREATE UNIQUE INDEX IF NOT EXISTS "IX_FolderSyncLinks_SyncId"
                 ON "FolderSyncLinks" ("SyncId")
                 """);
 
-            var conn = db.Database.GetDbConnection();
-            var shouldClose = conn.State != ConnectionState.Open;
-            if (shouldClose)
-            {
-                await conn.OpenAsync();
-            }
-
-            try
-            {
-                await TryAddColumnAsync(conn, "SyncId", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "Name", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "Description", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "LocalFolderPath", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "IgnorePathsJson", "TEXT NOT NULL DEFAULT '[]'");
-                await TryAddColumnAsync(conn, "LocalClientId", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "RemoteClientId", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "RemoteClientName", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "IsPendingOutgoing", "INTEGER NOT NULL DEFAULT 0");
-                await TryAddColumnAsync(conn, "IsPendingIncoming", "INTEGER NOT NULL DEFAULT 0");
-                await TryAddColumnAsync(conn, "IsAccepted", "INTEGER NOT NULL DEFAULT 0");
-                await TryAddColumnAsync(conn, "ContinuousSyncEnabled", "INTEGER NOT NULL DEFAULT 0");
-                await TryAddColumnAsync(conn, "IsEmitter", "INTEGER NOT NULL DEFAULT 0");
-                await TryAddColumnAsync(conn, "LastSnapshotJson", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "LastStateHash", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "CreatedAt", "TEXT NOT NULL DEFAULT ''");
-                await TryAddColumnAsync(conn, "UpdatedAt", "TEXT NOT NULL DEFAULT ''");
-            }
-            finally
-            {
-                if (shouldClose)
-                {
-                    await conn.CloseAsync();
-                }
-            }
-
-        }
-
-        private static async Task TryAddColumnAsync(System.Data.Common.DbConnection conn, string column, string definition)
+        private static async Task ExecuteAsync(DbConnection conn, DbTransaction tx, string sql)
         {
-            await using var probe = conn.CreateCommand();
-            probe.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('FolderSyncLinks') WHERE name = '{column}'";
-            var exists = Convert.ToInt32(await probe.ExecuteScalarAsync()) > 0;
-            if (exists)
-            {
-                return;
-            }
-
-            await using var alter = conn.CreateCommand();
-            alter.CommandText = $"""ALTER TABLE "FolderSyncLinks" ADD COLUMN "{column}" {definition}""";
-            await alter.ExecuteNonQueryAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = sql;
+            await cmd.ExecuteNonQueryAsync();
         }
 
         private static async Task<List<FolderSyncLink>> QueryLinksAsync(

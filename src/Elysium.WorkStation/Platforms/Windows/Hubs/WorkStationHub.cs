@@ -23,7 +23,8 @@ namespace Elysium.WorkStation.Hubs
             string requesterName,
             string name,
             string description,
-            string ignorePathsJson)
+            string ignorePathsJson,
+            string requesterFolderPath)
             => await Clients.Others.SendAsync(
                 "ReceiveFolderSyncInvite",
                 inviteId,
@@ -32,7 +33,8 @@ namespace Elysium.WorkStation.Hubs
                 requesterName,
                 name,
                 description,
-                ignorePathsJson);
+                ignorePathsJson,
+                requesterFolderPath);
 
         public async Task RespondFolderSyncInvite(
             string inviteId,

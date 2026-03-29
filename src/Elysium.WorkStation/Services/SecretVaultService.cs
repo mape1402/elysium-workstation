@@ -14,8 +14,8 @@ namespace Elysium.WorkStation.Services
         private byte[] _sessionKey;
 
         public bool IsPinConfigured =>
-            !string.IsNullOrWhiteSpace(Preferences.Default.Get(PinSaltKey, string.Empty)) &&
-            !string.IsNullOrWhiteSpace(Preferences.Default.Get(PinVerifierKey, string.Empty));
+            !string.IsNullOrWhiteSpace(ScopedPreferences.Get(PinSaltKey, string.Empty)) &&
+            !string.IsNullOrWhiteSpace(ScopedPreferences.Get(PinVerifierKey, string.Empty));
 
         public bool IsUnlocked => _sessionKey is not null;
 
@@ -29,8 +29,8 @@ namespace Elysium.WorkStation.Services
             if (!IsPinConfigured) return false;
             if (!IsValidPin(pin)) return false;
 
-            var saltText = Preferences.Default.Get(PinSaltKey, string.Empty);
-            var verifierText = Preferences.Default.Get(PinVerifierKey, string.Empty);
+            var saltText = ScopedPreferences.Get(PinSaltKey, string.Empty);
+            var verifierText = ScopedPreferences.Get(PinVerifierKey, string.Empty);
             if (string.IsNullOrWhiteSpace(saltText) || string.IsNullOrWhiteSpace(verifierText))
                 return false;
 
@@ -60,8 +60,8 @@ namespace Elysium.WorkStation.Services
             var key = DeriveKey(normalizedPin, salt);
             var verifier = EncryptWithKey(VerifierText, key);
 
-            Preferences.Default.Set(PinSaltKey, Convert.ToBase64String(salt));
-            Preferences.Default.Set(PinVerifierKey, verifier);
+            ScopedPreferences.Set(PinSaltKey, Convert.ToBase64String(salt));
+            ScopedPreferences.Set(PinVerifierKey, verifier);
             _sessionKey = key;
             return true;
         }

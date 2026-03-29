@@ -95,16 +95,24 @@ namespace Elysium.WorkStation.Views
 
             InitializeComponent();
             BindingContext = this;
-
-            _folderSyncService.StateChanged += OnServiceStateChanged;
-            PendingInvites.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasPendingInvites));
         }
 
         protected override async void OnAppearing()
         {
             base.OnAppearing();
+            _folderSyncService.StateChanged -= OnServiceStateChanged;
+            _folderSyncService.StateChanged += OnServiceStateChanged;
+            PendingInvites.CollectionChanged -= PendingInvitesCollectionChanged;
+            PendingInvites.CollectionChanged += PendingInvitesCollectionChanged;
             await _folderSyncService.ReloadAsync();
             RefreshBindings();
+        }
+
+        protected override void OnDisappearing()
+        {
+            _folderSyncService.StateChanged -= OnServiceStateChanged;
+            PendingInvites.CollectionChanged -= PendingInvitesCollectionChanged;
+            base.OnDisappearing();
         }
 
         private void OnServiceStateChanged(object sender, EventArgs e)
@@ -116,6 +124,11 @@ namespace Elysium.WorkStation.Views
         {
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(StatusColor));
+            OnPropertyChanged(nameof(HasPendingInvites));
+        }
+
+        private void PendingInvitesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
             OnPropertyChanged(nameof(HasPendingInvites));
         }
 

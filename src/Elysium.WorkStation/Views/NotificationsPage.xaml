@@ -69,29 +69,57 @@
                         <Border.Shadow>
                             <Shadow Brush="Black" Offset="0,1" Radius="6" Opacity="0.06" />
                         </Border.Shadow>
-                        <Grid ColumnDefinitions="*,Auto"
-                              RowDefinitions="Auto,Auto"
-                              ColumnSpacing="8"
-                              RowSpacing="3">
-                            <Label Grid.Row="0" Grid.Column="0"
-                                   Text="{Binding Title}"
-                                   FontFamily="OpenSansSemibold"
-                                   FontSize="13"
-                                   TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
-                                   LineBreakMode="TailTruncation" />
-                            <Label Grid.Row="0" Grid.Column="1"
-                                   Text="{Binding TimeDisplay}"
-                                   FontFamily="OpenSansRegular"
-                                   FontSize="11"
-                                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
-                                   VerticalOptions="Start" />
-                            <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                                   Text="{Binding Message}"
+                        <VerticalStackLayout Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto"
+                                  ColumnSpacing="8">
+                                <Label Grid.Column="0"
+                                       Text="{Binding Title}"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="13"
+                                       TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding TimeDisplay}"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="11"
+                                       TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
+                                       VerticalOptions="Start" />
+                            </Grid>
+
+                            <VerticalStackLayout IsVisible="{Binding IsFolderSyncInvite}"
+                                                 Spacing="6">
+                                <Label Text="{Binding DisplayMessage}"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light={StaticResource Gray700}, Dark={StaticResource Gray200}}" />
+                                <Label Text="{Binding FolderSyncDescription}"
+                                       IsVisible="{Binding HasFolderSyncDescription}"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+                                <Label IsVisible="{Binding HasFolderSyncOriginPath}"
+                                       FontFamily="OpenSansRegular"
+                                       FontSize="11"
+                                       TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="Carpeta origen: " />
+                                            <Span Text="{Binding FolderSyncOriginPath}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+                                <Button Text="Aceptar vinculacion"
+                                        Command="{Binding Source={x:Reference thisPage}, Path=AcceptFolderSyncInviteCommand}"
+                                        CommandParameter="{Binding .}" />
+                            </VerticalStackLayout>
+
+                            <Label IsVisible="{Binding IsGenericNotification}"
+                                   Text="{Binding DisplayMessage}"
                                    FontFamily="OpenSansRegular"
                                    FontSize="12"
                                    TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}"
                                    LineBreakMode="TailTruncation" />
-                        </Grid>
+                        </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

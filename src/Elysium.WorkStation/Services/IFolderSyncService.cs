@@ -21,6 +21,7 @@ namespace Elysium.WorkStation.Services
             string localFolderPath,
             IEnumerable<string> ignorePaths);
 
+        Task SendPairRequestAsync(int linkId);
         Task<FolderSyncLink> AcceptInviteAsync(FolderSyncInvite invite, string localFolderPath);
         Task RejectInviteAsync(FolderSyncInvite invite);
 

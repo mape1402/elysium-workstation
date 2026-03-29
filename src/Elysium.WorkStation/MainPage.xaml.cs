@@ -80,7 +80,46 @@ namespace Elysium.WorkStation
                 await tcs.Task;
             }
 
-            if (!_settingsService.IsConfigured)
+            bool settingsMissing()
+            {
+                return !_settingsService.IsConfigured;
+            }
+
+#if DEBUG
+            if (_roleService.CurrentRole == AppRole.Undetermined)
+            {
+                bool runAsServer = await DisplayAlert(
+                    "Rol de instancia",
+                    "Selecciona como iniciar esta instancia en DEBUG.",
+                    "Servidor",
+                    "Cliente");
+
+                if (runAsServer)
+                {
+                    // En DEBUG debemos definir primero el scope de preferencias
+                    // para leer la configuracion correcta de server.
+                    PreferenceScopeProvider.SetDebugRole(AppRole.Server);
+                    if (settingsMissing())
+                    {
+                        await Shell.Current.GoToAsync("//settings-root");
+                        return;
+                    }
+
+                    await _roleService.ActivateServerAsync();
+                }
+                else
+                {
+                    _roleService.SetClientRole();
+                }
+            }
+
+            if (settingsMissing())
+            {
+                await Shell.Current.GoToAsync("//settings-root");
+                return;
+            }
+#else
+            if (settingsMissing())
             {
                 await Shell.Current.GoToAsync("//settings-root");
                 return;
@@ -102,11 +141,16 @@ namespace Elysium.WorkStation
                         "No, modo cliente");
 
                     if (becomeServer)
+                    {
                         await _roleService.ActivateServerAsync();
+                    }
                     else
+                    {
                         _roleService.SetClientRole();
+                    }
                 }
             }
+#endif
 
             string hubUrl = _roleService.CurrentRole == AppRole.Server
                 ? $"http://localhost:{_settingsService.ServerPort}/hubs/workstation"

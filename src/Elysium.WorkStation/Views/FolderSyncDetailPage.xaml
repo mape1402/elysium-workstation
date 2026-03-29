@@ -49,14 +49,18 @@
                                    FontFamily="OpenSansSemibold"
                                    FontSize="12" />
                         </Grid>
-                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
+                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                             <Button Grid.Column="0"
                                     Text="Abrir carpeta"
                                     Command="{Binding OpenFolderCommand}" />
                             <Button Grid.Column="1"
+                                    Text="{Binding SendPairRequestText}"
+                                    IsVisible="{Binding CanSendPairRequest}"
+                                    Command="{Binding SendPairRequestCommand}" />
+                            <Button Grid.Column="2"
                                     Text="{Binding ToggleContinuousText}"
                                     Command="{Binding ToggleContinuousCommand}" />
-                            <Button Grid.Column="2"
+                            <Button Grid.Column="3"
                                     Text="Invertir rol"
                                     Command="{Binding SwitchRoleCommand}" />
                         </Grid>
@@ -69,28 +73,12 @@
                         BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
                     <VerticalStackLayout Spacing="8">
                         <Label Text="Path ignore" StyleClass="SectionTitle" />
-                        <Button Text="Agregar ruta ignorada"
-                                Command="{Binding AddIgnorePathCommand}" />
-                        <CollectionView ItemsSource="{Binding IgnorePaths}" HeightRequest="160">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
-                            </CollectionView.ItemsLayout>
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Padding="0,2">
-                                        <Label Grid.Column="0"
-                                               Text="{Binding .}"
-                                               FontFamily="OpenSansRegular"
-                                               FontSize="11"
-                                               LineBreakMode="TailTruncation" />
-                                        <Button Grid.Column="1"
-                                                Text="Quitar"
-                                                Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.RemoveIgnorePathCommand}"
-                                                CommandParameter="{Binding .}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                        <Label Text="{Binding IgnorePathsStatus}"
+                               FontFamily="OpenSansRegular"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#4E6287, Dark=#B5C7E7}" />
+                        <Button Text="Administrar rutas ignoradas"
+                                Command="{Binding OpenIgnorePathsEditorCommand}" />
                     </VerticalStackLayout>
                 </Border>
 

@@ -3,13 +3,15 @@ namespace Elysium.WorkStation.Services
     public static class DatabasePathProvider
     {
         private const string SqliteDbPathKey = "sqlite_db_path";
-        private const string DefaultDbFileName = "elysium.db";
+        private const string ReleaseDbFileName = "elysium.db";
+        private const string DebugClientDbFileName = "elysium.debug.client.db";
+        private const string DebugServerDbFileName = "elysium.debug.server.db";
 
-        public static string DefaultPath => Path.Combine(FileSystem.AppDataDirectory, DefaultDbFileName);
+        public static string DefaultPath => Path.Combine(FileSystem.AppDataDirectory, GetDefaultFileName());
 
         public static string GetPath()
         {
-            var stored = Preferences.Default.Get(SqliteDbPathKey, string.Empty);
+            var stored = ScopedPreferences.Get(SqliteDbPathKey, string.Empty);
             return NormalizeOrDefault(stored);
         }
 
@@ -22,13 +24,13 @@ namespace Elysium.WorkStation.Services
                 CloseSqlitePools();
             }
 
-            Preferences.Default.Set(SqliteDbPathKey, next);
+            ScopedPreferences.Set(SqliteDbPathKey, next);
         }
 
         public static void ResetToDefault()
         {
             CloseSqlitePools();
-            Preferences.Default.Remove(SqliteDbPathKey);
+            ScopedPreferences.Remove(SqliteDbPathKey);
         }
 
         public static string NormalizeOrDefault(string path)
@@ -46,7 +48,7 @@ namespace Elysium.WorkStation.Services
                     candidate.EndsWith(Path.AltDirectorySeparatorChar) ||
                     Directory.Exists(candidate))
                 {
-                    candidate = Path.Combine(candidate, DefaultDbFileName);
+                    candidate = Path.Combine(candidate, GetDefaultFileName());
                 }
                 else if (!Path.HasExtension(candidate))
                 {
@@ -71,6 +73,16 @@ namespace Elysium.WorkStation.Services
             {
                 // Ignore if provider is not initialized yet.
             }
+        }
+
+        private static string GetDefaultFileName()
+        {
+            return PreferenceScopeProvider.CurrentGroup switch
+            {
+                PreferenceGroup.DebugClient => DebugClientDbFileName,
+                PreferenceGroup.DebugServer => DebugServerDbFileName,
+                _ => ReleaseDbFileName
+            };
         }
     }
 }
