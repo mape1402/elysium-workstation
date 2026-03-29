@@ -72,10 +72,14 @@
                                             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                                                 <Button Grid.Column="0"
                                                         Text="Aceptar"
+                                                        BackgroundColor="{AppThemeBinding Light=#2FA35A, Dark=#2A9A53}"
+                                                        TextColor="White"
                                                         Command="{Binding Source={x:Reference thisPage}, Path=AcceptInviteCommand}"
                                                         CommandParameter="{Binding .}" />
                                                 <Button Grid.Column="1"
                                                         Text="Rechazar"
+                                                        BackgroundColor="{AppThemeBinding Light=#CF3F4D, Dark=#C63A48}"
+                                                        TextColor="White"
                                                         Command="{Binding Source={x:Reference thisPage}, Path=RejectInviteCommand}"
                                                         CommandParameter="{Binding .}" />
                                             </Grid>
@@ -87,56 +91,153 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Padding="14"
-                        StrokeShape="RoundRectangle 12"
-                        Stroke="{AppThemeBinding Light=#C9DBF8, Dark=#425A82}"
-                        BackgroundColor="{AppThemeBinding Light=#F8FBFF, Dark=#1F2B3F}">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="Carpetas sincronizadas" StyleClass="SectionTitle" />
-                        <CollectionView ItemsSource="{Binding Links}">
-                            <CollectionView.ItemsLayout>
-                                <LinearItemsLayout Orientation="Vertical" ItemSpacing="8" />
-                            </CollectionView.ItemsLayout>
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="models:FolderSyncLink">
-                                    <Border Padding="10"
-                                            StrokeShape="RoundRectangle 10"
-                                            Stroke="{AppThemeBinding Light=#D3E0F7, Dark=#4D648D}"
-                                            BackgroundColor="{AppThemeBinding Light=White, Dark=#182338}">
-                                        <VerticalStackLayout Spacing="6">
-                                            <Label Text="{Binding Name}"
-                                                   FontFamily="OpenSansSemibold"
-                                                   FontSize="13" />
-                                            <Label Text="{Binding Description}"
-                                                   FontFamily="OpenSansRegular"
-                                                   FontSize="12"
-                                                   TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
-                                            <Label Text="{Binding LocalFolderPath}"
-                                                   FontFamily="OpenSansRegular"
-                                                   FontSize="11"
-                                                   LineBreakMode="TailTruncation"
-                                                   TextColor="{AppThemeBinding Light=#5F6F8D, Dark=#AABBDD}" />
-                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                                <Label Grid.Column="0"
-                                                       Text="{Binding StatusText}"
-                                                       FontFamily="OpenSansSemibold"
-                                                       FontSize="11" />
-                                                <Label Grid.Column="1"
-                                                       Text="{Binding RoleText}"
-                                                       HorizontalTextAlignment="End"
-                                                       FontFamily="OpenSansSemibold"
-                                                       FontSize="11" />
+                <VerticalStackLayout Spacing="4">
+                    <CollectionView x:Name="LinksCollectionView"
+                                    ItemsSource="{Binding Links}"
+                                    SizeChanged="OnLinksCollectionSizeChanged"
+                                    EmptyView="No hay carpetas sincronizadas.">
+                        <CollectionView.ItemsLayout>
+                            <GridItemsLayout Orientation="Vertical"
+                                             Span="1"
+                                             HorizontalItemSpacing="4"
+                                             VerticalItemSpacing="4" />
+                        </CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:FolderSyncLink">
+                                <Border x:Name="FolderCardBorder"
+                                        WidthRequest="130"
+                                        HeightRequest="130"
+                                        Padding="8"
+                                        StrokeShape="RoundRectangle 6"
+                                        Stroke="{AppThemeBinding Light=#D3E0F7, Dark=#4D648D}"
+                                        BackgroundColor="{AppThemeBinding Light=White, Dark=#182338}">
+                                    <Border.GestureRecognizers>
+                                        <PointerGestureRecognizer
+                                            PointerEntered="OnFolderCardPointerEntered"
+                                            PointerExited="OnFolderCardPointerExited"
+                                            PointerPressed="OnFolderCardPointerPressed"
+                                            PointerReleased="OnFolderCardPointerReleased" />
+                                        <TapGestureRecognizer
+                                            Command="{Binding Source={x:Reference thisPage}, Path=OpenDetailCommand}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    
+                                    <Grid RowDefinitions="Auto, *">
+                                        
+                                        <Button Text="&#xE768;"
+                                                FontFamily="Segoe MDL2 Assets"
+                                                WidthRequest="25"
+                                                HeightRequest="25"
+                                                MinimumHeightRequest="15"
+                                                MinimumWidthRequest="15"
+                                                Padding="0"
+                                                CornerRadius="5"
+                                                FontSize="10"
+                                                HorizontalOptions="Start"
+                                                VerticalOptions="Start"
+                                                Margin="0"
+                                                BorderWidth="0"
+                                                ZIndex="5"
+                                                TextColor="White"
+                                                ToolTipProperties.Text="Iniciar/Detener"
+                                                BackgroundColor="{AppThemeBinding Light=#2FA35A, Dark=#2A9A53}"
+                                                Command="{Binding Source={x:Reference thisPage}, Path=ToggleContinuousCommand}"
+                                                CommandParameter="{Binding .}">
+                                            <Button.Triggers>
+                                                <DataTrigger TargetType="Button"
+                                                             Binding="{Binding ContinuousSyncEnabled}"
+                                                             Value="True">
+                                                    <Setter Property="Text" Value="&#xE71A;" />
+                                                    <Setter Property="BackgroundColor"
+                                                            Value="{AppThemeBinding Light=#D24A4A, Dark=#C44444}" />
+                                                </DataTrigger>
+                                                <DataTrigger TargetType="Button"
+                                                             Binding="{Binding IsAccepted}"
+                                                             Value="False">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="Opacity" Value="0.5" />
+                                                    <Setter Property="BackgroundColor"
+                                                            Value="{AppThemeBinding Light=#AEB7C8, Dark=#7D889E}" />
+                                                </DataTrigger>
+                                            </Button.Triggers>
+                                        </Button>
+
+                                        <Button Text="&#xE74D;"
+                                                FontFamily="Segoe MDL2 Assets"
+                                                WidthRequest="25"
+                                                HeightRequest="25"
+                                                MinimumHeightRequest="15"
+                                                MinimumWidthRequest="15"
+                                                Padding="0"
+                                                CornerRadius="5"
+                                                FontSize="10"
+                                                HorizontalOptions="End"
+                                                VerticalOptions="Start"
+                                                Margin="0"
+                                                BorderWidth="0"
+                                                ZIndex="6"
+                                                AutomationId="FolderCardDeleteButton"
+                                                IsVisible="False"
+                                                ToolTipProperties.Text="Eliminar"
+                                                TextColor="White"
+                                                BackgroundColor="{AppThemeBinding Light=#CF3F4D, Dark=#C63A48}"
+                                                Command="{Binding Source={x:Reference thisPage}, Path=DeleteLinkCommand}"
+                                                CommandParameter="{Binding .}" />
+
+                                        <VerticalStackLayout Spacing="8"
+                                                             HorizontalOptions="Center"
+                                                             VerticalOptions="Center"
+                                                             Grid.Row="1">
+                                            <Grid WidthRequest="66"
+                                                  HeightRequest="52"
+                                                  RowDefinitions="12,*">
+                                                <Border Grid.Row="0"
+                                                        HorizontalOptions="Start"
+                                                        WidthRequest="22"
+                                                        StrokeThickness="0"
+                                                        StrokeShape="RoundRectangle 3,3,0,0"
+                                                        BackgroundColor="{AppThemeBinding Light=#8AC0FF, Dark=#72B4FF}" />
+                                                <Border Grid.Row="1"
+                                                        StrokeThickness="0"
+                                                        StrokeShape="RoundRectangle 6"
+                                                        BackgroundColor="{AppThemeBinding Light=#7AB6FF, Dark=#5EA4F6}" />
                                             </Grid>
-                                            <Button Text="Abrir detalle"
-                                                    Command="{Binding Source={x:Reference thisPage}, Path=OpenDetailCommand}"
-                                                    CommandParameter="{Binding .}" />
+                                            <HorizontalStackLayout Spacing="6"
+                                                                   HorizontalOptions="Center">
+                                                <BoxView WidthRequest="9"
+                                                         HeightRequest="9"
+                                                         CornerRadius="5"
+                                                         Color="{AppThemeBinding Light=#B8C2D6, Dark=#9FAAC2}">
+                                                    <BoxView.Triggers>
+                                                        <DataTrigger TargetType="BoxView"
+                                                                     Binding="{Binding IsAccepted}"
+                                                                     Value="True">
+                                                            <Setter Property="Color"
+                                                                    Value="{AppThemeBinding Light=#F5C542, Dark=#E0B62F}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger TargetType="BoxView"
+                                                                     Binding="{Binding ContinuousSyncEnabled}"
+                                                                     Value="True">
+                                                            <Setter Property="Color"
+                                                                    Value="{AppThemeBinding Light=#2BBE66, Dark=#29B560}" />
+                                                        </DataTrigger>
+                                                    </BoxView.Triggers>
+                                                </BoxView>
+                                                <Label Text="{Binding Name}"
+                                                       FontFamily="OpenSansSemibold"
+                                                       FontSize="12"
+                                                       LineBreakMode="TailTruncation"
+                                                       MaxLines="1"
+                                                       HorizontalTextAlignment="Center"
+                                                       TextColor="{AppThemeBinding Light=#203255, Dark=#DCE8FF}" />
+                                            </HorizontalStackLayout>
                                         </VerticalStackLayout>
-                                    </Border>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
-                    </VerticalStackLayout>
-                </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

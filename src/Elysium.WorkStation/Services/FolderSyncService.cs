@@ -394,6 +394,62 @@ namespace Elysium.WorkStation.Services
             RaiseStateChanged();
         }
 
+        public async Task DeleteSyncAsync(int linkId)
+        {
+            var link = await _repository.GetByIdAsync(linkId);
+            if (link is null)
+            {
+                return;
+            }
+
+            if (link.ContinuousSyncEnabled)
+            {
+                throw new InvalidOperationException("No puedes eliminar una carpeta mientras esta sincronizando. Primero deten la sincronizacion.");
+            }
+
+            if (link.IsEmitter)
+            {
+                await StopEmitterAsync(link, persistSnapshot: false, "Sincronizacion eliminada.");
+            }
+            else
+            {
+                StopWatcher(link.SyncId);
+            }
+
+            lock (_runtimeGate)
+            {
+                _logsBySync.Remove(link.SyncId);
+                _summaryBySync.Remove(link.SyncId);
+
+                if (_sendLocksBySync.TryGetValue(link.SyncId, out var syncLock))
+                {
+                    _sendLocksBySync.Remove(link.SyncId);
+                    syncLock.Dispose();
+                }
+
+                var debounceKeys = _eventDebounce.Keys
+                    .Where(k => k.StartsWith($"{link.SyncId}|", StringComparison.Ordinal))
+                    .ToList();
+                foreach (var key in debounceKeys)
+                {
+                    _eventDebounce.Remove(key);
+                }
+            }
+
+            await _repository.DeleteAsync(linkId);
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                var existing = Links.FirstOrDefault(l => l.Id == linkId);
+                if (existing is not null)
+                {
+                    Links.Remove(existing);
+                }
+            });
+
+            RaiseStateChanged();
+        }
+
         public IReadOnlyList<FolderSyncLogEntry> GetLogs(string syncId)
         {
             lock (_runtimeGate)

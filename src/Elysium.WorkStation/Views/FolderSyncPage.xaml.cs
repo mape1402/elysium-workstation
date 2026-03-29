@@ -6,7 +6,11 @@ namespace Elysium.WorkStation.Views
 {
     public partial class FolderSyncPage : ContentPage
     {
+        private const double FolderCardWidth = 130;
+        private const double FolderCardSpacing = 4;
+
         private readonly IFolderSyncService _folderSyncService;
+        private readonly HashSet<VisualElement> _hoveredCards = [];
 
         public ObservableCollection<FolderSyncLink> Links => _folderSyncService.Links;
         public ObservableCollection<FolderSyncInvite> PendingInvites => _folderSyncService.PendingInvites;
@@ -23,6 +27,8 @@ namespace Elysium.WorkStation.Views
 
         public Command AddSyncCommand { get; }
         public Command<FolderSyncLink> OpenDetailCommand { get; }
+        public Command<FolderSyncLink> ToggleContinuousCommand { get; }
+        public Command<FolderSyncLink> DeleteLinkCommand { get; }
         public Command<FolderSyncInvite> AcceptInviteCommand { get; }
         public Command<FolderSyncInvite> RejectInviteCommand { get; }
 
@@ -66,6 +72,62 @@ namespace Elysium.WorkStation.Views
                 await NavigateToDetailAsync(link.Id);
             });
 
+            ToggleContinuousCommand = new Command<FolderSyncLink>(async link =>
+            {
+                if (link is null)
+                {
+                    return;
+                }
+
+                if (!link.IsAccepted)
+                {
+                    await DisplayAlert("Sincronizacion", "La carpeta aun no esta conectada.", "OK");
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.SetContinuousAsync(link.Id, !link.ContinuousSyncEnabled);
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Sincronizacion", ex.Message, "OK");
+                }
+            });
+
+            DeleteLinkCommand = new Command<FolderSyncLink>(async link =>
+            {
+                if (link is null)
+                {
+                    return;
+                }
+
+                if (link.ContinuousSyncEnabled)
+                {
+                    await DisplayAlert("Sincronizacion", "Primero deten la sincronizacion para poder eliminar la carpeta.", "OK");
+                    return;
+                }
+
+                var confirmed = await DisplayAlert(
+                    "Sincronizacion",
+                    $"Eliminar '{link.Name}'?",
+                    "Eliminar",
+                    "Cancelar");
+                if (!confirmed)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.DeleteSyncAsync(link.Id);
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Sincronizacion", ex.Message, "OK");
+                }
+            });
+
             AcceptInviteCommand = new Command<FolderSyncInvite>(async invite =>
             {
                 if (invite is null) return;
@@ -105,6 +167,7 @@ namespace Elysium.WorkStation.Views
             PendingInvites.CollectionChanged -= PendingInvitesCollectionChanged;
             PendingInvites.CollectionChanged += PendingInvitesCollectionChanged;
             await _folderSyncService.ReloadAsync();
+            UpdateLinksSpan();
             RefreshBindings();
         }
 
@@ -130,6 +193,106 @@ namespace Elysium.WorkStation.Views
         private void PendingInvitesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
             OnPropertyChanged(nameof(HasPendingInvites));
+        }
+
+        private void OnLinksCollectionSizeChanged(object sender, EventArgs e)
+        {
+            UpdateLinksSpan();
+        }
+
+        private void UpdateLinksSpan()
+        {
+            if (LinksCollectionView?.ItemsLayout is not GridItemsLayout grid)
+            {
+                return;
+            }
+
+            var width = LinksCollectionView.Width;
+            if (width <= 0)
+            {
+                return;
+            }
+
+            var span = (int)Math.Floor((width + FolderCardSpacing) / (FolderCardWidth + FolderCardSpacing));
+            span = Math.Max(1, span);
+
+            if (grid.Span != span)
+            {
+                grid.Span = span;
+            }
+        }
+
+        private async void OnFolderCardPointerEntered(object sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement card)
+            {
+                return;
+            }
+
+            _hoveredCards.Add(card);
+            SetDeleteButtonVisibility(card, true);
+            await AnimateCardScaleAsync(card, 1.03, 120, Easing.CubicOut);
+        }
+
+        private async void OnFolderCardPointerExited(object sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement card)
+            {
+                return;
+            }
+
+            _hoveredCards.Remove(card);
+            SetDeleteButtonVisibility(card, false);
+            await AnimateCardScaleAsync(card, 1.0, 120, Easing.CubicOut);
+        }
+
+        private async void OnFolderCardPointerPressed(object sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement card)
+            {
+                return;
+            }
+
+            await AnimateCardScaleAsync(card, 0.97, 80, Easing.CubicInOut);
+        }
+
+        private async void OnFolderCardPointerReleased(object sender, PointerEventArgs e)
+        {
+            if (sender is not VisualElement card)
+            {
+                return;
+            }
+
+            var target = _hoveredCards.Contains(card) ? 1.03 : 1.0;
+            await AnimateCardScaleAsync(card, target, 100, Easing.CubicOut);
+        }
+
+        private static Task AnimateCardScaleAsync(VisualElement card, double scale, uint duration, Easing easing)
+        {
+            card.CancelAnimations();
+            return card.ScaleTo(scale, duration, easing);
+        }
+
+        private static void SetDeleteButtonVisibility(VisualElement card, bool isVisible)
+        {
+            if (card is not Border border || border.Content is not Grid grid)
+            {
+                return;
+            }
+
+            var deleteButton = grid.Children
+                .OfType<Button>()
+                .FirstOrDefault(button => string.Equals(
+                    button.AutomationId,
+                    "FolderCardDeleteButton",
+                    StringComparison.Ordinal));
+
+            if (deleteButton is not null)
+            {
+                var canDelete = deleteButton.BindingContext is FolderSyncLink link
+                    && !link.ContinuousSyncEnabled;
+                deleteButton.IsVisible = isVisible && canDelete;
+            }
         }
 
         private static async Task<string> PickFolderAsync()

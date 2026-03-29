@@ -5,6 +5,7 @@ namespace Elysium.WorkStation.Views
     public partial class FolderSyncEditorPage : ContentPage
     {
         private readonly TaskCompletionSource<FolderSyncEditorResult?> _resultSource = new();
+        private bool _isClosing;
 
         public Task<FolderSyncEditorResult?> ResultTask => _resultSource.Task;
 
@@ -16,7 +17,7 @@ namespace Elysium.WorkStation.Views
 
         protected override void OnDisappearing()
         {
-            if (!_resultSource.Task.IsCompleted)
+            if (!_isClosing && !_resultSource.Task.IsCompleted)
             {
                 _resultSource.TrySetResult(null);
             }
@@ -35,8 +36,7 @@ namespace Elysium.WorkStation.Views
 
         private async void OnCancelClicked(object sender, EventArgs e)
         {
-            _resultSource.TrySetResult(null);
-            await CloseModalAsync();
+            await CompleteAndCloseAsync(null);
         }
 
         private async void OnSaveClicked(object sender, EventArgs e)
@@ -57,8 +57,7 @@ namespace Elysium.WorkStation.Views
                 return;
             }
 
-            _resultSource.TrySetResult(new FolderSyncEditorResult(name, description, folderPath));
-            await CloseModalAsync();
+            await CompleteAndCloseAsync(new FolderSyncEditorResult(name, description, folderPath));
         }
 
         private async Task<string> PickFolderAsync()
@@ -79,12 +78,43 @@ namespace Elysium.WorkStation.Views
 #endif
         }
 
+        private async Task CompleteAndCloseAsync(FolderSyncEditorResult? result)
+        {
+            if (_isClosing)
+            {
+                return;
+            }
+
+            _isClosing = true;
+            try
+            {
+                await CloseModalAsync();
+                _resultSource.TrySetResult(result);
+            }
+            finally
+            {
+                _isClosing = false;
+            }
+        }
+
         private async Task CloseModalAsync()
         {
-            if (Navigation.ModalStack.Contains(this))
+            var navigation =
+                Shell.Current?.Navigation
+                ?? Application.Current?.Windows.FirstOrDefault()?.Page?.Navigation
+                ?? Navigation;
+
+            if (navigation?.ModalStack is null || navigation.ModalStack.Count == 0)
             {
-                await Navigation.PopModalAsync();
+                return;
             }
+
+            if (!navigation.ModalStack.Contains(this))
+            {
+                return;
+            }
+
+            await navigation.PopModalAsync();
         }
     }
 }
