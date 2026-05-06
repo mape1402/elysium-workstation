@@ -31,6 +31,7 @@ namespace Elysium.WorkStation.Views
         }
 
         private readonly IFolderSyncService _folderSyncService;
+        private readonly IToastService _toastService;
         private int _linkId;
         private FolderSyncLink _link;
         private bool _isReloading;
@@ -40,6 +41,7 @@ namespace Elysium.WorkStation.Views
         private bool _isFolderMaximized;
         private string _folderRootPath = string.Empty;
         private string _currentFolderViewPath = string.Empty;
+        private CancellationTokenSource _stateRefreshCts;
 
         public ObservableCollection<string> IgnorePaths { get; } = [];
         public ObservableCollection<FolderSyncLogEntry> Logs { get; } = [];
@@ -198,9 +200,10 @@ namespace Elysium.WorkStation.Views
         public Command ToggleMonitorSectionCommand { get; }
         public Command ToggleFolderMaximizeCommand { get; }
 
-        public FolderSyncDetailPage(IFolderSyncService folderSyncService)
+        public FolderSyncDetailPage(IFolderSyncService folderSyncService, IToastService toastService)
         {
             _folderSyncService = folderSyncService;
+            _toastService = toastService;
 
             OpenFolderCommand = new Command(async () =>
             {
@@ -246,7 +249,35 @@ namespace Elysium.WorkStation.Views
 
                 try
                 {
-                    await _folderSyncService.SetContinuousAsync(_link.Id, !_link.ContinuousSyncEnabled);
+                    var targetEnabled = !_link.ContinuousSyncEnabled;
+                    var starting = targetEnabled;
+                    if (starting)
+                    {
+                        _ = _toastService.ShowAsync("Iniciando sincronizacion, espera...");
+
+                        // Reflect syncing state in emitter UI immediately after user action.
+                        _link.ContinuousSyncEnabled = true;
+                        _link.IsEmitter = true;
+                        OnPropertyChanged(nameof(LinkOverallStatusFillColor));
+                        OnPropertyChanged(nameof(LinkOverallStatusStrokeColor));
+                        OnPropertyChanged(nameof(LinkStatusText));
+                        OnPropertyChanged(nameof(LinkRoleText));
+                        OnPropertyChanged(nameof(ToggleContinuousText));
+                        OnPropertyChanged(nameof(IsContinuousEnabled));
+                        OnPropertyChanged(nameof(IsSyncStopped));
+                        OnPropertyChanged(nameof(CanSwitchRole));
+                        _isMonitorSectionExpanded = true;
+                        _isFolderMaximized = false;
+                        OnPropertyChanged(nameof(ArePrimarySectionsVisible));
+                        OnPropertyChanged(nameof(CanToggleMonitorSection));
+                        OnPropertyChanged(nameof(IsMonitorSectionVisible));
+                        OnPropertyChanged(nameof(IsFolderSectionVisible));
+                        OnPropertyChanged(nameof(FolderMaximizeButtonIcon));
+                        OnPropertyChanged(nameof(ToggleMonitorSectionText));
+                        EnsureValidActiveMonitorTab();
+                    }
+
+                    await _folderSyncService.SetContinuousAsync(_link.Id, targetEnabled);
                     await ReloadLinkAsync(reloadFromRepository: true);
                 }
                 catch (Exception ex)
@@ -420,11 +451,14 @@ namespace Elysium.WorkStation.Views
 
         protected override void OnDisappearing()
         {
+            _stateRefreshCts?.Cancel();
+            _stateRefreshCts?.Dispose();
+            _stateRefreshCts = null;
             _folderSyncService.StateChanged -= OnServiceStateChanged;
             base.OnDisappearing();
         }
 
-        private async Task ReloadLinkAsync(bool reloadFromRepository)
+        private async Task ReloadLinkAsync(bool reloadFromRepository, bool reloadFolderView = true)
         {
             if (_isReloading)
             {
@@ -457,15 +491,18 @@ namespace Elysium.WorkStation.Views
                 }
 
                 _folderRootPath = NormalizeFolderPath(_link.LocalFolderPath);
-                var folderToLoad = _folderRootPath;
-                if (!string.IsNullOrWhiteSpace(previousFolderViewPath) &&
-                    previousFolderViewPath.StartsWith(_folderRootPath, StringComparison.OrdinalIgnoreCase) &&
-                    Directory.Exists(previousFolderViewPath))
+                if (reloadFolderView)
                 {
-                    folderToLoad = previousFolderViewPath;
-                }
+                    var folderToLoad = _folderRootPath;
+                    if (!string.IsNullOrWhiteSpace(previousFolderViewPath) &&
+                        previousFolderViewPath.StartsWith(_folderRootPath, StringComparison.OrdinalIgnoreCase) &&
+                        Directory.Exists(previousFolderViewPath))
+                    {
+                        folderToLoad = previousFolderViewPath;
+                    }
 
-                LoadFolderEntries(folderToLoad);
+                    LoadFolderEntries(folderToLoad);
+                }
 
                 Logs.Clear();
                 foreach (var log in _folderSyncService.GetLogs(_link.SyncId))
@@ -572,20 +609,60 @@ namespace Elysium.WorkStation.Views
 
         private void OnServiceStateChanged(object sender, EventArgs e)
         {
-            MainThread.BeginInvokeOnMainThread(async () =>
+            var latest = _folderSyncService.Links.FirstOrDefault(item => item.Id == _linkId);
+            var hadLink = _link is not null;
+            var stateChanged = hadLink &&
+                latest is not null &&
+                (_link.ContinuousSyncEnabled != latest.ContinuousSyncEnabled || _link.IsEmitter != latest.IsEmitter);
+
+            if (stateChanged)
             {
-                if (_link is null)
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    if (_suppressNextStateReload)
+                    {
+                        _suppressNextStateReload = false;
+                        return;
+                    }
+
+                    // Immediate visual state transition (start/stop, emitter/receptor).
+                    await ReloadLinkAsync(reloadFromRepository: false, reloadFolderView: false);
+                });
+                return;
+            }
+
+            _stateRefreshCts?.Cancel();
+            _stateRefreshCts?.Dispose();
+            _stateRefreshCts = new CancellationTokenSource();
+            var token = _stateRefreshCts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Coalesce high-frequency receiver events to avoid main-thread stalls.
+                    await Task.Delay(300, token);
+                }
+                catch (TaskCanceledException)
                 {
                     return;
                 }
 
-                if (_suppressNextStateReload)
+                MainThread.BeginInvokeOnMainThread(async () =>
                 {
-                    _suppressNextStateReload = false;
-                    return;
-                }
+                    if (_link is null)
+                    {
+                        return;
+                    }
 
-                await ReloadLinkAsync(reloadFromRepository: false);
+                    if (_suppressNextStateReload)
+                    {
+                        _suppressNextStateReload = false;
+                        return;
+                    }
+
+                    await ReloadLinkAsync(reloadFromRepository: false, reloadFolderView: false);
+                });
             });
         }
 

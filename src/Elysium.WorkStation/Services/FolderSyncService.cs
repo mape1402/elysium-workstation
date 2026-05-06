@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 using Elysium.WorkStation.Models;
 using Microsoft.AspNetCore.SignalR.Client;
 
@@ -29,10 +30,13 @@ namespace Elysium.WorkStation.Services
 
         private HubConnection _connection;
         private CancellationTokenSource _startRetryCts;
+        private int _raiseStateScheduled;
         private string _baseUrl = string.Empty;
         private readonly string _clientName;
         private string ClientId => GetOrCreateClientId();
         private static readonly TimeSpan WatcherDrainInterval = TimeSpan.FromMilliseconds(225);
+        private const int InitialSyncBatchSize = 48;
+        private static readonly TimeSpan InitialSyncBatchPause = TimeSpan.FromMilliseconds(35);
 
         public ObservableCollection<FolderSyncLink> Links { get; } = [];
         public ObservableCollection<FolderSyncInvite> PendingInvites { get; } = [];
@@ -308,6 +312,17 @@ namespace Elysium.WorkStation.Services
 
         public async Task SetContinuousAsync(int linkId, bool enabled)
         {
+            FolderSyncLink inMemoryLink = null;
+            if (enabled)
+            {
+                inMemoryLink = Links.FirstOrDefault(l => l.Id == linkId);
+                if (inMemoryLink is not null && inMemoryLink.IsAccepted)
+                {
+                    // Critical UX requirement: notify receiver immediately on click, before any heavy local work.
+                    await BroadcastFolderSyncStateAsync(inMemoryLink.SyncId, enabled: true, emitterClientId: ClientId);
+                }
+            }
+
             var link = await _repository.GetByIdAsync(linkId);
             if (link is null)
             {
@@ -321,14 +336,30 @@ namespace Elysium.WorkStation.Services
 
             if (enabled)
             {
+                if (inMemoryLink is null || !string.Equals(inMemoryLink.SyncId, link.SyncId, StringComparison.Ordinal))
+                {
+                    await BroadcastFolderSyncStateAsync(link.SyncId, enabled: true, emitterClientId: ClientId);
+                }
+
                 ResetRuntime(link.SyncId);
                 link.ContinuousSyncEnabled = true;
                 link.IsEmitter = true;
                 link = await _repository.SaveAsync(link);
                 await UpsertLinkInMemoryAsync(link);
 
-                await StartEmitterAsync(link, "Sincronizacion continua iniciada.");
-                await BroadcastFolderSyncStateAsync(link.SyncId, enabled: true, emitterClientId: ClientId);
+                try
+                {
+                    await StartEmitterAsync(link, "Sincronizacion continua iniciada.");
+                }
+                catch
+                {
+                    link.ContinuousSyncEnabled = false;
+                    link.IsEmitter = false;
+                    link = await _repository.SaveAsync(link);
+                    await UpsertLinkInMemoryAsync(link);
+                    await BroadcastFolderSyncStateAsync(link.SyncId, enabled: false, emitterClientId: string.Empty);
+                    throw;
+                }
             }
             else
             {
@@ -725,7 +756,7 @@ namespace Elysium.WorkStation.Services
                 link.IsEmitter = false;
                 link = await _repository.SaveAsync(link);
                 await UpsertLinkInMemoryAsync(link);
-                RaiseStateChanged();
+                RaiseStateChangedImmediate();
                 return;
             }
 
@@ -745,7 +776,7 @@ namespace Elysium.WorkStation.Services
                 AddLog(syncId, "role-receiver", string.Empty, "Este cliente ahora es receptor.", isOutgoing: false);
             }
 
-            RaiseStateChanged();
+            RaiseStateChangedImmediate();
         }
 
         private async Task HandleFolderSyncUnlinkedAsync(string syncId, string changedByClientId)
@@ -818,12 +849,21 @@ namespace Elysium.WorkStation.Services
 
             if (string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase))
             {
-                DeleteLocalFile(link.LocalFolderPath, normalizedRelative);
-                await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "delete", fileHash: string.Empty);
-                AddLog(syncId, "delete-recv", normalizedRelative, $"Recibido delete: {normalizedRelative}", isOutgoing: false);
-                AddSummary(syncId, normalizedRelative, action: "delete", isOutgoing: false);
-                RaiseStateChanged();
-                return;
+                var syncLock = GetSyncLock(syncId);
+                await syncLock.WaitAsync();
+                try
+                {
+                    DeleteLocalFile(link.LocalFolderPath, normalizedRelative);
+                    await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "delete", fileHash: string.Empty);
+                    AddLog(syncId, "delete-recv", normalizedRelative, $"Recibido delete: {normalizedRelative}", isOutgoing: false);
+                    AddSummary(syncId, normalizedRelative, action: "delete", isOutgoing: false);
+                    RaiseStateChanged();
+                    return;
+                }
+                finally
+                {
+                    syncLock.Release();
+                }
             }
 
             if (string.IsNullOrWhiteSpace(uploadId))
@@ -831,24 +871,33 @@ namespace Elysium.WorkStation.Services
                 return;
             }
 
-            var destinationPath = BuildSafeDestinationPath(link.LocalFolderPath, normalizedRelative);
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            var receiveLock = GetSyncLock(syncId);
+            await receiveLock.WaitAsync();
+            try
+            {
+                var destinationPath = BuildSafeDestinationPath(link.LocalFolderPath, normalizedRelative);
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
-            using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
-            using var response = await client.GetAsync(
-                $"{_baseUrl}/api/folder-sync/download/{syncId}/{uploadId}",
-                HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
+                using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
+                using var response = await client.GetAsync(
+                    $"{_baseUrl}/api/folder-sync/download/{syncId}/{uploadId}",
+                    HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
 
-            await using var source = await response.Content.ReadAsStreamAsync();
-            await using var destination = File.Create(destinationPath);
-            await source.CopyToAsync(destination);
-            await destination.FlushAsync();
+                await using var source = await response.Content.ReadAsStreamAsync();
+                await using var destination = File.Create(destinationPath);
+                await source.CopyToAsync(destination);
+                await destination.FlushAsync();
 
-            await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "upsert", fileHash: fileHash);
-            AddLog(syncId, "upsert-recv", normalizedRelative, $"Recibido update: {normalizedRelative} ({FormatSize(fileSize)}).", isOutgoing: false);
-            AddSummary(syncId, normalizedRelative, action: "upsert", isOutgoing: false);
-            RaiseStateChanged();
+                await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "upsert", fileHash: fileHash);
+                AddLog(syncId, "upsert-recv", normalizedRelative, $"Recibido update: {normalizedRelative} ({FormatSize(fileSize)}).", isOutgoing: false);
+                AddSummary(syncId, normalizedRelative, action: "upsert", isOutgoing: false);
+                RaiseStateChanged();
+            }
+            finally
+            {
+                receiveLock.Release();
+            }
         }
 
         private async Task StartEmitterAsync(FolderSyncLink link, string reason)
@@ -888,33 +937,60 @@ namespace Elysium.WorkStation.Services
             var ignorePaths = GetIgnorePaths(link);
             var currentSnapshot = await BuildSnapshotAsync(link.LocalFolderPath, ignorePaths);
             var previousSnapshot = DeserializeSnapshot(link.LastSnapshotJson);
-
-            var syncLock = GetSyncLock(link.SyncId);
-            await syncLock.WaitAsync();
-            try
+            var pendingUpserts = new List<(string RelativePath, string Hash)>();
+            foreach (var (relativePath, hash) in currentSnapshot)
             {
-                foreach (var (relativePath, hash) in currentSnapshot)
+                if (!previousSnapshot.TryGetValue(relativePath, out var previousHash) ||
+                    !string.Equals(previousHash, hash, StringComparison.Ordinal))
                 {
-                    if (!previousSnapshot.TryGetValue(relativePath, out var previousHash) ||
-                        !string.Equals(previousHash, hash, StringComparison.Ordinal))
-                    {
-                        var fullPath = Path.Combine(link.LocalFolderPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-                        await SendUpsertAsync(link, relativePath, fullPath, hash);
-                    }
-                }
-
-                foreach (var previousPath in previousSnapshot.Keys)
-                {
-                    if (!currentSnapshot.ContainsKey(previousPath))
-                    {
-                        await SendDeleteAsync(link, previousPath);
-                    }
+                    pendingUpserts.Add((relativePath, hash));
                 }
             }
-            finally
+
+            var pendingDeletes = previousSnapshot.Keys
+                .Where(previousPath => !currentSnapshot.ContainsKey(previousPath))
+                .ToList();
+
+            var totalOperations = pendingUpserts.Count + pendingDeletes.Count;
+            if (totalOperations == 0)
             {
-                syncLock.Release();
+                AddLog(link.SyncId, "bootstrap-noop", string.Empty, "Sin cambios pendientes en arranque.", isOutgoing: true);
+                return;
             }
+
+            AddLog(link.SyncId, "bootstrap-start", string.Empty, $"Preparando {totalOperations} cambio(s) inicial(es)...", isOutgoing: true);
+
+            var processed = 0;
+            for (var index = 0; index < pendingUpserts.Count; index++)
+            {
+                var (relativePath, hash) = pendingUpserts[index];
+                var fullPath = Path.Combine(link.LocalFolderPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                await SendUpsertAsync(link, relativePath, fullPath, hash, raiseStateChanged: false);
+                processed++;
+
+                if (processed % InitialSyncBatchSize == 0)
+                {
+                    AddLog(link.SyncId, "bootstrap-progress", string.Empty, $"Inicializando sincronizacion... {processed}/{totalOperations}", isOutgoing: true);
+                    RaiseStateChanged();
+                    await Task.Delay(InitialSyncBatchPause);
+                }
+            }
+
+            for (var index = 0; index < pendingDeletes.Count; index++)
+            {
+                await SendDeleteAsync(link, pendingDeletes[index], raiseStateChanged: false);
+                processed++;
+
+                if (processed % InitialSyncBatchSize == 0)
+                {
+                    AddLog(link.SyncId, "bootstrap-progress", string.Empty, $"Inicializando sincronizacion... {processed}/{totalOperations}", isOutgoing: true);
+                    RaiseStateChanged();
+                    await Task.Delay(InitialSyncBatchPause);
+                }
+            }
+
+            AddLog(link.SyncId, "bootstrap-done", string.Empty, $"Sincronizacion inicial lista ({processed} cambio(s)).", isOutgoing: true);
+            RaiseStateChanged();
         }
 
         private void StartWatcher(FolderSyncLink link)
@@ -1143,17 +1219,7 @@ namespace Elysium.WorkStation.Services
                     return;
                 }
 
-                string hash;
-                try
-                {
-                    hash = await ComputeFileHashAsync(fullPath);
-                }
-                catch
-                {
-                    return;
-                }
-
-                await SendUpsertAsync(link, relativePath, fullPath, hash);
+                await SendUpsertAsync(link, relativePath, fullPath, string.Empty);
             }
             finally
             {
@@ -1178,7 +1244,7 @@ namespace Elysium.WorkStation.Services
             await HandleWatcherChangedAsync(syncId, WatcherChangeTypes.Created, newPath);
         }
 
-        private async Task SendUpsertAsync(FolderSyncLink link, string relativePath, string fullPath, string hash)
+        private async Task SendUpsertAsync(FolderSyncLink link, string relativePath, string fullPath, string hash, bool raiseStateChanged = true)
         {
             if (_connection?.State != HubConnectionState.Connected)
             {
@@ -1200,10 +1266,13 @@ namespace Elysium.WorkStation.Services
 
             AddLog(link.SyncId, "upsert-send", relativePath, $"Enviado update: {relativePath} ({FormatSize(fileSize)}).", isOutgoing: true);
             AddSummary(link.SyncId, relativePath, action: "upsert", isOutgoing: true);
-            RaiseStateChanged();
+            if (raiseStateChanged)
+            {
+                RaiseStateChanged();
+            }
         }
 
-        private async Task SendDeleteAsync(FolderSyncLink link, string relativePath)
+        private async Task SendDeleteAsync(FolderSyncLink link, string relativePath, bool raiseStateChanged = true)
         {
             if (_connection?.State != HubConnectionState.Connected)
             {
@@ -1222,7 +1291,10 @@ namespace Elysium.WorkStation.Services
 
             AddLog(link.SyncId, "delete-send", relativePath, $"Enviado delete: {relativePath}.", isOutgoing: true);
             AddSummary(link.SyncId, relativePath, action: "delete", isOutgoing: true);
-            RaiseStateChanged();
+            if (raiseStateChanged)
+            {
+                RaiseStateChanged();
+            }
         }
 
         private async Task<string> UploadFileForSyncAsync(string syncId, string relativePath, string fullPath)
@@ -1289,7 +1361,7 @@ namespace Elysium.WorkStation.Services
 
                 try
                 {
-                    result[relativePath] = await ComputeFileHashAsync(file);
+                    result[relativePath] = ComputeFileFingerprint(file);
                 }
                 catch
                 {
@@ -1338,6 +1410,12 @@ namespace Elysium.WorkStation.Services
             await using var stream = File.OpenRead(filePath);
             var hash = await sha.ComputeHashAsync(stream);
             return Convert.ToHexString(hash);
+        }
+
+        private static string ComputeFileFingerprint(string filePath)
+        {
+            var info = new FileInfo(filePath);
+            return $"{info.Length}:{info.LastWriteTimeUtc.Ticks}";
         }
 
         private static string TryGetRelativePath(string rootFolderPath, string fullPath)
@@ -1479,28 +1557,28 @@ namespace Elysium.WorkStation.Services
                 return;
             }
 
-            try
+            await _connection.SendAsync(
+                "AnnounceFolderSyncState",
+                syncId,
+                enabled,
+                emitterClientId ?? string.Empty,
+                ClientId);
+        }
+
+        private void FireAndForgetFolderSyncStateSignal(string syncId, bool enabled, string emitterClientId)
+        {
+            if (string.IsNullOrWhiteSpace(syncId))
             {
-                await _connection.InvokeAsync(
-                    "AnnounceFolderSyncState",
-                    syncId,
-                    enabled,
-                    emitterClientId ?? string.Empty,
-                    ClientId);
+                return;
             }
-            catch (Exception ex) when (IsMethodMissingHubError(ex))
-            {
-                await _connection.InvokeAsync(
-                    "Broadcast",
-                    "ReceiveFolderSyncStatePayload",
-                    new
+
+            _ = BroadcastFolderSyncStateAsync(syncId, enabled, emitterClientId)
+                .ContinueWith(
+                    static _ =>
                     {
-                        SyncId = syncId,
-                        Enabled = enabled,
-                        EmitterClientId = emitterClientId ?? string.Empty,
-                        ChangedByClientId = ClientId
-                    });
-            }
+                        // Non-blocking signal path; state will reconcile through subsequent sync events.
+                    },
+                    TaskContinuationOptions.OnlyOnFaulted);
         }
 
         private async Task RebroadcastActiveSyncStatesAsync()
@@ -1591,51 +1669,41 @@ namespace Elysium.WorkStation.Services
                 return;
             }
 
-            var syncLock = GetSyncLock(link.SyncId);
-            await syncLock.WaitAsync();
-            try
-            {
-                var current = await _repository.GetByIdAsync(link.Id) ?? link;
-                var snapshot = DeserializeSnapshot(current.LastSnapshotJson);
+            var current = await _repository.GetByIdAsync(link.Id) ?? link;
+            var snapshot = DeserializeSnapshot(current.LastSnapshotJson);
 
-                if (string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase))
+            {
+                snapshot.Remove(relativePath);
+            }
+            else
+            {
+                var resolvedHash = fileHash;
+                if (string.IsNullOrWhiteSpace(resolvedHash))
                 {
-                    snapshot.Remove(relativePath);
-                }
-                else
-                {
-                    var resolvedHash = fileHash;
-                    if (string.IsNullOrWhiteSpace(resolvedHash))
+                    var fullPath = BuildSafeDestinationPath(current.LocalFolderPath, relativePath);
+                    if (File.Exists(fullPath))
                     {
-                        var fullPath = BuildSafeDestinationPath(current.LocalFolderPath, relativePath);
-                        if (File.Exists(fullPath))
+                        try
                         {
-                            try
-                            {
-                                resolvedHash = await ComputeFileHashAsync(fullPath);
-                            }
-                            catch
-                            {
-                                resolvedHash = string.Empty;
-                            }
+                            resolvedHash = await ComputeFileHashAsync(fullPath);
+                        }
+                        catch
+                        {
+                            resolvedHash = string.Empty;
                         }
                     }
-
-                    if (!string.IsNullOrWhiteSpace(resolvedHash))
-                    {
-                        snapshot[relativePath] = resolvedHash;
-                    }
                 }
 
-                current.LastSnapshotJson = JsonSerializer.Serialize(snapshot);
-                current.LastStateHash = ComputeStateHash(snapshot);
-                current = await _repository.SaveAsync(current);
-                await UpsertLinkInMemoryAsync(current);
+                if (!string.IsNullOrWhiteSpace(resolvedHash))
+                {
+                    snapshot[relativePath] = resolvedHash;
+                }
             }
-            finally
-            {
-                syncLock.Release();
-            }
+
+            current.LastSnapshotJson = JsonSerializer.Serialize(snapshot);
+            current.LastStateHash = ComputeStateHash(snapshot);
+            await _repository.SaveAsync(current);
         }
 
         private async Task SendFolderSyncInviteResponseAsync(string inviteId, string syncId, bool accepted)
@@ -1851,6 +1919,32 @@ namespace Elysium.WorkStation.Services
 
         private void RaiseStateChanged()
         {
+            if (Interlocked.Exchange(ref _raiseStateScheduled, 1) == 1)
+            {
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(120);
+                }
+                catch
+                {
+                    // ignore
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _raiseStateScheduled, 0);
+                    MainThread.BeginInvokeOnMainThread(() => StateChanged?.Invoke(this, EventArgs.Empty));
+                }
+            });
+        }
+
+        private void RaiseStateChangedImmediate()
+        {
+            Interlocked.Exchange(ref _raiseStateScheduled, 0);
             MainThread.BeginInvokeOnMainThread(() => StateChanged?.Invoke(this, EventArgs.Empty));
         }
 

@@ -3,6 +3,7 @@ using Microsoft.Maui.Storage;
 using Elysium.WorkStation.Models;
 using Elysium.WorkStation.Services;
 using Elysium.WorkStation.Views;
+using System.Reflection;
 
 namespace Elysium.WorkStation
 {
@@ -59,7 +60,7 @@ namespace Elysium.WorkStation
             _ => "Detectando..."
         };
 
-        public string AppProductVersionText => $"MyWorkStation v{AppInfo.Current.VersionString}";
+        public string AppProductVersionText => $"MyWorkStation v{ResolveAppVersion()}";
         public string AppPoweredByText => "Powered by Elysium Coding";
 
         public Color AppModeColor => _roleService.CurrentRole switch
@@ -201,6 +202,22 @@ namespace Elysium.WorkStation
             }
 
             return DefaultProfileImageSource;
+        }
+
+        private static string ResolveAppVersion()
+        {
+            var assembly = typeof(AppShell).Assembly;
+            var info = assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion;
+
+            if (!string.IsNullOrWhiteSpace(info))
+            {
+                var plusIndex = info.IndexOf('+');
+                return plusIndex > 0 ? info[..plusIndex] : info;
+            }
+
+            return assembly.GetName().Version?.ToString() ?? "0.0.0";
         }
     }
 }
