@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -23,12 +24,15 @@ namespace Elysium.WorkStation.Services
         private readonly Dictionary<string, FileSystemWatcher> _watchersBySync = [];
         private readonly Dictionary<string, SemaphoreSlim> _sendLocksBySync = [];
         private readonly Dictionary<string, DateTime> _eventDebounce = [];
+        private readonly Dictionary<string, ConcurrentDictionary<string, WatcherEventState>> _pendingWatcherEventsBySync = [];
+        private readonly Dictionary<string, CancellationTokenSource> _watcherProcessingCtsBySync = [];
 
         private HubConnection _connection;
         private CancellationTokenSource _startRetryCts;
         private string _baseUrl = string.Empty;
         private readonly string _clientName;
         private string ClientId => GetOrCreateClientId();
+        private static readonly TimeSpan WatcherDrainInterval = TimeSpan.FromMilliseconds(225);
 
         public ObservableCollection<FolderSyncLink> Links { get; } = [];
         public ObservableCollection<FolderSyncInvite> PendingInvites { get; } = [];
@@ -73,8 +77,9 @@ namespace Elysium.WorkStation.Services
                 RaiseStateChanged();
                 return Task.CompletedTask;
             };
-            _connection.Reconnected += _ =>
+            _connection.Reconnected += connectionId =>
             {
+                _ = RebroadcastActiveSyncStatesAsync();
                 RaiseStateChanged();
                 return Task.CompletedTask;
             };
@@ -118,6 +123,14 @@ namespace Elysium.WorkStation.Services
                     watcher.Dispose();
                 }
                 _watchersBySync.Clear();
+
+                foreach (var cts in _watcherProcessingCtsBySync.Values)
+                {
+                    cts.Cancel();
+                    cts.Dispose();
+                }
+                _watcherProcessingCtsBySync.Clear();
+                _pendingWatcherEventsBySync.Clear();
             }
 
             if (_connection is null)
@@ -439,6 +452,14 @@ namespace Elysium.WorkStation.Services
                 {
                     _eventDebounce.Remove(key);
                 }
+
+                if (_watcherProcessingCtsBySync.TryGetValue(link.SyncId, out var processingCts))
+                {
+                    _watcherProcessingCtsBySync.Remove(link.SyncId);
+                    processingCts.Cancel();
+                    processingCts.Dispose();
+                }
+                _pendingWatcherEventsBySync.Remove(link.SyncId);
             }
 
             await _repository.DeleteAsync(linkId);
@@ -550,6 +571,15 @@ namespace Elysium.WorkStation.Services
                 "ReceiveFolderSyncState",
                 (syncId, enabled, emitterClientId, changedByClientId) =>
                     _ = HandleFolderSyncStateAsync(syncId, enabled, emitterClientId, changedByClientId));
+
+            connection.On<JsonElement>(
+                "ReceiveFolderSyncStatePayload",
+                payload =>
+                    _ = HandleFolderSyncStateAsync(
+                        ReadString(payload, "SyncId"),
+                        ReadBool(payload, "Enabled"),
+                        ReadString(payload, "EmitterClientId"),
+                        ReadString(payload, "ChangedByClientId")));
 
             connection.On<string, string>(
                 "ReceiveFolderSyncUnlinked",
@@ -892,18 +922,29 @@ namespace Elysium.WorkStation.Services
             var watcher = new FileSystemWatcher(link.LocalFolderPath)
             {
                 IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite,
+                InternalBufferSize = 64 * 1024
             };
 
-            watcher.Created += (_, e) => _ = HandleWatcherChangedAsync(link.SyncId, WatcherChangeTypes.Created, e.FullPath);
-            watcher.Changed += (_, e) => _ = HandleWatcherChangedAsync(link.SyncId, WatcherChangeTypes.Changed, e.FullPath);
-            watcher.Deleted += (_, e) => _ = HandleWatcherChangedAsync(link.SyncId, WatcherChangeTypes.Deleted, e.FullPath);
-            watcher.Renamed += (_, e) => _ = HandleWatcherRenamedAsync(link.SyncId, e.OldFullPath, e.FullPath);
+            watcher.Created += (_, e) => EnqueueWatcherEvent(link.SyncId, WatcherChangeTypes.Created, e.FullPath);
+            watcher.Changed += (_, e) => EnqueueWatcherEvent(link.SyncId, WatcherChangeTypes.Changed, e.FullPath);
+            watcher.Deleted += (_, e) => EnqueueWatcherEvent(link.SyncId, WatcherChangeTypes.Deleted, e.FullPath);
+            watcher.Renamed += (_, e) =>
+            {
+                EnqueueWatcherEvent(link.SyncId, WatcherChangeTypes.Deleted, e.OldFullPath);
+                EnqueueWatcherEvent(link.SyncId, WatcherChangeTypes.Created, e.FullPath);
+            };
+            watcher.Error += (_, e) => _ = HandleWatcherErrorAsync(link.SyncId, e.GetException());
             watcher.EnableRaisingEvents = true;
 
             lock (_runtimeGate)
             {
                 _watchersBySync[link.SyncId] = watcher;
+                if (!_pendingWatcherEventsBySync.ContainsKey(link.SyncId))
+                {
+                    _pendingWatcherEventsBySync[link.SyncId] = new ConcurrentDictionary<string, WatcherEventState>(StringComparer.OrdinalIgnoreCase);
+                }
+                EnsureWatcherProcessor(link.SyncId);
             }
         }
 
@@ -919,7 +960,142 @@ namespace Elysium.WorkStation.Services
                 watcher.EnableRaisingEvents = false;
                 watcher.Dispose();
                 _watchersBySync.Remove(syncId);
+
+                if (_watcherProcessingCtsBySync.TryGetValue(syncId, out var cts))
+                {
+                    _watcherProcessingCtsBySync.Remove(syncId);
+                    cts.Cancel();
+                    cts.Dispose();
+                }
+
+                _pendingWatcherEventsBySync.Remove(syncId);
             }
+        }
+
+        private void EnqueueWatcherEvent(string syncId, WatcherChangeTypes changeType, string fullPath)
+        {
+            if (string.IsNullOrWhiteSpace(syncId) || string.IsNullOrWhiteSpace(fullPath))
+            {
+                return;
+            }
+
+            lock (_runtimeGate)
+            {
+                if (!_pendingWatcherEventsBySync.TryGetValue(syncId, out var queue))
+                {
+                    queue = new ConcurrentDictionary<string, WatcherEventState>(StringComparer.OrdinalIgnoreCase);
+                    _pendingWatcherEventsBySync[syncId] = queue;
+                }
+
+                queue.AddOrUpdate(
+                    fullPath,
+                    _ => new WatcherEventState(changeType, DateTime.UtcNow),
+                    (_, previous) => new WatcherEventState(CoalesceWatcherChange(previous.ChangeType, changeType), DateTime.UtcNow));
+
+                EnsureWatcherProcessor(syncId);
+            }
+        }
+
+        private void EnsureWatcherProcessor(string syncId)
+        {
+            if (_watcherProcessingCtsBySync.ContainsKey(syncId))
+            {
+                return;
+            }
+
+            var cts = new CancellationTokenSource();
+            _watcherProcessingCtsBySync[syncId] = cts;
+            _ = Task.Run(() => ProcessWatcherQueueAsync(syncId, cts.Token));
+        }
+
+        private async Task ProcessWatcherQueueAsync(string syncId, CancellationToken token)
+        {
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    await Task.Delay(WatcherDrainInterval, token);
+
+                    ConcurrentDictionary<string, WatcherEventState> queue;
+                    lock (_runtimeGate)
+                    {
+                        if (!_pendingWatcherEventsBySync.TryGetValue(syncId, out queue))
+                        {
+                            return;
+                        }
+                    }
+
+                    var now = DateTime.UtcNow;
+                    var candidates = queue
+                        .Where(item => now - item.Value.LastSeenUtc >= WatcherDrainInterval)
+                        .ToList();
+
+                    if (candidates.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    foreach (var item in candidates)
+                    {
+                        if (!queue.TryRemove(item.Key, out var state))
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            await HandleWatcherChangedAsync(syncId, state.ChangeType, item.Key);
+                        }
+                        catch (Exception ex)
+                        {
+                            AddLog(syncId, "watcher-error", string.Empty, $"Error procesando evento local: {ex.Message}", isOutgoing: true);
+                        }
+                    }
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                // expected on shutdown
+            }
+        }
+
+        private async Task HandleWatcherErrorAsync(string syncId, Exception ex)
+        {
+            var link = await _repository.GetBySyncIdAsync(syncId);
+            if (link is null || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            {
+                return;
+            }
+
+            var reason = ex is InternalBufferOverflowException
+                ? "Watcher saturado. Reindexando y reanudando sincronizacion."
+                : $"Watcher reiniciado por error: {ex?.Message}";
+
+            AddLog(syncId, "watcher-recover", string.Empty, reason, isOutgoing: true);
+
+            try
+            {
+                await StartEmitterAsync(link, reason);
+            }
+            catch (Exception restartEx)
+            {
+                AddLog(syncId, "watcher-recover-failed", string.Empty, $"No se pudo reiniciar watcher: {restartEx.Message}", isOutgoing: true);
+            }
+        }
+
+        private static WatcherChangeTypes CoalesceWatcherChange(WatcherChangeTypes previous, WatcherChangeTypes next)
+        {
+            if (next == WatcherChangeTypes.Deleted || previous == WatcherChangeTypes.Deleted)
+            {
+                return WatcherChangeTypes.Deleted;
+            }
+
+            if (next == WatcherChangeTypes.Created || previous == WatcherChangeTypes.Created)
+            {
+                return WatcherChangeTypes.Created;
+            }
+
+            return WatcherChangeTypes.Changed;
         }
 
         private async Task HandleWatcherChangedAsync(string syncId, WatcherChangeTypes changeType, string fullPath)
@@ -1103,8 +1279,7 @@ namespace Elysium.WorkStation.Services
                 return result;
             }
 
-            var files = Directory.GetFiles(rootFolderPath, "*", SearchOption.AllDirectories);
-            foreach (var file in files)
+            foreach (var file in Directory.EnumerateFiles(rootFolderPath, "*", SearchOption.AllDirectories))
             {
                 var relativePath = TryGetRelativePath(rootFolderPath, file);
                 if (string.IsNullOrWhiteSpace(relativePath) || IsIgnored(relativePath, ignorePaths))
@@ -1304,12 +1479,43 @@ namespace Elysium.WorkStation.Services
                 return;
             }
 
-            await _connection.InvokeAsync(
-                "AnnounceFolderSyncState",
-                syncId,
-                enabled,
-                emitterClientId ?? string.Empty,
-                ClientId);
+            try
+            {
+                await _connection.InvokeAsync(
+                    "AnnounceFolderSyncState",
+                    syncId,
+                    enabled,
+                    emitterClientId ?? string.Empty,
+                    ClientId);
+            }
+            catch (Exception ex) when (IsMethodMissingHubError(ex))
+            {
+                await _connection.InvokeAsync(
+                    "Broadcast",
+                    "ReceiveFolderSyncStatePayload",
+                    new
+                    {
+                        SyncId = syncId,
+                        Enabled = enabled,
+                        EmitterClientId = emitterClientId ?? string.Empty,
+                        ChangedByClientId = ClientId
+                    });
+            }
+        }
+
+        private async Task RebroadcastActiveSyncStatesAsync()
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            var activeLinks = await _repository.GetAllAsync();
+            foreach (var link in activeLinks.Where(l => l.IsAccepted && l.ContinuousSyncEnabled))
+            {
+                var emitterClientId = link.IsEmitter ? ClientId : link.RemoteClientId;
+                await BroadcastFolderSyncStateAsync(link.SyncId, enabled: true, emitterClientId);
+            }
         }
 
         private async Task BroadcastFolderSyncUnlinkedAsync(string syncId)
@@ -1648,6 +1854,7 @@ namespace Elysium.WorkStation.Services
             MainThread.BeginInvokeOnMainThread(() => StateChanged?.Invoke(this, EventArgs.Empty));
         }
 
+        private sealed record WatcherEventState(WatcherChangeTypes ChangeType, DateTime LastSeenUtc);
         private sealed record FolderSyncUploadResponse(string UploadId, long FileSize);
     }
 }
