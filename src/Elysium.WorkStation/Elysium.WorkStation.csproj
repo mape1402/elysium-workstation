@@ -17,8 +17,8 @@
 		<ApplicationId>com.elysiumcoding.myworkstation</ApplicationId>
 
 		<!-- Versions -->
-    <ApplicationDisplayVersion>2.1.0</ApplicationDisplayVersion>
-    <ApplicationVersion>21000</ApplicationVersion>
+    <ApplicationDisplayVersion>2.1.1</ApplicationDisplayVersion>
+    <ApplicationVersion>21100</ApplicationVersion>
 
 		<!-- Assembly / package metadata -->
 		<AssemblyName>MyWorkStation</AssemblyName>
@@ -26,12 +26,12 @@
 		<Product>MyWorkStation</Product>
 		<Company>Elysium Coding</Company>
 		<Authors>Elysium Coding</Authors>
-    <Version>2.1.0</Version>
-    <AssemblyVersion>2.1.0.0</AssemblyVersion>
-    <FileVersion>2.1.0.0</FileVersion>
-    <InformationalVersion>2.1.0</InformationalVersion>
+    <Version>2.1.1</Version>
+    <AssemblyVersion>2.1.1.0</AssemblyVersion>
+    <FileVersion>2.1.1.0</FileVersion>
+    <InformationalVersion>2.1.1</InformationalVersion>
 		<PackageId>MyWorkStation</PackageId>
-    <PackageVersion>2.1.0</PackageVersion>
+    <PackageVersion>2.1.1</PackageVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
 		<WindowsPackageType>None</WindowsPackageType>
