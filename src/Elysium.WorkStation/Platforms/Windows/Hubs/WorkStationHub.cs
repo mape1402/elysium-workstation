@@ -87,5 +87,71 @@ namespace Elysium.WorkStation.Hubs
                 "ReceiveFolderSyncUnlinked",
                 syncId,
                 changedByClientId);
+
+        public async Task SendRemoteCommand(
+            string requestId,
+            string syncId,
+            string senderClientId,
+            string tool,
+            string action,
+            string argsJson)
+            => await Clients.Others.SendAsync(
+                "ReceiveRemoteCommand",
+                requestId,
+                syncId,
+                senderClientId,
+                tool,
+                action,
+                argsJson);
+
+        public async Task SendRemoteCommandResult(
+            string requestId,
+            string syncId,
+            string tool,
+            string action,
+            int exitCode,
+            string stdOut,
+            string stdErr,
+            string executorClientId)
+            => await Clients.Others.SendAsync(
+                "ReceiveRemoteCommandResult",
+                requestId,
+                syncId,
+                tool,
+                action,
+                exitCode,
+                stdOut,
+                stdErr,
+                executorClientId);
+
+        public async Task SendRemoteTerminalInput(
+            string sessionId,
+            string syncId,
+            string senderClientId,
+            string commandText)
+            => await Clients.Others.SendAsync(
+                "ReceiveRemoteTerminalInput",
+                sessionId,
+                syncId,
+                senderClientId,
+                commandText);
+
+        public async Task SendRemoteTerminalOutput(
+            string sessionId,
+            string syncId,
+            string chunk,
+            bool isError,
+            bool isCompleted,
+            int exitCode,
+            string executorClientId)
+            => await Clients.Others.SendAsync(
+                "ReceiveRemoteTerminalOutput",
+                sessionId,
+                syncId,
+                chunk,
+                isError,
+                isCompleted,
+                exitCode,
+                executorClientId);
     }
 }

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:models="clr-namespace:Elysium.WorkStation.Models"
@@ -31,7 +31,7 @@
                     Stroke="{AppThemeBinding Light=#C0D4F4, Dark=#415C86}"
                     BackgroundColor="{AppThemeBinding Light=#F4F8FF, Dark=#1D2C44}">
                 <VerticalStackLayout Spacing="8">
-                    <Grid ColumnDefinitions="Auto,*"
+                    <Grid ColumnDefinitions="Auto,*,Auto"
                           ColumnSpacing="10">
                         <Border Grid.Column="0"
                                 WidthRequest="14"
@@ -48,6 +48,21 @@
                                FontSize="28"
                                LineBreakMode="TailTruncation"
                                TextColor="{AppThemeBinding Light=#133C79, Dark=#DCE8FF}" />
+                        <Button Grid.Column="2"
+                                Text=">_"
+                                WidthRequest="44"
+                                HeightRequest="34"
+                                Padding="0"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="13"
+                                TextColor="White"
+                                VerticalOptions="Start"
+                                HorizontalOptions="End"
+                                Command="{Binding OpenRemoteToolsCommand}"
+                                ToolTipProperties.Text="Terminal Remota"
+                                CornerRadius="10"
+                                BorderColor="{AppThemeBinding Light=#5E7DB0, Dark=#4A6793}"
+                                BackgroundColor="{AppThemeBinding Light=#6F90C4, Dark=#5877A8}" />
                     </Grid>
 
                     <Label Text="{Binding LinkDescription}"
@@ -186,6 +201,7 @@
                            FontFamily="OpenSansRegular"
                            FontSize="11"
                            TextColor="{AppThemeBinding Light=#4E6287, Dark=#B5C7E7}" />
+
                 </VerticalStackLayout>
             </Border>
 

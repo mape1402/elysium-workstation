@@ -100,6 +100,7 @@ namespace Elysium.WorkStation
             // Additional detail routes used from pages.
             Routing.RegisterRoute("note-editor", typeof(Views.NoteEditorPage));
             Routing.RegisterRoute("folder-sync-detail", typeof(Views.FolderSyncDetailPage));
+            Routing.RegisterRoute("remote-tools", typeof(Views.RemoteToolsPage));
 
             _roleService.RoleChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() =>
             {

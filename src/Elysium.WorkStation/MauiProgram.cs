@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Maui.Handlers;
 #if WINDOWS
 using Elysium.WorkStation.Controls;
+using Microsoft.UI.Xaml.Controls;
 #endif
 
 namespace Elysium.WorkStation
@@ -36,6 +37,16 @@ namespace Elysium.WorkStation
                             GlobalButtonAnimations.Attach(platformButton, element);
                         }
                     });
+
+                    WebViewHandler.Mapper.AppendToMapping("WebViewNoFlashBackground", (handler, view) =>
+                    {
+                        if (handler.PlatformView is WebView2 webView)
+                        {
+                            var isDark = (Application.Current?.UserAppTheme ?? AppTheme.Light) == AppTheme.Dark;
+                            var bg = isDark ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White;
+                            webView.DefaultBackgroundColor = bg;
+                        }
+                    });
 #endif
                 })
                 .ConfigureFonts(fonts =>
@@ -50,6 +61,9 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.IClipboardSyncService,  Services.ClipboardSyncService>();
             builder.Services.AddSingleton<Services.IFileTransferService,   Services.FileTransferService>();
             builder.Services.AddSingleton<Services.IFolderSyncService, Services.FolderSyncService>();
+            builder.Services.AddSingleton<Services.IRemoteToolPlugin, Services.GitRemoteToolPlugin>();
+            builder.Services.AddSingleton<Services.IRemoteToolPlugin, Services.RemoteShellToolPlugin>();
+            builder.Services.AddSingleton<Services.IRemoteToolCatalog, Services.RemoteToolCatalog>();
             builder.Services.AddSingleton<IDbContextFactory<AppDbContext>, Services.DynamicAppDbContextFactory>();
             builder.Services.AddSingleton<Services.INotificationRepository, Services.NotificationRepository>();
             builder.Services.AddSingleton<Services.IClipboardRepository,    Services.ClipboardRepository>();
@@ -67,6 +81,7 @@ namespace Elysium.WorkStation
             builder.Services.AddTransient<Views.FilesPage>();
             builder.Services.AddTransient<Views.FolderSyncPage>();
             builder.Services.AddTransient<Views.FolderSyncDetailPage>();
+            builder.Services.AddTransient<Views.RemoteToolsPage>();
             builder.Services.AddTransient<Views.FolderSyncEditorPage>();
             builder.Services.AddTransient<Views.IgnorePathPickerPage>();
             builder.Services.AddTransient<Views.NotificationsPage>();

@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using Elysium.WorkStation.Models;
@@ -22,11 +24,14 @@ namespace Elysium.WorkStation.Services
         private readonly object _runtimeGate = new();
         private readonly Dictionary<string, List<FolderSyncLogEntry>> _logsBySync = [];
         private readonly Dictionary<string, Dictionary<string, FolderSyncSummaryEntry>> _summaryBySync = [];
+        private readonly Dictionary<string, List<RemoteCommandHistoryEntry>> _remoteCommandHistoryBySync = [];
         private readonly Dictionary<string, FileSystemWatcher> _watchersBySync = [];
         private readonly Dictionary<string, SemaphoreSlim> _sendLocksBySync = [];
+        private readonly Dictionary<string, SemaphoreSlim> _remoteCommandLocksBySync = [];
         private readonly Dictionary<string, DateTime> _eventDebounce = [];
         private readonly Dictionary<string, ConcurrentDictionary<string, WatcherEventState>> _pendingWatcherEventsBySync = [];
         private readonly Dictionary<string, CancellationTokenSource> _watcherProcessingCtsBySync = [];
+        private readonly ConcurrentDictionary<string, PersistentRemoteShellSession> _remoteShellSessionsByKey = new(StringComparer.Ordinal);
 
         private HubConnection _connection;
         private CancellationTokenSource _startRetryCts;
@@ -44,6 +49,8 @@ namespace Elysium.WorkStation.Services
         public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
         public event EventHandler StateChanged;
+        public event EventHandler<RemoteCommandResultEventArgs> RemoteCommandResultReceived;
+        public event EventHandler<RemoteTerminalOutputEventArgs> RemoteTerminalOutputReceived;
 
         public FolderSyncService(
             IFolderSyncRepository repository,
@@ -119,6 +126,8 @@ namespace Elysium.WorkStation.Services
 
         public async Task StopAsync()
         {
+            DisposeAllRemoteShellSessions();
+
             lock (_runtimeGate)
             {
                 foreach (var watcher in _watchersBySync.Values)
@@ -469,11 +478,17 @@ namespace Elysium.WorkStation.Services
             {
                 _logsBySync.Remove(link.SyncId);
                 _summaryBySync.Remove(link.SyncId);
+                _remoteCommandHistoryBySync.Remove(link.SyncId);
 
                 if (_sendLocksBySync.TryGetValue(link.SyncId, out var syncLock))
                 {
                     _sendLocksBySync.Remove(link.SyncId);
                     syncLock.Dispose();
+                }
+                if (_remoteCommandLocksBySync.TryGetValue(link.SyncId, out var remoteLock))
+                {
+                    _remoteCommandLocksBySync.Remove(link.SyncId);
+                    remoteLock.Dispose();
                 }
 
                 var debounceKeys = _eventDebounce.Keys
@@ -504,6 +519,66 @@ namespace Elysium.WorkStation.Services
                 }
             });
 
+            RaiseStateChanged();
+        }
+
+        public Task RequestRemoteGitCreateBranchAsync(int linkId, string branchName) =>
+            SendRemoteGitCommandAsync(linkId, "branch.create", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["branchName"] = branchName ?? string.Empty
+            });
+
+        public Task RequestRemoteGitAddAsync(int linkId, string pathspec) =>
+            SendRemoteGitCommandAsync(linkId, "stage.add", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["pathspec"] = string.IsNullOrWhiteSpace(pathspec) ? "." : pathspec.Trim()
+            });
+
+        public Task RequestRemoteGitCommitAsync(int linkId, string message) =>
+            SendRemoteGitCommandAsync(linkId, "commit.create", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["message"] = message ?? string.Empty
+            });
+
+        public Task RequestRemoteGitPushAsync(int linkId) =>
+            SendRemoteGitCommandAsync(linkId, "push.current", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+        public async Task SendRemoteTerminalCommandAsync(int linkId, string sessionId, string commandText)
+        {
+            var link = await _repository.GetByIdAsync(linkId);
+            if (link is null)
+            {
+                throw new InvalidOperationException("Sincronizacion no encontrada.");
+            }
+
+            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            {
+                throw new InvalidOperationException("Solo el emisor puede usar terminal remota cuando la sincronizacion esta activa.");
+            }
+
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para terminal remota.");
+            }
+
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                throw new InvalidOperationException("SessionId de terminal invalido.");
+            }
+
+            if (string.IsNullOrWhiteSpace(commandText))
+            {
+                return;
+            }
+
+            await _connection.InvokeAsync(
+                "SendRemoteTerminalInput",
+                sessionId,
+                link.SyncId,
+                ClientId,
+                commandText);
+
+            AddLog(link.SyncId, "remote-shell-send", string.Empty, $"Shell remoto enviado: {commandText}", isOutgoing: true);
             RaiseStateChanged();
         }
 
@@ -623,6 +698,595 @@ namespace Elysium.WorkStation.Services
                     _ = HandleFolderSyncUnlinkedAsync(
                         ReadString(payload, "SyncId"),
                         ReadString(payload, "ChangedByClientId")));
+
+            connection.On<string, string, string, string, string, string>(
+                "ReceiveRemoteCommand",
+                (requestId, syncId, senderClientId, tool, action, argsJson) =>
+                    _ = HandleIncomingRemoteCommandAsync(requestId, syncId, senderClientId, tool, action, argsJson));
+
+            connection.On<string, string, string, string, int, string, string, string>(
+                "ReceiveRemoteCommandResult",
+                (requestId, syncId, tool, action, exitCode, stdOut, stdErr, executorClientId) =>
+                    HandleIncomingRemoteCommandResult(requestId, syncId, tool, action, exitCode, stdOut, stdErr, executorClientId));
+
+            connection.On<string, string, string, string>(
+                "ReceiveRemoteTerminalInput",
+                (sessionId, syncId, senderClientId, commandText) =>
+                    _ = HandleIncomingRemoteTerminalInputAsync(sessionId, syncId, senderClientId, commandText));
+
+            connection.On<string, string, string, bool, bool, int, string>(
+                "ReceiveRemoteTerminalOutput",
+                (sessionId, syncId, chunk, isError, isCompleted, exitCode, executorClientId) =>
+                    HandleIncomingRemoteTerminalOutput(sessionId, syncId, chunk, isError, isCompleted, exitCode, executorClientId));
+        }
+
+        private async Task SendRemoteGitCommandAsync(int linkId, string action, Dictionary<string, string> args)
+        {
+            var link = await _repository.GetByIdAsync(linkId);
+            if (link is null)
+            {
+                throw new InvalidOperationException("Sincronizacion no encontrada.");
+            }
+
+            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            {
+                throw new InvalidOperationException("Solo el emisor puede enviar comandos remotos cuando la sincronizacion esta activa.");
+            }
+
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para enviar comandos remotos.");
+            }
+
+            var requestId = Guid.NewGuid().ToString("N");
+            var argsJson = JsonSerializer.Serialize(args ?? new Dictionary<string, string>());
+
+            await _connection.InvokeAsync(
+                "SendRemoteCommand",
+                requestId,
+                link.SyncId,
+                ClientId,
+                "git",
+                action,
+                argsJson);
+
+            AddOrUpdateRemoteCommandHistory(new RemoteCommandHistoryEntry
+            {
+                RequestId = requestId,
+                SyncId = link.SyncId,
+                RequestedAt = DateTime.Now,
+                Tool = "git",
+                Action = action,
+                ArgsSummary = BuildArgsSummary(action, args),
+                SenderClientId = ClientId,
+                Status = "pending"
+            });
+
+            AddLog(link.SyncId, "remote-cmd-send", string.Empty, $"Comando remoto enviado: git {action}.", isOutgoing: true);
+            RaiseStateChanged();
+        }
+
+        private async Task HandleIncomingRemoteCommandAsync(
+            string requestId,
+            string syncId,
+            string senderClientId,
+            string tool,
+            string action,
+            string argsJson)
+        {
+            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var link = await _repository.GetBySyncIdAsync(syncId);
+            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            {
+                return;
+            }
+
+            var executionLock = GetRemoteCommandLock(syncId);
+            await executionLock.WaitAsync();
+            try
+            {
+                var result = await ExecuteRemoteCommandAsync(link, requestId, tool, action, argsJson);
+                await SendRemoteCommandResultAsync(result);
+            }
+            finally
+            {
+                executionLock.Release();
+            }
+        }
+
+        private void HandleIncomingRemoteCommandResult(
+            string requestId,
+            string syncId,
+            string tool,
+            string action,
+            int exitCode,
+            string stdOut,
+            string stdErr,
+            string executorClientId)
+        {
+            AddOrUpdateRemoteCommandHistory(new RemoteCommandHistoryEntry
+            {
+                RequestId = requestId ?? string.Empty,
+                SyncId = syncId ?? string.Empty,
+                CompletedAt = DateTime.Now,
+                Tool = tool ?? string.Empty,
+                Action = action ?? string.Empty,
+                ExitCode = exitCode,
+                StdOut = stdOut ?? string.Empty,
+                StdErr = stdErr ?? string.Empty,
+                ExecutorClientId = executorClientId ?? string.Empty,
+                Status = exitCode == 0 ? "ok" : "error"
+            });
+
+            AddLog(syncId, "remote-cmd-result", string.Empty, $"Resultado comando remoto ({tool} {action}): exit={exitCode}.", isOutgoing: false);
+            RaiseStateChanged();
+
+            RemoteCommandResultReceived?.Invoke(this, new RemoteCommandResultEventArgs
+            {
+                RequestId = requestId ?? string.Empty,
+                SyncId = syncId ?? string.Empty,
+                Tool = tool ?? string.Empty,
+                Action = action ?? string.Empty,
+                ExitCode = exitCode,
+                StdOut = stdOut ?? string.Empty,
+                StdErr = stdErr ?? string.Empty,
+                ExecutorClientId = executorClientId ?? string.Empty
+            });
+        }
+
+        private async Task SendRemoteCommandResultAsync(RemoteCommandExecutionResult result)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            await _connection.InvokeAsync(
+                "SendRemoteCommandResult",
+                result.RequestId,
+                result.SyncId,
+                result.Tool,
+                result.Action,
+                result.ExitCode,
+                result.StdOut,
+                result.StdErr,
+                ClientId);
+
+            AddLog(result.SyncId, "remote-cmd-exec", string.Empty, $"Comando remoto ejecutado: {result.Tool} {result.Action} -> exit={result.ExitCode}.", isOutgoing: false);
+            RaiseStateChanged();
+        }
+
+        private async Task<RemoteCommandExecutionResult> ExecuteRemoteCommandAsync(
+            FolderSyncLink link,
+            string requestId,
+            string tool,
+            string action,
+            string argsJson)
+        {
+            if (!string.Equals(tool, "git", StringComparison.OrdinalIgnoreCase))
+            {
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 2, string.Empty, "Tool no soportada.");
+            }
+
+            if (!Directory.Exists(link.LocalFolderPath))
+            {
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 2, string.Empty, "Carpeta local no disponible.");
+            }
+
+            if (!Directory.Exists(Path.Combine(link.LocalFolderPath, ".git")))
+            {
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 2, string.Empty, "No es un repositorio git.");
+            }
+
+            var args = ParseRemoteArgs(argsJson);
+            var startInfo = BuildGitProcessStartInfo(action, args, link.LocalFolderPath);
+            if (startInfo is null)
+            {
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 2, string.Empty, "Accion git no permitida o parametros invalidos.");
+            }
+
+            try
+            {
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+
+                var stdOutTask = process.StandardOutput.ReadToEndAsync();
+                var stdErrTask = process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+
+                var stdOut = await stdOutTask;
+                var stdErr = await stdErrTask;
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, process.ExitCode, stdOut, stdErr);
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 127, string.Empty, "Git no esta instalado o no esta disponible en PATH.");
+            }
+            catch (Exception ex)
+            {
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 1, string.Empty, ex.Message);
+            }
+        }
+
+        public IReadOnlyList<RemoteCommandHistoryEntry> GetRemoteCommandHistory(string syncId)
+        {
+            lock (_runtimeGate)
+            {
+                if (!_remoteCommandHistoryBySync.TryGetValue(syncId, out var entries))
+                {
+                    return [];
+                }
+
+                var now = DateTime.Now;
+                foreach (var pending in entries.Where(e =>
+                             string.Equals(e.Status, "pending", StringComparison.OrdinalIgnoreCase) &&
+                             now - e.RequestedAt > TimeSpan.FromMinutes(2)))
+                {
+                    pending.Status = "timeout";
+                    pending.CompletedAt = now;
+                    pending.StdErr = string.IsNullOrWhiteSpace(pending.StdErr)
+                        ? "No se recibio respuesta del receptor (timeout de correlacion)."
+                        : pending.StdErr;
+                }
+
+                return entries
+                    .OrderByDescending(e => e.RequestedAt)
+                    .ToList();
+            }
+        }
+
+        private static Dictionary<string, string> ParseRemoteArgs(string argsJson)
+        {
+            if (string.IsNullOrWhiteSpace(argsJson))
+            {
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<Dictionary<string, string>>(argsJson)
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        private static ProcessStartInfo BuildGitProcessStartInfo(string action, Dictionary<string, string> args, string workingDirectory)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "git",
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            switch ((action ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "branch.create":
+                {
+                    var branchName = ReadArg(args, "branchName");
+                    if (string.IsNullOrWhiteSpace(branchName) || branchName.Any(char.IsWhiteSpace))
+                    {
+                        return null;
+                    }
+
+                    psi.ArgumentList.Add("checkout");
+                    psi.ArgumentList.Add("-b");
+                    psi.ArgumentList.Add(branchName);
+                    return psi;
+                }
+                case "stage.add":
+                {
+                    var pathspec = ReadArg(args, "pathspec");
+                    if (string.IsNullOrWhiteSpace(pathspec))
+                    {
+                        pathspec = ".";
+                    }
+
+                    psi.ArgumentList.Add("add");
+                    psi.ArgumentList.Add(pathspec);
+                    return psi;
+                }
+                case "commit.create":
+                {
+                    var message = ReadArg(args, "message");
+                    if (string.IsNullOrWhiteSpace(message))
+                    {
+                        return null;
+                    }
+
+                    psi.ArgumentList.Add("commit");
+                    psi.ArgumentList.Add("-m");
+                    psi.ArgumentList.Add(message);
+                    return psi;
+                }
+                case "push.current":
+                {
+                    psi.ArgumentList.Add("push");
+                    return psi;
+                }
+                default:
+                    return null;
+            }
+        }
+
+        private static string ReadArg(Dictionary<string, string> args, string key)
+        {
+            if (args is null || !args.TryGetValue(key, out var value))
+            {
+                return string.Empty;
+            }
+
+            return (value ?? string.Empty).Trim();
+        }
+
+        private static string BuildArgsSummary(string action, Dictionary<string, string> args)
+        {
+            return (action ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "branch.create" => $"branch={ReadArg(args, "branchName")}",
+                "stage.add" => $"pathspec={ReadArg(args, "pathspec")}",
+                "commit.create" => $"message={ReadArg(args, "message")}",
+                "push.current" => "(sin args)",
+                _ => string.Empty
+            };
+        }
+
+        private async Task HandleIncomingRemoteTerminalInputAsync(
+            string sessionId,
+            string syncId,
+            string senderClientId,
+            string commandText)
+        {
+            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var link = await _repository.GetBySyncIdAsync(syncId);
+            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(commandText))
+            {
+                return;
+            }
+
+            var sessionKey = BuildRemoteShellSessionKey(syncId, senderClientId, sessionId);
+            var shellSession = GetOrCreateRemoteShellSession(
+                sessionKey,
+                link.LocalFolderPath,
+                syncId,
+                senderClientId);
+
+            await shellSession.CommandGate.WaitAsync();
+            try
+            {
+                var exitCode = await ExecuteRemoteShellCommandInSessionAsync(
+                    shellSession,
+                    commandText,
+                    async (line, isError) => await SendRemoteTerminalOutputAsync(
+                        sessionId,
+                        syncId,
+                        line,
+                        isError,
+                        isCompleted: false,
+                        exitCode: 0));
+
+                await SendRemoteTerminalOutputAsync(sessionId, syncId, string.Empty, isError: false, isCompleted: true, exitCode);
+                AddLog(syncId, "remote-shell-exec", string.Empty, $"Shell remoto ejecutado exit={exitCode}.", isOutgoing: false);
+                RaiseStateChanged();
+            }
+            catch (Exception ex)
+            {
+                await SendRemoteTerminalOutputAsync(sessionId, syncId, ex.Message, isError: true, isCompleted: true, exitCode: 1);
+                DisposeRemoteShellSession(sessionKey);
+            }
+            finally
+            {
+                shellSession.CommandGate.Release();
+            }
+        }
+
+        private void HandleIncomingRemoteTerminalOutput(
+            string sessionId,
+            string syncId,
+            string chunk,
+            bool isError,
+            bool isCompleted,
+            int exitCode,
+            string executorClientId)
+        {
+            RemoteTerminalOutputReceived?.Invoke(this, new RemoteTerminalOutputEventArgs
+            {
+                SessionId = sessionId ?? string.Empty,
+                SyncId = syncId ?? string.Empty,
+                Chunk = chunk ?? string.Empty,
+                IsError = isError,
+                IsCompleted = isCompleted,
+                ExitCode = exitCode,
+                ExecutorClientId = executorClientId ?? string.Empty
+            });
+        }
+
+        private async Task SendRemoteTerminalOutputAsync(
+            string sessionId,
+            string syncId,
+            string chunk,
+            bool isError,
+            bool isCompleted,
+            int exitCode)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            await _connection.InvokeAsync(
+                "SendRemoteTerminalOutput",
+                sessionId,
+                syncId,
+                chunk ?? string.Empty,
+                isError,
+                isCompleted,
+                exitCode,
+                ClientId);
+        }
+
+        private static string BuildRemoteShellSessionKey(string syncId, string senderClientId, string sessionId) =>
+            $"{syncId}|{senderClientId}|{sessionId}";
+
+        private PersistentRemoteShellSession GetOrCreateRemoteShellSession(
+            string sessionKey,
+            string workingDirectory,
+            string syncId,
+            string ownerClientId)
+        {
+            return _remoteShellSessionsByKey.GetOrAdd(sessionKey, _ =>
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    WorkingDirectory = workingDirectory,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                psi.ArgumentList.Add("-NoLogo");
+                psi.ArgumentList.Add("-NoProfile");
+                psi.ArgumentList.Add("-ExecutionPolicy");
+                psi.ArgumentList.Add("Bypass");
+                psi.ArgumentList.Add("-Command");
+                psi.ArgumentList.Add("-");
+
+                var process = new Process { StartInfo = psi };
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                return new PersistentRemoteShellSession(sessionKey, syncId, ownerClientId, process);
+            });
+        }
+
+        private async Task<int> ExecuteRemoteShellCommandInSessionAsync(
+            PersistentRemoteShellSession session,
+            string commandText,
+            Func<string, bool, Task> onLineAsync)
+        {
+            if (session.Process.HasExited)
+            {
+                throw new InvalidOperationException("La sesion remota de PowerShell termino inesperadamente.");
+            }
+
+            var marker = "__CODEX_DONE__" + Guid.NewGuid().ToString("N") + ":";
+            var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            DataReceivedEventHandler stdOutHandler = (_, e) =>
+            {
+                if (string.IsNullOrEmpty(e.Data))
+                {
+                    return;
+                }
+
+                if (e.Data.StartsWith(marker, StringComparison.Ordinal))
+                {
+                    var exitRaw = e.Data[marker.Length..].Trim();
+                    if (int.TryParse(exitRaw, out var exitCode))
+                    {
+                        completion.TrySetResult(exitCode);
+                    }
+                    else
+                    {
+                        completion.TrySetResult(1);
+                    }
+                    return;
+                }
+
+                _ = onLineAsync(e.Data, false);
+            };
+
+            DataReceivedEventHandler stdErrHandler = (_, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    _ = onLineAsync(e.Data, true);
+                }
+            };
+
+            session.Process.OutputDataReceived += stdOutHandler;
+            session.Process.ErrorDataReceived += stdErrHandler;
+            try
+            {
+                foreach (var line in BuildWrappedCommandLines(commandText, marker))
+                {
+                    await session.Process.StandardInput.WriteLineAsync(line);
+                }
+                await session.Process.StandardInput.FlushAsync();
+
+                var finished = await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromMinutes(5)));
+                if (finished != completion.Task)
+                {
+                    throw new TimeoutException("La ejecucion remota excedio el tiempo limite.");
+                }
+
+                return await completion.Task;
+            }
+            finally
+            {
+                session.Process.OutputDataReceived -= stdOutHandler;
+                session.Process.ErrorDataReceived -= stdErrHandler;
+            }
+        }
+
+        private static IReadOnlyList<string> BuildWrappedCommandLines(string commandText, string marker)
+        {
+            var script = new StringBuilder();
+            script.AppendLine("$__codex_exit = 0");
+            script.AppendLine("try {");
+            script.AppendLine(commandText ?? string.Empty);
+            script.AppendLine("} catch {");
+            script.AppendLine("  Write-Error $_");
+            script.AppendLine("  $__codex_exit = 1");
+            script.AppendLine("}");
+            script.AppendLine("if ($__codex_exit -eq 0) {");
+            script.AppendLine("  if ($LASTEXITCODE -ne $null) { $__codex_exit = [int]$LASTEXITCODE }");
+            script.AppendLine("}");
+            script.AppendLine($"Write-Output \"{marker}$($__codex_exit)\"");
+
+            return script
+                .ToString()
+                .Split(Environment.NewLine, StringSplitOptions.None)
+                .ToList();
+        }
+
+        private void DisposeRemoteShellSession(string sessionKey)
+        {
+            if (!_remoteShellSessionsByKey.TryRemove(sessionKey, out var session))
+            {
+                return;
+            }
+
+            session.Dispose();
+        }
+
+        private void DisposeAllRemoteShellSessions()
+        {
+            foreach (var key in _remoteShellSessionsByKey.Keys.ToList())
+            {
+                DisposeRemoteShellSession(key);
+            }
         }
 
         private async Task HandleInviteAsync(
@@ -1505,6 +2169,57 @@ namespace Elysium.WorkStation.Services
             }
         }
 
+        private SemaphoreSlim GetRemoteCommandLock(string syncId)
+        {
+            lock (_runtimeGate)
+            {
+                if (!_remoteCommandLocksBySync.TryGetValue(syncId, out var syncLock))
+                {
+                    syncLock = new SemaphoreSlim(1, 1);
+                    _remoteCommandLocksBySync[syncId] = syncLock;
+                }
+
+                return syncLock;
+            }
+        }
+
+        private void AddOrUpdateRemoteCommandHistory(RemoteCommandHistoryEntry entry)
+        {
+            if (entry is null || string.IsNullOrWhiteSpace(entry.SyncId))
+            {
+                return;
+            }
+
+            lock (_runtimeGate)
+            {
+                if (!_remoteCommandHistoryBySync.TryGetValue(entry.SyncId, out var items))
+                {
+                    items = [];
+                    _remoteCommandHistoryBySync[entry.SyncId] = items;
+                }
+
+                var existing = items.FirstOrDefault(i => string.Equals(i.RequestId, entry.RequestId, StringComparison.Ordinal));
+                if (existing is null)
+                {
+                    items.Add(entry);
+                }
+                else
+                {
+                    existing.CompletedAt = entry.CompletedAt ?? existing.CompletedAt;
+                    existing.ExecutorClientId = string.IsNullOrWhiteSpace(entry.ExecutorClientId) ? existing.ExecutorClientId : entry.ExecutorClientId;
+                    existing.ExitCode = entry.ExitCode ?? existing.ExitCode;
+                    existing.StdOut = string.IsNullOrWhiteSpace(entry.StdOut) ? existing.StdOut : entry.StdOut;
+                    existing.StdErr = string.IsNullOrWhiteSpace(entry.StdErr) ? existing.StdErr : entry.StdErr;
+                    existing.Status = string.IsNullOrWhiteSpace(entry.Status) ? existing.Status : entry.Status;
+                }
+
+                if (items.Count > 200)
+                {
+                    items.RemoveRange(0, items.Count - 200);
+                }
+            }
+        }
+
         private bool IsDebounced(string syncId, WatcherChangeTypes changeType, string relativePath)
         {
             var key = $"{syncId}|{changeType}|{relativePath}";
@@ -1950,5 +2665,48 @@ namespace Elysium.WorkStation.Services
 
         private sealed record WatcherEventState(WatcherChangeTypes ChangeType, DateTime LastSeenUtc);
         private sealed record FolderSyncUploadResponse(string UploadId, long FileSize);
+        private sealed record RemoteCommandExecutionResult(
+            string RequestId,
+            string SyncId,
+            string Tool,
+            string Action,
+            int ExitCode,
+            string StdOut,
+            string StdErr);
+        private sealed class PersistentRemoteShellSession : IDisposable
+        {
+            public string SessionKey { get; }
+            public string SyncId { get; }
+            public string OwnerClientId { get; }
+            public Process Process { get; }
+            public SemaphoreSlim CommandGate { get; } = new(1, 1);
+
+            public PersistentRemoteShellSession(string sessionKey, string syncId, string ownerClientId, Process process)
+            {
+                SessionKey = sessionKey;
+                SyncId = syncId;
+                OwnerClientId = ownerClientId;
+                Process = process;
+            }
+
+            public void Dispose()
+            {
+                try
+                {
+                    if (!Process.HasExited)
+                    {
+                        Process.Kill(entireProcessTree: true);
+                        Process.WaitForExit(2000);
+                    }
+                }
+                catch
+                {
+                    // Best effort cleanup.
+                }
+
+                Process.Dispose();
+                CommandGate.Dispose();
+            }
+        }
     }
 }

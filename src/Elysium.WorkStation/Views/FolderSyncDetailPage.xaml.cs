@@ -46,6 +46,7 @@ namespace Elysium.WorkStation.Views
         public ObservableCollection<string> IgnorePaths { get; } = [];
         public ObservableCollection<FolderSyncLogEntry> Logs { get; } = [];
         public ObservableCollection<FolderSyncSummaryEntry> Summary { get; } = [];
+        public ObservableCollection<RemoteCommandHistoryEntry> RemoteCommands { get; } = [];
         public ObservableCollection<FolderContentEntry> FolderEntries { get; } = [];
 
         public string LinkIdQuery
@@ -149,6 +150,7 @@ namespace Elysium.WorkStation.Views
         public bool IsFolderSectionVisible => IsSyncStopped && !IsMonitorSectionVisible;
         public bool ArePrimarySectionsVisible => !_isFolderMaximized;
         public bool CanSwitchRole => _link?.ContinuousSyncEnabled == true;
+        public bool CanSendRemoteGitCommands => _link?.ContinuousSyncEnabled == true && _link?.IsEmitter == true;
         public bool CanToggleMonitorSection => IsSyncStopped;
         public bool IsMonitorSectionVisible => !_isFolderMaximized && (IsContinuousEnabled || _isMonitorSectionExpanded);
         public string FolderMaximizeButtonIcon => _isFolderMaximized ? "\u2750" : "\u26F6";
@@ -165,6 +167,12 @@ namespace Elysium.WorkStation.Views
         public string SwitchRoleButtonText => "\U0001F504 Invertir rol";
         public string OpenFolderButtonText => "\U0001F4C2 Abrir carpeta";
         public string ManageIgnorePathsButtonText => "\U0001F4CB Rutas ignoradas";
+        public string RemoteGitSectionTitle => "Git remoto (ejecuta en receptor)";
+        public string RemoteCreateBranchButtonText => "\U0001F331 Crear branch";
+        public string RemoteStageButtonText => "\U0001F4E6 Stage";
+        public string RemoteCommitButtonText => "\U0001F4DD Commit";
+        public string RemotePushButtonText => "\U0001F680 Push";
+        public string OpenRemoteToolsButtonText => "\U0001F6E0 Herramientas remotas";
         public string IgnorePathsStatus => IgnorePaths.Count == 0
             ? "Sin rutas ignoradas"
             : $"{IgnorePaths.Count} ruta(s) ignorada(s)";
@@ -199,6 +207,12 @@ namespace Elysium.WorkStation.Views
         public Command SelectSummaryTabCommand { get; }
         public Command ToggleMonitorSectionCommand { get; }
         public Command ToggleFolderMaximizeCommand { get; }
+        public Command RemoteCreateBranchCommand { get; }
+        public Command RemoteStageCommand { get; }
+        public Command RemoteCommitCommand { get; }
+        public Command RemotePushCommand { get; }
+        public Command<RemoteCommandHistoryEntry> ShowRemoteCommandDetailCommand { get; }
+        public Command OpenRemoteToolsCommand { get; }
 
         public FolderSyncDetailPage(IFolderSyncService folderSyncService, IToastService toastService)
         {
@@ -266,6 +280,7 @@ namespace Elysium.WorkStation.Views
                         OnPropertyChanged(nameof(IsContinuousEnabled));
                         OnPropertyChanged(nameof(IsSyncStopped));
                         OnPropertyChanged(nameof(CanSwitchRole));
+                        OnPropertyChanged(nameof(CanSendRemoteGitCommands));
                         _isMonitorSectionExpanded = true;
                         _isFolderMaximized = false;
                         OnPropertyChanged(nameof(ArePrimarySectionsVisible));
@@ -437,6 +452,125 @@ namespace Elysium.WorkStation.Views
                 OnPropertyChanged(nameof(ToggleMonitorSectionText));
             });
 
+            RemoteCreateBranchCommand = new Command(async () =>
+            {
+                if (_link is null)
+                {
+                    return;
+                }
+
+                var branchName = await DisplayPromptAsync("Git remoto", "Nombre del branch:", accept: "Enviar", cancel: "Cancelar");
+                if (string.IsNullOrWhiteSpace(branchName))
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.RequestRemoteGitCreateBranchAsync(_link.Id, branchName.Trim());
+                    await _toastService.ShowAsync("Comando enviado: crear branch.");
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Git remoto", ex.Message, "OK");
+                }
+            });
+
+            RemoteStageCommand = new Command(async () =>
+            {
+                if (_link is null)
+                {
+                    return;
+                }
+
+                var pathspec = await DisplayPromptAsync("Git remoto", "Pathspec a agregar (default: .):", initialValue: ".", accept: "Enviar", cancel: "Cancelar");
+                if (pathspec is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.RequestRemoteGitAddAsync(_link.Id, pathspec);
+                    await _toastService.ShowAsync("Comando enviado: git add.");
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Git remoto", ex.Message, "OK");
+                }
+            });
+
+            RemoteCommitCommand = new Command(async () =>
+            {
+                if (_link is null)
+                {
+                    return;
+                }
+
+                var message = await DisplayPromptAsync("Git remoto", "Mensaje del commit:", accept: "Enviar", cancel: "Cancelar");
+                if (string.IsNullOrWhiteSpace(message))
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.RequestRemoteGitCommitAsync(_link.Id, message.Trim());
+                    await _toastService.ShowAsync("Comando enviado: git commit.");
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Git remoto", ex.Message, "OK");
+                }
+            });
+
+            RemotePushCommand = new Command(async () =>
+            {
+                if (_link is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.RequestRemoteGitPushAsync(_link.Id);
+                    await _toastService.ShowAsync("Comando enviado: git push.");
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Git remoto", ex.Message, "OK");
+                }
+            });
+
+            ShowRemoteCommandDetailCommand = new Command<RemoteCommandHistoryEntry>(async entry =>
+            {
+                if (entry is null)
+                {
+                    return;
+                }
+
+                var output = string.IsNullOrWhiteSpace(entry.StdErr)
+                    ? entry.StdOut
+                    : entry.StdErr;
+                if (string.IsNullOrWhiteSpace(output))
+                {
+                    output = entry.ExitCode is null ? "Sin salida." : $"Exit code: {entry.ExitCode}";
+                }
+
+                var title = $"[{entry.StatusLabel}] {entry.Action}";
+                await DisplayAlert(title, output, "OK");
+            });
+
+            OpenRemoteToolsCommand = new Command(async () =>
+            {
+                if (_link is null)
+                {
+                    return;
+                }
+
+                await Shell.Current.GoToAsync($"remote-tools?id={_link.Id}");
+            });
+
             InitializeComponent();
             BindingContext = this;
         }
@@ -446,6 +580,8 @@ namespace Elysium.WorkStation.Views
             base.OnAppearing();
             _folderSyncService.StateChanged -= OnServiceStateChanged;
             _folderSyncService.StateChanged += OnServiceStateChanged;
+            _folderSyncService.RemoteCommandResultReceived -= OnRemoteCommandResultReceived;
+            _folderSyncService.RemoteCommandResultReceived += OnRemoteCommandResultReceived;
             await ReloadLinkAsync(reloadFromRepository: true);
         }
 
@@ -454,8 +590,27 @@ namespace Elysium.WorkStation.Views
             _stateRefreshCts?.Cancel();
             _stateRefreshCts?.Dispose();
             _stateRefreshCts = null;
+            _folderSyncService.RemoteCommandResultReceived -= OnRemoteCommandResultReceived;
             _folderSyncService.StateChanged -= OnServiceStateChanged;
             base.OnDisappearing();
+        }
+
+        private async void OnRemoteCommandResultReceived(object sender, RemoteCommandResultEventArgs e)
+        {
+            if (_link is null || e is null || !string.Equals(_link.SyncId, e.SyncId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var title = e.Success ? "Git remoto OK" : "Git remoto fallo";
+            var output = e.Success ? e.StdOut : e.StdErr;
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                output = $"Exit code: {e.ExitCode}";
+            }
+
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await DisplayAlert(title, output, "OK"));
         }
 
         private async Task ReloadLinkAsync(bool reloadFromRepository, bool reloadFolderView = true)
@@ -518,6 +673,12 @@ namespace Elysium.WorkStation.Views
                     Summary.Add(item);
                 }
 
+                RemoteCommands.Clear();
+                foreach (var cmd in _folderSyncService.GetRemoteCommandHistory(_link.SyncId))
+                {
+                    RemoteCommands.Add(cmd);
+                }
+
                 OnPropertyChanged(nameof(StatusText));
                 OnPropertyChanged(nameof(StatusColor));
                 OnPropertyChanged(nameof(LinkName));
@@ -533,6 +694,7 @@ namespace Elysium.WorkStation.Views
                 OnPropertyChanged(nameof(IsContinuousEnabled));
                 OnPropertyChanged(nameof(IsSyncStopped));
                 OnPropertyChanged(nameof(CanSwitchRole));
+                OnPropertyChanged(nameof(CanSendRemoteGitCommands));
                 if (IsContinuousEnabled)
                 {
                     _isMonitorSectionExpanded = true;

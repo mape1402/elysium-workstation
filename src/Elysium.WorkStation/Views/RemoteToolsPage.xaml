@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Elysium.WorkStation.Views"
+             x:Class="Elysium.WorkStation.Views.RemoteToolsPage"
+             x:DataType="local:RemoteToolsPage"
+             x:Name="thisPage"
+             BackgroundColor="{AppThemeBinding Light=#EEF2F7, Dark=#0E1117}"
+             Title="Terminal remota">
+    <Grid Padding="10" RowDefinitions="Auto,*" RowSpacing="8">
+        <Border Grid.Row="0"
+                Padding="10,8"
+                StrokeShape="RoundRectangle 8"
+                Stroke="{AppThemeBinding Light=#C8D1DD, Dark=#2A2F3A}"
+                BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#161B22}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <Label Grid.Column="0"
+                       Text="o"
+                       TextColor="{AppThemeBinding Light=#C62828, Dark=#F85149}"
+                       FontSize="12"
+                       VerticalOptions="Center" />
+                <Label Grid.Column="1"
+                       Text="{Binding HeaderText}"
+                       FontFamily="Consolas"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=#243447, Dark=#C9D1D9}"
+                       VerticalOptions="Center" />
+                <Button Grid.Column="2"
+                        Text="Limpiar"
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Padding="8,4"
+                        TextColor="{AppThemeBinding Light=#243447, Dark=#C9D1D9}"
+                        Command="{Binding ClearTerminalCommand}"
+                        BorderColor="{AppThemeBinding Light=#B8C2CF, Dark=#30363D}"
+                        BackgroundColor="{AppThemeBinding Light=#E9EEF5, Dark=#21262D}" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Padding="0"
+                StrokeShape="RoundRectangle 10"
+                Stroke="{AppThemeBinding Light=#C8D1DD, Dark=#2A2F3A}"
+                BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#010409}">
+            <WebView x:Name="TerminalWebView"
+                     BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#010409}"
+                     Navigating="OnTerminalNavigating" />
+        </Border>
+
+        <Border Grid.Row="1"
+                IsVisible="{Binding IsWebViewLoading}"
+                Padding="0"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 10"
+                BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#010409}" />
+    </Grid>
+</ContentPage>
