@@ -16,6 +16,13 @@ namespace Elysium.WorkStation.WinUI
         /// </summary>
         public App()
         {
+            var args = Environment.GetCommandLineArgs();
+            if (RemoteShellHelperHost.IsHelperMode(args))
+            {
+                RemoteShellHelperHost.Run();
+                Environment.Exit(0);
+            }
+
             this.InitializeComponent();
         }
 

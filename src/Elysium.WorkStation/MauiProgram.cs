@@ -99,9 +99,11 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.IRoleService,    Services.RoleService>();
             builder.Services.AddSingleton<Services.INotificationService, Services.NotificationService>();
             builder.Services.AddSingleton<Services.IStartupService, Services.StartupService>();
+            builder.Services.AddSingleton<Services.IRemoteShellElevationService, Services.WindowsRemoteShellElevationService>();
 #else
             builder.Services.AddSingleton<Services.IRoleService,    Services.DefaultRoleService>();
             builder.Services.AddSingleton<Services.INotificationService, Services.NullNotificationService>();
+            builder.Services.AddSingleton<Services.IRemoteShellElevationService, Services.NullRemoteShellElevationService>();
 #endif
 
 #if DEBUG

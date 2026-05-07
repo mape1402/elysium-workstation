@@ -567,7 +567,6 @@ namespace Elysium.WorkStation.Views
                 {
                     return;
                 }
-
                 await Shell.Current.GoToAsync($"remote-tools?id={_link.Id}");
             });
 

@@ -21,6 +21,7 @@ namespace Elysium.WorkStation.Services
         private const int DefaultKanbanCleanupRetentionDays = 7;
         private const int DefaultKanbanCleanupIntervalHours = 1;
         private const string SignalRReconnectMinutesKey = "signalr_reconnect_minutes";
+        private const string RemoteShellElevatedGrantedKey = "remote_shell_elevated_granted";
         private const int DefaultSignalRReconnectMinutes = 1;
         private const string ProfileFirstNameKey = "profile_first_name";
         private const string ProfileLastNameKey = "profile_last_name";
@@ -112,6 +113,12 @@ namespace Elysium.WorkStation.Services
         }
 
         public TimeSpan SignalRReconnectDelay => TimeSpan.FromMinutes(SignalRReconnectMinutes);
+
+        public bool RemoteShellElevatedGranted
+        {
+            get => ScopedPreferences.Get(RemoteShellElevatedGrantedKey, false);
+            set => ScopedPreferences.Set(RemoteShellElevatedGrantedKey, value);
+        }
 
         public string ProfileFirstName
         {

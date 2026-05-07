@@ -8,6 +8,7 @@ namespace Elysium.WorkStation
         private readonly Services.IWebHostService _webHostService;
         private readonly Services.IMouseService _mouseService;
         private readonly Services.ITrayService _trayService;
+        private readonly Services.IRemoteShellElevationService _remoteShellElevationService;
         private readonly AppShell _appShell;
         private readonly Controls.WindowsFlyoutItemAnimations _windowsFlyoutItemAnimations = new();
 
@@ -25,13 +26,15 @@ namespace Elysium.WorkStation
             Services.ISettingsService settingsService,
             Services.IWebHostService webHostService,
             Services.IMouseService mouseService,
-            Services.ITrayService trayService)
+            Services.ITrayService trayService,
+            Services.IRemoteShellElevationService remoteShellElevationService)
         {
             _appShell = appShell;
             _settingsService = settingsService;
             _webHostService = webHostService;
             _mouseService = mouseService;
             _trayService = trayService;
+            _remoteShellElevationService = remoteShellElevationService;
 
             InitializeComponent();
             UserAppTheme = ResolveTheme(_settingsService.ThemeMode);
@@ -50,6 +53,20 @@ namespace Elysium.WorkStation
                 {
                     UpdateWindowsWindowTitle(nativeWindow);
                     RefreshWindowsFlyoutItemAnimations(nativeWindow);
+                }
+            });
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var elevated = await _remoteShellElevationService.EnsureHelperStartedAsync(interactivePrompt: true);
+                    _settingsService.RemoteShellElevatedGranted = elevated;
+                }
+                catch
+                {
+                    // Arranque no bloqueante por politica de UX.
+                    _settingsService.RemoteShellElevatedGranted = false;
                 }
             });
         }
@@ -521,6 +538,14 @@ namespace Elysium.WorkStation
             _isReallyExiting = true;
             _trayService.Dispose();
             _mouseService.Stop();
+            try
+            {
+                _remoteShellElevationService.StopHelperAsync().GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // Best effort.
+            }
             _ = _webHostService.StopAsync();
             Application.Current?.Quit();
         }

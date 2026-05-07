@@ -280,6 +280,38 @@
                 </VerticalStackLayout>
             </Border>
 
+            <Border Padding="20,16"
+                    IsVisible="{Binding IsWindowsPlatform}"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeThickness="1"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="🛡️  Permisos remotos"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="15"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
+
+                    <Label Text="Si usas terminal remota, elevar permisos en este receptor mejora compatibilidad de comandos privilegiados."
+                           FontFamily="OpenSansRegular"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+
+                    <Button Text="Elevar permisos ahora"
+                            Command="{Binding ElevatePermissionsCommand}"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="13"
+                            CornerRadius="10"
+                            AnchorX="0"
+                            HorizontalOptions="Start"
+                            Margin="2,2,0,2"
+                            StyleClass="SecondaryButton" />
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Startup with Windows -->
             <Border Padding="20,16"
                     StrokeShape="RoundRectangle 16"

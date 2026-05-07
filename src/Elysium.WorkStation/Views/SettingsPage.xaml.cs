@@ -58,6 +58,7 @@ namespace Elysium.WorkStation.Views
         private readonly ISecretVaultService _secretVaultService;
         private readonly IVariableRepository _variableRepository;
         private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IRemoteShellElevationService _remoteShellElevationService;
         private string _serverUrl;
         private string _sqliteDbPath;
         private string _preparedDbPath = string.Empty;
@@ -223,19 +224,23 @@ namespace Elysium.WorkStation.Views
         public Command SelectDbPathCommand { get; }
         public Command UseDefaultDbPathCommand { get; }
         public Command ResetDatabaseCommand { get; }
+        public Command ElevatePermissionsCommand { get; }
+        public bool IsWindowsPlatform => DeviceInfo.Platform == DevicePlatform.WinUI;
 
         public SettingsPage(
             ISettingsService settingsService,
             IStartupService startupService,
             ISecretVaultService secretVaultService,
             IVariableRepository variableRepository,
-            IDbContextFactory<AppDbContext> dbContextFactory)
+            IDbContextFactory<AppDbContext> dbContextFactory,
+            IRemoteShellElevationService remoteShellElevationService)
         {
             _settingsService = settingsService;
             _startupService = startupService;
             _secretVaultService = secretVaultService;
             _variableRepository = variableRepository;
             _dbContextFactory = dbContextFactory;
+            _remoteShellElevationService = remoteShellElevationService;
             _serverUrl = settingsService.ServerUrl;
             _sqliteDbPath = settingsService.SqliteDbPath;
             _fileRetentionHours = settingsService.FileRetentionHours;
@@ -573,6 +578,31 @@ namespace Elysium.WorkStation.Views
                 {
                     await DisplayAlert("DB", $"No se pudo resetear la base de datos: {ex.Message}", "OK");
                 }
+            });
+
+            ElevatePermissionsCommand = new Command(async () =>
+            {
+#if WINDOWS
+                try
+                {
+                    var ok = await _remoteShellElevationService.EnsureHelperStartedAsync(interactivePrompt: true);
+                    _settingsService.RemoteShellElevatedGranted = ok;
+                    if (ok)
+                    {
+                        await DisplayAlert("Permisos remotos", "Helper elevado listo. Ya puedes usar terminal remota con permisos optimos.", "OK");
+                    }
+                    else
+                    {
+                        await DisplayAlert("Permisos remotos", "No se logro elevar helper. Puedes seguir usando terminal remota con permisos limitados.", "OK");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Elevar permisos", $"No se pudo elevar permisos: {ex.Message}", "OK");
+                }
+#else
+                await DisplayAlert("Elevar permisos", "Esta opcion solo aplica en Windows.", "OK");
+#endif
             });
 
             InitializeComponent();

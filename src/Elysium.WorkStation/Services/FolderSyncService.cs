@@ -8,6 +8,9 @@ using System.Text.Json;
 using System.Threading;
 using Elysium.WorkStation.Models;
 using Microsoft.AspNetCore.SignalR.Client;
+#if WINDOWS
+using System.Security.Principal;
+#endif
 
 namespace Elysium.WorkStation.Services
 {
@@ -15,11 +18,13 @@ namespace Elysium.WorkStation.Services
     {
         private const string ClientIdPreferenceKey = "folder_sync_client_id";
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+        private const string RemotePermissionStatusAction = "remote.permissions.flag";
 
         private readonly IFolderSyncRepository _repository;
         private readonly ISettingsService _settingsService;
         private readonly INotificationService _notificationService;
         private readonly INotificationRepository _notificationRepository;
+        private readonly IRemoteShellElevationService _remoteShellElevationService;
 
         private readonly object _runtimeGate = new();
         private readonly Dictionary<string, List<FolderSyncLogEntry>> _logsBySync = [];
@@ -32,6 +37,7 @@ namespace Elysium.WorkStation.Services
         private readonly Dictionary<string, ConcurrentDictionary<string, WatcherEventState>> _pendingWatcherEventsBySync = [];
         private readonly Dictionary<string, CancellationTokenSource> _watcherProcessingCtsBySync = [];
         private readonly ConcurrentDictionary<string, PersistentRemoteShellSession> _remoteShellSessionsByKey = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<RemoteCommandExecutionResult>> _pendingRemoteAdminChecksByRequestId = new(StringComparer.Ordinal);
 
         private HubConnection _connection;
         private CancellationTokenSource _startRetryCts;
@@ -56,12 +62,14 @@ namespace Elysium.WorkStation.Services
             IFolderSyncRepository repository,
             ISettingsService settingsService,
             INotificationService notificationService,
-            INotificationRepository notificationRepository)
+            INotificationRepository notificationRepository,
+            IRemoteShellElevationService remoteShellElevationService)
         {
             _repository = repository;
             _settingsService = settingsService;
             _notificationService = notificationService;
             _notificationRepository = notificationRepository;
+            _remoteShellElevationService = remoteShellElevationService;
             _clientName = BuildClientName();
         }
 
@@ -582,6 +590,66 @@ namespace Elysium.WorkStation.Services
             RaiseStateChanged();
         }
 
+        public async Task<(bool Received, bool IsElevated, string Details)> QueryRemoteAdminStatusAsync(int linkId, TimeSpan? timeout = null)
+        {
+            var link = await _repository.GetByIdAsync(linkId);
+            if (link is null)
+            {
+                throw new InvalidOperationException("Sincronizacion no encontrada.");
+            }
+
+            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            {
+                throw new InvalidOperationException("Solo el emisor puede consultar permisos remotos cuando la sincronizacion esta activa.");
+            }
+
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR.");
+            }
+
+            var requestId = Guid.NewGuid().ToString("N");
+            var tcs = new TaskCompletionSource<RemoteCommandExecutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingRemoteAdminChecksByRequestId[requestId] = tcs;
+
+            try
+            {
+                await _connection.InvokeAsync(
+                    "SendRemoteCommand",
+                    requestId,
+                    link.SyncId,
+                    ClientId,
+                    "system",
+                    RemotePermissionStatusAction,
+                    "{}");
+
+                var waitTimeout = timeout ?? TimeSpan.FromSeconds(8);
+                var completed = await Task.WhenAny(tcs.Task, Task.Delay(waitTimeout));
+                if (completed != tcs.Task)
+                {
+                    return (false, false, "No se recibio respuesta del receptor.");
+                }
+
+                var result = await tcs.Task;
+                if (result.ExitCode != 0)
+                {
+                    var detail = string.IsNullOrWhiteSpace(result.StdErr) ? "No fue posible leer permisos remotos." : result.StdErr.Trim();
+                    return (true, false, detail);
+                }
+
+                var raw = (result.StdOut ?? string.Empty).Trim();
+                var elevated = string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase);
+                var details = elevated
+                    ? "Receptor con privilegios elevados."
+                    : $"Receptor sin privilegios elevados (valor reportado: '{raw}').";
+                return (true, elevated, details);
+            }
+            finally
+            {
+                _pendingRemoteAdminChecksByRequestId.TryRemove(requestId, out _);
+            }
+        }
+
         public IReadOnlyList<FolderSyncLogEntry> GetLogs(string syncId)
         {
             lock (_runtimeGate)
@@ -836,6 +904,19 @@ namespace Elysium.WorkStation.Services
                 StdErr = stdErr ?? string.Empty,
                 ExecutorClientId = executorClientId ?? string.Empty
             });
+
+            if (!string.IsNullOrWhiteSpace(requestId) &&
+                _pendingRemoteAdminChecksByRequestId.TryRemove(requestId, out var pending))
+            {
+                pending.TrySetResult(new RemoteCommandExecutionResult(
+                    requestId ?? string.Empty,
+                    syncId ?? string.Empty,
+                    tool ?? string.Empty,
+                    action ?? string.Empty,
+                    exitCode,
+                    stdOut ?? string.Empty,
+                    stdErr ?? string.Empty));
+            }
         }
 
         private async Task SendRemoteCommandResultAsync(RemoteCommandExecutionResult result)
@@ -867,6 +948,20 @@ namespace Elysium.WorkStation.Services
             string action,
             string argsJson)
         {
+            if (string.Equals(tool, "system", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(action, RemotePermissionStatusAction, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Recalcular estado real del helper en este instante (receptor) y sincronizar bandera local.
+                    var helperAvailable = await _remoteShellElevationService.IsHelperAvailableAsync();
+                    _settingsService.RemoteShellElevatedGranted = helperAvailable;
+                    var isElevated = helperAvailable;
+                    return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 0, isElevated ? "true" : "false", string.Empty);
+                }
+
+                return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 2, string.Empty, "Accion de sistema no soportada.");
+            }
+
             if (!string.Equals(tool, "git", StringComparison.OrdinalIgnoreCase))
             {
                 return new RemoteCommandExecutionResult(requestId, link.SyncId, tool, action, 2, string.Empty, "Tool no soportada.");
@@ -1041,6 +1136,24 @@ namespace Elysium.WorkStation.Services
             };
         }
 
+        private static bool IsCurrentProcessElevated()
+        {
+#if WINDOWS
+            try
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                var principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
+#else
+            return false;
+#endif
+        }
+
         private async Task HandleIncomingRemoteTerminalInputAsync(
             string sessionId,
             string syncId,
@@ -1064,6 +1177,27 @@ namespace Elysium.WorkStation.Services
             }
 
             var sessionKey = BuildRemoteShellSessionKey(syncId, senderClientId, sessionId);
+
+            var helperExit = await TryExecuteWithElevatedHelperAsync(
+                sessionKey,
+                link.LocalFolderPath,
+                commandText,
+                async (line, isError) => await SendRemoteTerminalOutputAsync(
+                    sessionId,
+                    syncId,
+                    line,
+                    isError,
+                    isCompleted: false,
+                    exitCode: 0));
+
+            if (helperExit.HasValue)
+            {
+                await SendRemoteTerminalOutputAsync(sessionId, syncId, string.Empty, isError: false, isCompleted: true, helperExit.Value);
+                AddLog(syncId, "remote-shell-exec", string.Empty, $"Shell remoto (helper) exit={helperExit.Value}.", isOutgoing: false);
+                RaiseStateChanged();
+                return;
+            }
+
             var shellSession = GetOrCreateRemoteShellSession(
                 sessionKey,
                 link.LocalFolderPath,
@@ -1096,6 +1230,31 @@ namespace Elysium.WorkStation.Services
             finally
             {
                 shellSession.CommandGate.Release();
+            }
+        }
+
+        private async Task<int?> TryExecuteWithElevatedHelperAsync(
+            string sessionKey,
+            string workingDirectory,
+            string commandText,
+            Func<string, bool, Task> onLineAsync)
+        {
+            try
+            {
+                if (!await _remoteShellElevationService.IsHelperAvailableAsync())
+                {
+                    return null;
+                }
+
+                return await _remoteShellElevationService.ExecuteInHelperSessionAsync(
+                    sessionKey,
+                    workingDirectory,
+                    commandText,
+                    onLineAsync);
+            }
+            catch
+            {
+                return null;
             }
         }
 
