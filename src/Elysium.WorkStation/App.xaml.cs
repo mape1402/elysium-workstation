@@ -550,16 +550,45 @@ namespace Elysium.WorkStation
             _isReallyExiting = true;
             _trayService.Dispose();
             _mouseService.Stop();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _remoteShellElevationService.StopHelperAsync();
+                }
+                catch
+                {
+                    // Best effort.
+                }
+
+                try
+                {
+                    await _webHostService.StopAsync();
+                }
+                catch
+                {
+                    // Best effort.
+                }
+
+                // Cierre definitivo del proceso principal sin depender del hilo UI.
+                try
+                {
+                    Environment.Exit(0);
+                }
+                catch
+                {
+                    // Best effort.
+                }
+            });
+
             try
             {
-                _remoteShellElevationService.StopHelperAsync().GetAwaiter().GetResult();
+                Application.Current?.Quit();
             }
             catch
             {
                 // Best effort.
             }
-            _ = _webHostService.StopAsync();
-            Application.Current?.Quit();
         }
 #endif
     }
