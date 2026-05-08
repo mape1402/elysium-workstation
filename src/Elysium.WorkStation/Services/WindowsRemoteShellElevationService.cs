@@ -118,6 +118,37 @@ namespace Elysium.WorkStation.Services
             }
         }
 
+        public async Task<bool> InterruptHelperSessionAsync(string sessionKey, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(sessionKey))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var client = CreateClientPipe(_pipeName);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(2));
+                await client.ConnectAsync(cts.Token);
+
+                await SendRequestAsync(client, new HelperRequest
+                {
+                    Type = "interrupt",
+                    SessionKey = sessionKey,
+                    WorkingDirectory = string.Empty,
+                    Command = string.Empty
+                }, cts.Token);
+
+                var response = await ReadResponseAsync(client, cts.Token);
+                return response is not null && string.Equals(response.Type, "done", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public async Task<int?> ExecuteInHelperSessionAsync(
             string sessionKey,
             string workingDirectory,

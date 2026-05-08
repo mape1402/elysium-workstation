@@ -102,15 +102,17 @@ namespace Elysium.WorkStation.Views
 
             e.Cancel = true;
 
-            if (_commandInFlight)
+            if (_commandInFlight && !e.Url.StartsWith("termcmd://interrupt", StringComparison.OrdinalIgnoreCase))
             {
                 await EvalJsAsync("termAppendLine('[busy] Espera a que termine el comando actual.', 'muted'); termResetPrompt();");
                 return;
             }
 
             var command = string.Empty;
+            var isInterrupt = false;
             if (Uri.TryCreate(e.Url, UriKind.Absolute, out var uri))
             {
+                isInterrupt = string.Equals(uri.Host, "interrupt", StringComparison.OrdinalIgnoreCase);
                 var rawQuery = uri.Query?.TrimStart('?') ?? string.Empty;
                 var parts = rawQuery.Split('&', StringSplitOptions.RemoveEmptyEntries);
                 foreach (var part in parts)
@@ -125,8 +127,28 @@ namespace Elysium.WorkStation.Views
             }
             else
             {
+                isInterrupt = e.Url.StartsWith("termcmd://interrupt", StringComparison.OrdinalIgnoreCase);
                 var encoded = e.Url["termcmd://".Length..];
                 command = Uri.UnescapeDataString(encoded ?? string.Empty);
+            }
+
+            if (isInterrupt)
+            {
+                if (!_commandInFlight)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.SendRemoteTerminalInterruptAsync(_linkId, _sessionId);
+                }
+                catch (Exception ex)
+                {
+                    await EvalJsAsync($"termAppendLine({ToJsString("[error] " + ex.Message)}, 'error');");
+                }
+
+                return;
             }
 
             command = (command ?? string.Empty).Trim();
@@ -344,6 +366,7 @@ namespace Elysium.WorkStation.Views
     .ansi-bg-bright-magenta { background: #8250df; }
     .ansi-bg-bright-cyan { background: #1f6f78; }
     .ansi-bg-bright-white { background: #f0f6fc; color: #0d1117; }
+    #term:focus { outline: none; }
   </style>
 </head>
 <body class="{{themeClass}}">
@@ -467,13 +490,26 @@ namespace Elysium.WorkStation.Views
     }
 
     function placeCursorAtEnd(el) {
+      if (!el) return;
       const range = document.createRange();
       range.selectNodeContents(el);
       range.collapse(false);
       const sel = window.getSelection();
+      if (!sel) return;
       sel.removeAllRanges();
       sel.addRange(range);
       el.focus();
+    }
+
+    function focusPromptCursor() {
+      if (locked) return;
+      const input = currentInputSpan();
+      if (!input) return;
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed) {
+        return;
+      }
+      placeCursorAtEnd(input);
     }
 
     function submitCurrent() {
@@ -546,11 +582,30 @@ namespace Elysium.WorkStation.Views
       }
       if (locked) {
         const key = (e.key || '').toLowerCase();
-        if ((e.ctrlKey || e.metaKey) && (key === 'c' || key === 'a')) {
+        if ((e.ctrlKey || e.metaKey) && key === 'c') {
+          const sel = window.getSelection();
+          const selectedText = sel ? (sel.toString() || '') : '';
+          if (selectedText.length > 0) {
+            return;
+          }
+          e.preventDefault();
+          window.location.href = 'termcmd://interrupt?nonce=' + Date.now().toString();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && key === 'a') {
           return;
         }
         e.preventDefault();
       }
+    });
+
+    term.addEventListener('pointerup', () => {
+      const sel = window.getSelection();
+      const selectedText = sel ? (sel.toString() || '') : '';
+      if (selectedText.length > 0) {
+        return;
+      }
+      setTimeout(focusPromptCursor, 0);
     });
 
     window.termAppendLine = function(text, level) {
@@ -572,6 +627,7 @@ namespace Elysium.WorkStation.Views
 
     line('Remote terminal ready.', 'muted');
     ensurePrompt();
+    setTimeout(focusPromptCursor, 0);
     window.location.href = 'termready://ready';
   </script>
 </body>

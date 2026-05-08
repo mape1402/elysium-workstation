@@ -12,6 +12,7 @@ namespace Elysium.WorkStation.WinUI
         private const string DefaultPipeName = "Elysium.WorkStation.RemoteShell.Helper.v1";
         private const string HelperMutexName = "Global\\Elysium.WorkStation.RemoteShell.Helper.Singleton.v1";
         private static readonly ConcurrentDictionary<string, SessionShell> Sessions = new(StringComparer.Ordinal);
+        private static DateTime _lastActivityUtc = DateTime.UtcNow;
         private static int? _ownerPid;
         private static string _pipeName = DefaultPipeName;
 
@@ -24,6 +25,7 @@ namespace Elysium.WorkStation.WinUI
             _ownerPid = TryGetOwnerPid(args);
             _pipeName = TryGetPipeName(args) ?? DefaultPipeName;
             TryStartOwnerWatchdog(_ownerPid);
+            TryStartIdleWatchdog();
 
 #if !DEBUG
             using var singletonMutex = new Mutex(initiallyOwned: true, name: $"{HelperMutexName}.{_pipeName}", createdNew: out var isFirstInstance);
@@ -71,6 +73,8 @@ namespace Elysium.WorkStation.WinUI
                     return;
                 }
 
+                _lastActivityUtc = DateTime.UtcNow;
+
                 if (string.Equals(request.Type, "ping", StringComparison.OrdinalIgnoreCase))
                 {
                     await WriteAsync(writer, new HelperResponse { Type = "pong", ExitCode = 0 });
@@ -85,6 +89,19 @@ namespace Elysium.WorkStation.WinUI
                         await Task.Delay(100);
                         Environment.Exit(0);
                     });
+                    return;
+                }
+
+                if (string.Equals(request.Type, "interrupt", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrWhiteSpace(request.SessionKey))
+                    {
+                        await WriteAsync(writer, new HelperResponse { Type = "error", Text = "SessionKey vacio.", ExitCode = 2 });
+                        return;
+                    }
+
+                    var interrupted = InterruptSession(request.SessionKey);
+                    await WriteAsync(writer, new HelperResponse { Type = "done", ExitCode = interrupted ? 130 : 0 });
                     return;
                 }
 
@@ -106,15 +123,16 @@ namespace Elysium.WorkStation.WinUI
                 {
                     var exitCode = await ExecuteInSessionAsync(shell, request.Command ?? string.Empty, async (txt, isErr) =>
                     {
-                        await WriteAsync(writer, new HelperResponse { Type = "line", Text = txt, IsError = isErr, ExitCode = 0 });
-                    });
+                    await WriteAsync(writer, new HelperResponse { Type = "line", Text = txt, IsError = isErr, ExitCode = 0 });
+                });
 
-                    await WriteAsync(writer, new HelperResponse { Type = "done", ExitCode = exitCode });
-                }
-                finally
-                {
-                    shell.Gate.Release();
-                }
+                await WriteAsync(writer, new HelperResponse { Type = "done", ExitCode = exitCode });
+                _lastActivityUtc = DateTime.UtcNow;
+            }
+            finally
+            {
+                shell.Gate.Release();
+            }
             }
             catch
             {
@@ -237,6 +255,29 @@ namespace Elysium.WorkStation.WinUI
             return writer.WriteLineAsync(payload);
         }
 
+        private static bool InterruptSession(string sessionKey)
+        {
+            if (!Sessions.TryRemove(sessionKey, out var shell))
+            {
+                return false;
+            }
+
+            try
+            {
+                if (!shell.Process.HasExited)
+                {
+                    shell.Process.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+                // Best effort.
+            }
+
+            _lastActivityUtc = DateTime.UtcNow;
+            return true;
+        }
+
         private static int? TryGetOwnerPid(string[] args)
         {
             if (args is null || args.Length == 0)
@@ -311,6 +352,28 @@ namespace Elysium.WorkStation.WinUI
                 }
                 finally
                 {
+                    try { Environment.Exit(0); } catch { }
+                }
+            });
+        }
+
+        private static void TryStartIdleWatchdog()
+        {
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30));
+                    if (DateTime.UtcNow - _lastActivityUtc < TimeSpan.FromMinutes(3))
+                    {
+                        continue;
+                    }
+
+                    if (Sessions.Count > 0)
+                    {
+                        continue;
+                    }
+
                     try { Environment.Exit(0); } catch { }
                 }
             });

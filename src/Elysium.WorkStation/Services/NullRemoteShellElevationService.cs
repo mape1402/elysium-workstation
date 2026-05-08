@@ -11,6 +11,9 @@ namespace Elysium.WorkStation.Services
         public Task StopHelperAsync(CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
+        public Task<bool> InterruptHelperSessionAsync(string sessionKey, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
         public Task<int?> ExecuteInHelperSessionAsync(
             string sessionKey,
             string workingDirectory,

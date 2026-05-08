@@ -36,6 +36,7 @@ namespace Elysium.WorkStation.Services
         Task RequestRemoteGitCommitAsync(int linkId, string message);
         Task RequestRemoteGitPushAsync(int linkId);
         Task SendRemoteTerminalCommandAsync(int linkId, string sessionId, string commandText);
+        Task SendRemoteTerminalInterruptAsync(int linkId, string sessionId);
         Task<(bool Received, bool IsElevated, string Details)> QueryRemoteAdminStatusAsync(int linkId, TimeSpan? timeout = null);
 
         IReadOnlyList<FolderSyncLogEntry> GetLogs(string syncId);

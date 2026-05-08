@@ -69,6 +69,18 @@ namespace Elysium.WorkStation
                     _settingsService.RemoteShellElevatedGranted = false;
                 }
             });
+
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                try
+                {
+                    _remoteShellElevationService.StopHelperAsync().GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Best effort.
+                }
+            };
         }
 #else
         private readonly AppShell _appShell;
