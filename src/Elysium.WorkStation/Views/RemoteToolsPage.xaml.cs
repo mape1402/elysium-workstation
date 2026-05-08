@@ -518,11 +518,6 @@ namespace Elysium.WorkStation.Views
       placeCursorAtEnd(input);
     }
 
-    term.addEventListener('click', () => {
-      const input = currentInputSpan();
-      if (input && !locked) placeCursorAtEnd(input);
-    });
-
     term.addEventListener('keydown', (e) => {
       const input = currentInputSpan();
       if (!input) return;
@@ -550,6 +545,10 @@ namespace Elysium.WorkStation.Views
         return;
       }
       if (locked) {
+        const key = (e.key || '').toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && (key === 'c' || key === 'a')) {
+          return;
+        }
         e.preventDefault();
       }
     });
