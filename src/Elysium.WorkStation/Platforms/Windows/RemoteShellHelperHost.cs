@@ -37,7 +37,7 @@ namespace Elysium.WorkStation.WinUI
 
             while (true)
             {
-                using var server = new NamedPipeServerStream(
+                var server = new NamedPipeServerStream(
                     _pipeName,
                     PipeDirection.InOut,
                     NamedPipeServerStream.MaxAllowedServerInstances,
@@ -123,8 +123,9 @@ namespace Elysium.WorkStation.WinUI
                 {
                     var exitCode = await ExecuteInSessionAsync(shell, request.Command ?? string.Empty, async (txt, isErr) =>
                     {
-                    await WriteAsync(writer, new HelperResponse { Type = "line", Text = txt, IsError = isErr, ExitCode = 0 });
-                });
+                        if (shell.IsInterrupted) return;
+                        await WriteAsync(writer, new HelperResponse { Type = "line", Text = txt, IsError = isErr, ExitCode = 0 });
+                    });
 
                 await WriteAsync(writer, new HelperResponse { Type = "done", ExitCode = exitCode });
                 _lastActivityUtc = DateTime.UtcNow;
@@ -166,6 +167,7 @@ namespace Elysium.WorkStation.WinUI
                 psi.ArgumentList.Add("-");
 
                 var process = new Process { StartInfo = psi };
+                process.EnableRaisingEvents = true;
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
@@ -182,6 +184,17 @@ namespace Elysium.WorkStation.WinUI
 
             var marker = "__CODEX_DONE__" + Guid.NewGuid().ToString("N") + ":";
             var done = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            EventHandler exitHandler = (_, _) =>
+            {
+                try
+                {
+                    done.TrySetResult(session.Process.ExitCode);
+                }
+                catch
+                {
+                    done.TrySetResult(130);
+                }
+            };
 
             DataReceivedEventHandler outHandler = (_, e) =>
             {
@@ -209,6 +222,7 @@ namespace Elysium.WorkStation.WinUI
 
             session.Process.OutputDataReceived += outHandler;
             session.Process.ErrorDataReceived += errHandler;
+            session.Process.Exited += exitHandler;
             try
             {
                 foreach (var line in BuildWrappedLines(commandText, marker))
@@ -229,6 +243,7 @@ namespace Elysium.WorkStation.WinUI
             {
                 session.Process.OutputDataReceived -= outHandler;
                 session.Process.ErrorDataReceived -= errHandler;
+                session.Process.Exited -= exitHandler;
             }
         }
 
@@ -262,6 +277,7 @@ namespace Elysium.WorkStation.WinUI
                 return false;
             }
 
+            shell.IsInterrupted = true;
             try
             {
                 if (!shell.Process.HasExited)
@@ -399,6 +415,7 @@ namespace Elysium.WorkStation.WinUI
         {
             public Process Process { get; }
             public SemaphoreSlim Gate { get; } = new(1, 1);
+            public volatile bool IsInterrupted;
 
             public SessionShell(Process process)
             {

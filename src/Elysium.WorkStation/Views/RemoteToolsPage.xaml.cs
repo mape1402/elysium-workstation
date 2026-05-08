@@ -29,6 +29,7 @@ namespace Elysium.WorkStation.Views
         public string HeaderText => $"remote@sync-{_linkId}:~";
         public bool IsWebViewLoading => _isWebViewLoading;
         public Command ClearTerminalCommand { get; }
+        public Command StopTerminalCommand { get; }
 
         public RemoteToolsPage(IFolderSyncService folderSyncService)
         {
@@ -43,6 +44,25 @@ namespace Elysium.WorkStation.Views
 
                 SetWebViewLoading(true);
                 await SetTerminalHtmlAsync(BuildTerminalHtml(HeaderText, IsDarkTheme()));
+            });
+
+            StopTerminalCommand = new Command(async () =>
+            {
+                if (!_terminalReady)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _folderSyncService.SendRemoteTerminalInterruptAsync(_linkId, _sessionId);
+                    _commandInFlight = false;
+                    await EvalJsAsync("termSetLocked(false); termResetPrompt();");
+                }
+                catch (Exception ex)
+                {
+                    await EvalJsAsync($"termAppendLine({ToJsString("[error] " + ex.Message)}, 'error');");
+                }
             });
             InitializeComponent();
             BindingContext = this;
@@ -134,14 +154,11 @@ namespace Elysium.WorkStation.Views
 
             if (isInterrupt)
             {
-                if (!_commandInFlight)
-                {
-                    return;
-                }
-
                 try
                 {
                     await _folderSyncService.SendRemoteTerminalInterruptAsync(_linkId, _sessionId);
+                    _commandInFlight = false;
+                    await EvalJsAsync("termSetLocked(false); termResetPrompt();");
                 }
                 catch (Exception ex)
                 {
@@ -554,7 +571,7 @@ namespace Elysium.WorkStation.Views
       placeCursorAtEnd(input);
     }
 
-    term.addEventListener('keydown', (e) => {
+    function handleTerminalKeydown(e) {
       const input = currentInputSpan();
       if (!input) return;
       if (e.key === 'Enter') {
@@ -582,12 +599,10 @@ namespace Elysium.WorkStation.Views
       }
       if (locked) {
         const key = (e.key || '').toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && key === 'c') {
+          return;
+        }
         if ((e.ctrlKey || e.metaKey) && key === 'c') {
-          const sel = window.getSelection();
-          const selectedText = sel ? (sel.toString() || '') : '';
-          if (selectedText.length > 0) {
-            return;
-          }
           e.preventDefault();
           window.location.href = 'termcmd://interrupt?nonce=' + Date.now().toString();
           return;
@@ -597,9 +612,21 @@ namespace Elysium.WorkStation.Views
         }
         e.preventDefault();
       }
-    });
+    }
+
+    term.addEventListener('keydown', handleTerminalKeydown);
+    document.addEventListener('keydown', handleTerminalKeydown, true);
 
     term.addEventListener('pointerup', () => {
+      const sel = window.getSelection();
+      const selectedText = sel ? (sel.toString() || '') : '';
+      if (selectedText.length > 0) {
+        return;
+      }
+      setTimeout(focusPromptCursor, 0);
+    });
+
+    term.addEventListener('click', () => {
       const sel = window.getSelection();
       const selectedText = sel ? (sel.toString() || '') : '';
       if (selectedText.length > 0) {

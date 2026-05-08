@@ -136,6 +136,16 @@ namespace Elysium.WorkStation.Hubs
                 senderClientId,
                 commandText);
 
+        public async Task SendRemoteTerminalInterrupt(
+            string sessionId,
+            string syncId,
+            string senderClientId)
+            => await Clients.Others.SendAsync(
+                "ReceiveRemoteTerminalInterrupt",
+                sessionId,
+                syncId,
+                senderClientId);
+
         public async Task SendRemoteTerminalOutput(
             string sessionId,
             string syncId,

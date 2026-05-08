@@ -13,7 +13,7 @@
                 StrokeShape="RoundRectangle 8"
                 Stroke="{AppThemeBinding Light=#C8D1DD, Dark=#2A2F3A}"
                 BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#161B22}">
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                 <Label Grid.Column="0"
                        Text="o"
                        TextColor="{AppThemeBinding Light=#C62828, Dark=#F85149}"
@@ -26,6 +26,15 @@
                        TextColor="{AppThemeBinding Light=#243447, Dark=#C9D1D9}"
                        VerticalOptions="Center" />
                 <Button Grid.Column="2"
+                        Text="Detener"
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Padding="8,4"
+                        TextColor="{AppThemeBinding Light=#FFFFFF, Dark=#FFFFFF}"
+                        Command="{Binding StopTerminalCommand}"
+                        BorderColor="{AppThemeBinding Light=#B42318, Dark=#F85149}"
+                        BackgroundColor="{AppThemeBinding Light=#B42318, Dark=#B62324}" />
+                <Button Grid.Column="3"
                         Text="Limpiar"
                         FontFamily="Consolas"
                         FontSize="11"

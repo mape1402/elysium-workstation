@@ -141,7 +141,9 @@ namespace Elysium.WorkStation.Services
                 }, cts.Token);
 
                 var response = await ReadResponseAsync(client, cts.Token);
-                return response is not null && string.Equals(response.Type, "done", StringComparison.OrdinalIgnoreCase);
+                return response is not null
+                    && string.Equals(response.Type, "done", StringComparison.OrdinalIgnoreCase)
+                    && response.ExitCode == 130;
             }
             catch
             {

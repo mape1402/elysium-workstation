@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Channels;
 using Elysium.WorkStation.Models;
 using Microsoft.AspNetCore.SignalR.Client;
 #if WINDOWS
@@ -38,7 +39,9 @@ namespace Elysium.WorkStation.Services
         private readonly Dictionary<string, ConcurrentDictionary<string, WatcherEventState>> _pendingWatcherEventsBySync = [];
         private readonly Dictionary<string, CancellationTokenSource> _watcherProcessingCtsBySync = [];
         private readonly ConcurrentDictionary<string, PersistentRemoteShellSession> _remoteShellSessionsByKey = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, RemoteTerminalSessionWorker> _remoteTerminalWorkersBySessionKey = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, byte> _interruptedRemoteShellSessions = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, byte> _activeElevatedHelperSessionKeys = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, TaskCompletionSource<RemoteCommandExecutionResult>> _pendingRemoteAdminChecksByRequestId = new(StringComparer.Ordinal);
 
         private HubConnection _connection;
@@ -136,6 +139,7 @@ namespace Elysium.WorkStation.Services
 
         public async Task StopAsync()
         {
+            DisposeAllRemoteTerminalWorkers();
             DisposeAllRemoteShellSessions();
 
             lock (_runtimeGate)
@@ -592,8 +596,63 @@ namespace Elysium.WorkStation.Services
             RaiseStateChanged();
         }
 
-        public Task SendRemoteTerminalInterruptAsync(int linkId, string sessionId) =>
-            SendRemoteTerminalCommandAsync(linkId, sessionId, RemoteTerminalInterruptToken);
+        public async Task SendRemoteTerminalInterruptAsync(int linkId, string sessionId)
+        {
+            var link = await _repository.GetByIdAsync(linkId);
+            if (link is null)
+            {
+                throw new InvalidOperationException("Sincronizacion no encontrada.");
+            }
+
+            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            {
+                throw new InvalidOperationException("Solo el emisor puede usar terminal remota cuando la sincronizacion esta activa.");
+            }
+
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para terminal remota.");
+            }
+
+            var sentDedicated = false;
+            Exception dedicatedError = null;
+
+            try
+            {
+                await _connection.InvokeAsync(
+                    "SendRemoteTerminalInterrupt",
+                    sessionId,
+                    link.SyncId,
+                    ClientId);
+                sentDedicated = true;
+                AddLog(link.SyncId, "remote-shell-interrupt-send-v2", string.Empty, "Interrupt enviado por evento dedicado.", isOutgoing: true);
+            }
+            catch (Exception ex)
+            {
+                dedicatedError = ex;
+                AddLog(link.SyncId, "remote-shell-interrupt-send-v2-fail", string.Empty, $"Fallo evento dedicado: {ex.Message}", isOutgoing: true);
+            }
+
+            if (!sentDedicated)
+            {
+                try
+                {
+                    await _connection.InvokeAsync(
+                        "SendRemoteTerminalInput",
+                        sessionId,
+                        link.SyncId,
+                        ClientId,
+                        RemoteTerminalInterruptToken);
+                    AddLog(link.SyncId, "remote-shell-interrupt-send", string.Empty, "Interrupt enviado por canal terminal input (fallback).", isOutgoing: true);
+                }
+                catch (Exception ex)
+                {
+                    AddLog(link.SyncId, "remote-shell-interrupt-send-fail", string.Empty, $"Fallo envio interrupt fallback: {ex.Message}", isOutgoing: true);
+                    throw dedicatedError ?? ex;
+                }
+            }
+            RaiseStateChanged();
+        }
 
         public async Task<(bool Received, bool IsElevated, string Details)> QueryRemoteAdminStatusAsync(int linkId, TimeSpan? timeout = null)
         {
@@ -786,6 +845,11 @@ namespace Elysium.WorkStation.Services
                 "ReceiveRemoteTerminalInput",
                 (sessionId, syncId, senderClientId, commandText) =>
                     _ = HandleIncomingRemoteTerminalInputAsync(sessionId, syncId, senderClientId, commandText));
+
+            connection.On<string, string, string>(
+                "ReceiveRemoteTerminalInterrupt",
+                (sessionId, syncId, senderClientId) =>
+                    _ = HandleIncomingRemoteTerminalInterruptAsync(sessionId, syncId, senderClientId));
 
             connection.On<string, string, string, bool, bool, int, string>(
                 "ReceiveRemoteTerminalOutput",
@@ -1184,17 +1248,70 @@ namespace Elysium.WorkStation.Services
             var sessionKey = BuildRemoteShellSessionKey(syncId, senderClientId, sessionId);
             if (string.Equals(commandText.Trim(), RemoteTerminalInterruptToken, StringComparison.Ordinal))
             {
-                var interrupted = await TryInterruptWithElevatedHelperAsync(sessionKey);
-                interrupted |= InterruptRemoteShellSession(sessionKey);
+                await HandleIncomingRemoteTerminalInterruptAsync(sessionId, syncId, senderClientId);
+                return;
+            }
 
-                if (interrupted)
+            var worker = GetOrCreateRemoteTerminalWorker(sessionKey);
+            var item = new RemoteTerminalWorkItem(sessionId, syncId, senderClientId, commandText, sessionKey);
+            if (!worker.Queue.Writer.TryWrite(item))
+            {
+                await SendRemoteTerminalOutputAsync(sessionId, syncId, "No se pudo encolar comando remoto.", isError: true, isCompleted: true, exitCode: 1);
+            }
+        }
+
+        private RemoteTerminalSessionWorker GetOrCreateRemoteTerminalWorker(string sessionKey)
+        {
+            return _remoteTerminalWorkersBySessionKey.GetOrAdd(sessionKey, key =>
+            {
+                var queue = Channel.CreateUnbounded<RemoteTerminalWorkItem>(
+                    new UnboundedChannelOptions
+                    {
+                        SingleReader = true,
+                        SingleWriter = false
+                    });
+                var cts = new CancellationTokenSource();
+                var pump = Task.Run(() => RunRemoteTerminalWorkerAsync(key, queue.Reader, cts.Token));
+                return new RemoteTerminalSessionWorker(queue, cts, pump);
+            });
+        }
+
+        private async Task RunRemoteTerminalWorkerAsync(
+            string sessionKey,
+            ChannelReader<RemoteTerminalWorkItem> reader,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                while (await reader.WaitToReadAsync(cancellationToken))
                 {
-                    await SendRemoteTerminalOutputAsync(sessionId, syncId, "^C", isError: false, isCompleted: false, exitCode: 0);
-                    await SendRemoteTerminalOutputAsync(sessionId, syncId, string.Empty, isError: false, isCompleted: true, exitCode: 130);
-                    AddLog(syncId, "remote-shell-interrupt", string.Empty, "Shell remoto interrumpido por emisor.", isOutgoing: false);
-                    RaiseStateChanged();
+                    while (reader.TryRead(out var item))
+                    {
+                        await ExecuteQueuedRemoteTerminalCommandAsync(item);
+                    }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                // Worker canceled.
+            }
+            finally
+            {
+                _remoteTerminalWorkersBySessionKey.TryRemove(sessionKey, out _);
+            }
+        }
 
+        private async Task ExecuteQueuedRemoteTerminalCommandAsync(RemoteTerminalWorkItem item)
+        {
+            var sessionId = item.SessionId;
+            var syncId = item.SyncId;
+            var senderClientId = item.SenderClientId;
+            var commandText = item.CommandText;
+            var sessionKey = item.SessionKey;
+
+            var link = await _repository.GetBySyncIdAsync(syncId);
+            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            {
                 return;
             }
 
@@ -1202,18 +1319,24 @@ namespace Elysium.WorkStation.Services
                 sessionKey,
                 link.LocalFolderPath,
                 commandText,
-                async (line, isError) => await SendRemoteTerminalOutputAsync(
-                    sessionId,
-                    syncId,
-                    line,
-                    isError,
-                    isCompleted: false,
-                    exitCode: 0));
+                (line, isError) =>
+                {
+                    _ = SendRemoteTerminalOutputAsync(
+                        sessionId,
+                        syncId,
+                        line,
+                        isError,
+                        isCompleted: false,
+                        exitCode: 0);
+                    return Task.CompletedTask;
+                });
 
             if (helperExit.HasValue)
             {
+                var wasInterrupted = _interruptedRemoteShellSessions.TryRemove(sessionKey, out _);
+
                 await SendRemoteTerminalOutputAsync(sessionId, syncId, string.Empty, isError: false, isCompleted: true, helperExit.Value);
-                AddLog(syncId, "remote-shell-exec", string.Empty, $"Shell remoto (helper) exit={helperExit.Value}.", isOutgoing: false);
+                AddLog(syncId, "remote-shell-exec", string.Empty, $"Shell remoto (helper) exit={helperExit.Value} interrupted={wasInterrupted}.", isOutgoing: false);
                 RaiseStateChanged();
                 return;
             }
@@ -1230,22 +1353,37 @@ namespace Elysium.WorkStation.Services
                 var exitCode = await ExecuteRemoteShellCommandInSessionAsync(
                     shellSession,
                     commandText,
-                    async (line, isError) => await SendRemoteTerminalOutputAsync(
-                        sessionId,
-                        syncId,
-                        line,
-                        isError,
-                        isCompleted: false,
-                        exitCode: 0));
+                    (line, isError) =>
+                    {
+                        _ = SendRemoteTerminalOutputAsync(
+                            sessionId,
+                            syncId,
+                            line,
+                            isError,
+                            isCompleted: false,
+                            exitCode: 0);
+                        return Task.CompletedTask;
+                    });
+
+                var wasInterrupted = _interruptedRemoteShellSessions.TryRemove(sessionKey, out _);
+                if (wasInterrupted)
+                {
+                    DisposeRemoteShellSession(sessionKey);
+                }
 
                 await SendRemoteTerminalOutputAsync(sessionId, syncId, string.Empty, isError: false, isCompleted: true, exitCode);
-                AddLog(syncId, "remote-shell-exec", string.Empty, $"Shell remoto ejecutado exit={exitCode}.", isOutgoing: false);
+                AddLog(syncId, "remote-shell-exec", string.Empty, $"Shell remoto ejecutado exit={exitCode} interrupted={wasInterrupted}.", isOutgoing: false);
                 RaiseStateChanged();
             }
             catch (Exception ex)
             {
-                if (_interruptedRemoteShellSessions.TryRemove(sessionKey, out _))
+                var wasInterrupted = _interruptedRemoteShellSessions.TryRemove(sessionKey, out _);
+                if (wasInterrupted)
                 {
+                    DisposeRemoteShellSession(sessionKey);
+                    await SendRemoteTerminalOutputAsync(sessionId, syncId, string.Empty, isError: false, isCompleted: true, exitCode: 130);
+                    AddLog(syncId, "remote-shell-exec", string.Empty, "Shell remoto interrumpido durante excepcion controlada.", isOutgoing: false);
+                    RaiseStateChanged();
                     return;
                 }
 
@@ -1254,8 +1392,67 @@ namespace Elysium.WorkStation.Services
             }
             finally
             {
-                shellSession.CommandGate.Release();
+                try { shellSession.CommandGate.Release(); } catch (ObjectDisposedException) { }
             }
+        }
+
+        private async Task HandleIncomingRemoteTerminalInterruptAsync(
+            string sessionId,
+            string syncId,
+            string senderClientId)
+        {
+            AddLog(syncId, "remote-shell-interrupt-entry", string.Empty, $"Interrupt recibido del hub. senderClientId={senderClientId} myClientId={ClientId}", isOutgoing: false);
+
+            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal))
+            {
+                AddLog(syncId, "remote-shell-interrupt-self-skip", string.Empty, "senderClientId coincide con myClientId — puede ser bug de ClientId duplicado.", isOutgoing: false);
+            }
+
+            var link = await _repository.GetBySyncIdAsync(syncId);
+            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            {
+                AddLog(syncId, "remote-shell-interrupt-skip", string.Empty, $"Interrupt ignorado. linkValido={link is not null}, accepted={link?.IsAccepted}, continuous={link?.ContinuousSyncEnabled}, isEmitter={link?.IsEmitter}.", isOutgoing: false);
+                return;
+            }
+
+            var sessionKey = BuildRemoteShellSessionKey(syncId, senderClientId, sessionId);
+            AddLog(syncId, "remote-shell-interrupt-recv", string.Empty, $"Interrupt recibido. sessionKey={sessionKey}", isOutgoing: false);
+            var interrupted = await TryInterruptWithElevatedHelperAsync(sessionKey);
+            AddLog(syncId, "remote-shell-interrupt-helper-exact", string.Empty, $"Helper interrupt exact={interrupted} key={sessionKey}", isOutgoing: false);
+            if (!interrupted)
+            {
+                interrupted = await TryInterruptAnyElevatedHelperSessionAsync(syncId, senderClientId);
+                AddLog(syncId, "remote-shell-interrupt-helper-fallback", string.Empty, $"Helper interrupt fallback={interrupted} prefix={syncId}|{senderClientId}|", isOutgoing: false);
+            }
+            var localExact = InterruptRemoteShellSession(sessionKey);
+            interrupted |= localExact;
+            AddLog(syncId, "remote-shell-interrupt-local-exact", string.Empty, $"Local interrupt exact={localExact} key={sessionKey}", isOutgoing: false);
+            if (!interrupted)
+            {
+                var localFallback = InterruptAnyRemoteShellSession(syncId, senderClientId);
+                interrupted = localFallback;
+                AddLog(syncId, "remote-shell-interrupt-local-fallback", string.Empty, $"Local interrupt fallback={localFallback} prefix={syncId}|{senderClientId}|", isOutgoing: false);
+            }
+
+            if (interrupted)
+            {
+                _interruptedRemoteShellSessions[sessionKey] = 1;
+                await SendRemoteTerminalOutputAsync(sessionId, syncId, "^C", isError: false, isCompleted: false, exitCode: 0);
+                await SendRemoteTerminalOutputAsync(sessionId, syncId, string.Empty, isError: false, isCompleted: true, exitCode: 130);
+                AddLog(syncId, "remote-shell-interrupt", string.Empty, "Shell remoto interrumpido por emisor.", isOutgoing: false);
+                RaiseStateChanged();
+                return;
+            }
+
+            await SendRemoteTerminalOutputAsync(
+                sessionId,
+                syncId,
+                "[warn] No se encontro sesion activa para interrumpir.",
+                isError: true,
+                isCompleted: false,
+                exitCode: 0);
+            AddLog(syncId, "remote-shell-interrupt-miss", string.Empty, "No se encontro sesion activa para interrumpir.", isOutgoing: false);
+            RaiseStateChanged();
         }
 
         private async Task<int?> TryExecuteWithElevatedHelperAsync(
@@ -1264,13 +1461,9 @@ namespace Elysium.WorkStation.Services
             string commandText,
             Func<string, bool, Task> onLineAsync)
         {
+            _activeElevatedHelperSessionKeys[sessionKey] = 1;
             try
             {
-                if (!await _remoteShellElevationService.IsHelperAvailableAsync())
-                {
-                    return null;
-                }
-
                 return await _remoteShellElevationService.ExecuteInHelperSessionAsync(
                     sessionKey,
                     workingDirectory,
@@ -1281,23 +1474,39 @@ namespace Elysium.WorkStation.Services
             {
                 return null;
             }
+            finally
+            {
+                _activeElevatedHelperSessionKeys.TryRemove(sessionKey, out _);
+            }
         }
 
         private async Task<bool> TryInterruptWithElevatedHelperAsync(string sessionKey)
         {
             try
             {
-                if (!await _remoteShellElevationService.IsHelperAvailableAsync())
-                {
-                    return false;
-                }
-
                 return await _remoteShellElevationService.InterruptHelperSessionAsync(sessionKey);
             }
             catch
             {
                 return false;
             }
+        }
+
+        private async Task<bool> TryInterruptAnyElevatedHelperSessionAsync(string syncId, string senderClientId)
+        {
+            var prefix = $"{syncId}|{senderClientId}|";
+            var keys = _activeElevatedHelperSessionKeys.Keys
+                .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+                .ToList();
+            AddLog(syncId, "remote-shell-interrupt-helper-scan", string.Empty, $"Helper sesiones activas candidatas={keys.Count}", isOutgoing: false);
+
+            var interruptedAny = false;
+            foreach (var key in keys)
+            {
+                interruptedAny |= await TryInterruptWithElevatedHelperAsync(key);
+            }
+
+            return interruptedAny;
         }
 
         private void HandleIncomingRemoteTerminalOutput(
@@ -1374,6 +1583,7 @@ namespace Elysium.WorkStation.Services
                 psi.ArgumentList.Add("-");
 
                 var process = new Process { StartInfo = psi };
+                process.EnableRaisingEvents = true;
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
@@ -1393,6 +1603,17 @@ namespace Elysium.WorkStation.Services
 
             var marker = "__CODEX_DONE__" + Guid.NewGuid().ToString("N") + ":";
             var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            EventHandler exitHandler = (_, _) =>
+            {
+                try
+                {
+                    completion.TrySetResult(session.Process.ExitCode);
+                }
+                catch
+                {
+                    completion.TrySetResult(130);
+                }
+            };
 
             DataReceivedEventHandler stdOutHandler = (_, e) =>
             {
@@ -1428,6 +1649,8 @@ namespace Elysium.WorkStation.Services
 
             session.Process.OutputDataReceived += stdOutHandler;
             session.Process.ErrorDataReceived += stdErrHandler;
+            session.Process.Exited += exitHandler;
+            using var interruptReg = session.InterruptCts.Token.Register(() => completion.TrySetResult(130));
             try
             {
                 foreach (var line in BuildWrappedCommandLines(commandText, marker))
@@ -1448,6 +1671,7 @@ namespace Elysium.WorkStation.Services
             {
                 session.Process.OutputDataReceived -= stdOutHandler;
                 session.Process.ErrorDataReceived -= stdErrHandler;
+                session.Process.Exited -= exitHandler;
             }
         }
 
@@ -1492,6 +1716,7 @@ namespace Elysium.WorkStation.Services
             _interruptedRemoteShellSessions[sessionKey] = 1;
             try
             {
+                session.InterruptCts.Cancel();
                 if (!session.Process.HasExited)
                 {
                     session.Process.Kill(entireProcessTree: true);
@@ -1509,11 +1734,42 @@ namespace Elysium.WorkStation.Services
             return true;
         }
 
+        private bool InterruptAnyRemoteShellSession(string syncId, string senderClientId)
+        {
+            var prefix = $"{syncId}|{senderClientId}|";
+            var keys = _remoteShellSessionsByKey.Keys
+                .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+                .ToList();
+            AddLog(syncId, "remote-shell-interrupt-local-scan", string.Empty, $"Local sesiones activas candidatas={keys.Count}", isOutgoing: false);
+
+            var interruptedAny = false;
+            foreach (var key in keys)
+            {
+                interruptedAny |= InterruptRemoteShellSession(key);
+            }
+
+            return interruptedAny;
+        }
+
         private void DisposeAllRemoteShellSessions()
         {
             foreach (var key in _remoteShellSessionsByKey.Keys.ToList())
             {
                 DisposeRemoteShellSession(key);
+            }
+        }
+
+        private void DisposeAllRemoteTerminalWorkers()
+        {
+            foreach (var key in _remoteTerminalWorkersBySessionKey.Keys.ToList())
+            {
+                if (!_remoteTerminalWorkersBySessionKey.TryRemove(key, out var worker))
+                {
+                    continue;
+                }
+
+                try { worker.Cancellation.Cancel(); } catch { }
+                try { worker.Queue.Writer.TryComplete(); } catch { }
             }
         }
 
@@ -2901,6 +3157,28 @@ namespace Elysium.WorkStation.Services
             int ExitCode,
             string StdOut,
             string StdErr);
+        private readonly record struct RemoteTerminalWorkItem(
+            string SessionId,
+            string SyncId,
+            string SenderClientId,
+            string CommandText,
+            string SessionKey);
+        private sealed class RemoteTerminalSessionWorker
+        {
+            public Channel<RemoteTerminalWorkItem> Queue { get; }
+            public CancellationTokenSource Cancellation { get; }
+            public Task PumpTask { get; }
+
+            public RemoteTerminalSessionWorker(
+                Channel<RemoteTerminalWorkItem> queue,
+                CancellationTokenSource cancellation,
+                Task pumpTask)
+            {
+                Queue = queue;
+                Cancellation = cancellation;
+                PumpTask = pumpTask;
+            }
+        }
         private sealed class PersistentRemoteShellSession : IDisposable
         {
             public string SessionKey { get; }
@@ -2908,6 +3186,7 @@ namespace Elysium.WorkStation.Services
             public string OwnerClientId { get; }
             public Process Process { get; }
             public SemaphoreSlim CommandGate { get; } = new(1, 1);
+            public CancellationTokenSource InterruptCts { get; } = new();
 
             public PersistentRemoteShellSession(string sessionKey, string syncId, string ownerClientId, Process process)
             {
@@ -2934,6 +3213,7 @@ namespace Elysium.WorkStation.Services
 
                 Process.Dispose();
                 CommandGate.Dispose();
+                InterruptCts.Dispose();
             }
         }
     }
