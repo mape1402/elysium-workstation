@@ -1,0 +1,301 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - '.github/workflows/**'
+      - '.release'
+      - 'CHANGELOG.md'
+      - 'Elysium.WorkStation.slnx'
+      - '*.sln'
+      - '*.slnx'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - '.github/workflows/**'
+      - '.release'
+      - 'CHANGELOG.md'
+      - 'Elysium.WorkStation.slnx'
+      - '*.sln'
+      - '*.slnx'
+
+env:
+  APP_NAME: MyWorkStation
+  CHANGELOG_PATH: CHANGELOG.md
+  CONFIGURATION: Release
+  PROJECT_PATH: src/Elysium.WorkStation/Elysium.WorkStation.csproj
+  PUBLISH_OUTPUT: artifacts/publish
+  RELEASE_ARTIFACT_DIR: artifacts/release
+  RELEASE_BRANCH_PREFIX: releases/
+  RELEASE_BRANCH_PATTERN: ^releases/v[0-9]+\.[0-9]+\.[0-9]+$
+  RELEASE_MARKER_PATH: .release
+  RELEASE_NOTES_PATH: release_notes.txt
+  RELEASE_TAG_PATTERN: ^v[0-9]+\.[0-9]+\.[0-9]+$
+  RUNTIME_IDENTIFIER: win10-x64
+  TARGET_FRAMEWORK: net9.0-windows10.0.19041.0
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore workloads
+        shell: pwsh
+        run: dotnet workload restore "$env:PROJECT_PATH"
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore "$env:PROJECT_PATH" -f "$env:TARGET_FRAMEWORK" -r "$env:RUNTIME_IDENTIFIER"
+
+      - name: Build
+        shell: pwsh
+        run: >
+          dotnet build "$env:PROJECT_PATH"
+          --no-restore
+          --configuration "$env:CONFIGURATION"
+          --framework "$env:TARGET_FRAMEWORK"
+          --runtime "$env:RUNTIME_IDENTIFIER"
+          -p:WindowsPackageType=None
+
+      - name: Validate release metadata
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:RELEASE_MARKER_PATH)) {
+            Write-Host "$env:RELEASE_MARKER_PATH not present. Skipping release metadata validation."
+            exit 0
+          }
+
+          $tag = (Get-Content $env:RELEASE_MARKER_PATH | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
+          if ($tag.Count -ne 1) {
+            Write-Error "$env:RELEASE_MARKER_PATH must contain exactly one non-empty line."
+            exit 1
+          }
+
+          if ($tag[0] -notmatch $env:RELEASE_TAG_PATTERN) {
+            Write-Error "$env:RELEASE_MARKER_PATH must contain a tag matching $env:RELEASE_TAG_PATTERN. Current value: $($tag[0])"
+            exit 1
+          }
+
+          if (-not (Test-Path $env:CHANGELOG_PATH)) {
+            Write-Error "$env:CHANGELOG_PATH is required for releases."
+            exit 1
+          }
+
+          $tagPattern = "^## \[$([regex]::Escape($tag[0]))\]"
+          if (-not (Select-String -Path $env:CHANGELOG_PATH -Pattern $tagPattern -Quiet)) {
+            Write-Error "$env:CHANGELOG_PATH must contain a section for $($tag[0])."
+            exit 1
+          }
+
+      - name: Resolve release marker
+        id: release
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          "should_release=false" >> $env:GITHUB_OUTPUT
+
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $branch = "${{ github.ref_name }}"
+            if ($branch -notmatch $env:RELEASE_BRANCH_PATTERN) {
+              Write-Error "Manual production releases must run from a branch matching $env:RELEASE_BRANCH_PATTERN. Current branch: $branch"
+              exit 1
+            }
+
+            $tag = $branch.Substring($env:RELEASE_BRANCH_PREFIX.Length)
+            $version = $tag.TrimStart("v")
+
+            $tagPattern = "^## \[$([regex]::Escape($tag))\]"
+            if (-not (Select-String -Path $env:CHANGELOG_PATH -Pattern $tagPattern -Quiet)) {
+              Write-Error "$env:CHANGELOG_PATH must contain a section for $tag before releasing."
+              exit 1
+            }
+
+            "should_release=true" >> $env:GITHUB_OUTPUT
+            "tag=$tag" >> $env:GITHUB_OUTPUT
+            "version=$version" >> $env:GITHUB_OUTPUT
+            "branch=$branch" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          $changedFiles = git diff --name-only "${{ github.event.before }}" "${{ github.sha }}"
+          if ($changedFiles -notcontains $env:RELEASE_MARKER_PATH) {
+            Write-Host "$env:RELEASE_MARKER_PATH did not change in this push. Skipping release."
+            exit 0
+          }
+
+          if (-not (Test-Path $env:RELEASE_MARKER_PATH)) {
+            Write-Host "$env:RELEASE_MARKER_PATH was removed. Skipping release."
+            exit 0
+          }
+
+          $tag = @(Get-Content $env:RELEASE_MARKER_PATH | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
+          if ($tag.Count -ne 1) {
+            Write-Error "$env:RELEASE_MARKER_PATH must contain exactly one non-empty line with the release tag, for example v2.2.5."
+            exit 1
+          }
+
+          if ($tag[0] -notmatch $env:RELEASE_TAG_PATTERN) {
+            Write-Error "$env:RELEASE_MARKER_PATH must contain a tag matching $env:RELEASE_TAG_PATTERN. Current value: $($tag[0])"
+            exit 1
+          }
+
+          $tagPattern = "^## \[$([regex]::Escape($tag[0]))\]"
+          if (-not (Select-String -Path $env:CHANGELOG_PATH -Pattern $tagPattern -Quiet)) {
+            Write-Error "$env:CHANGELOG_PATH must contain a section for $($tag[0]) before releasing."
+            exit 1
+          }
+
+          $version = $tag[0].TrimStart("v")
+          $branch = "$env:RELEASE_BRANCH_PREFIX$($tag[0])"
+
+          "should_release=true" >> $env:GITHUB_OUTPUT
+          "tag=$($tag[0])" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "branch=$branch" >> $env:GITHUB_OUTPUT
+
+      - name: Create release branch
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $branch = "${{ steps.release.outputs.branch }}"
+          git ls-remote --exit-code --heads origin "$branch" | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release branch $branch already exists. Skipping creation."
+            exit 0
+          }
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git branch "$branch" "${{ github.sha }}"
+          git push origin "refs/heads/$branch"
+
+      - name: Prepare release notes
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          $lines = Get-Content $env:CHANGELOG_PATH
+          $start = -1
+
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^## \[$([regex]::Escape($tag))\]") {
+              $start = $i + 1
+              break
+            }
+          }
+
+          if ($start -lt 0) {
+            Write-Error "$env:CHANGELOG_PATH must contain a section for $tag."
+            exit 1
+          }
+
+          $end = $lines.Count
+          for ($i = $start; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^## ") {
+              $end = $i
+              break
+            }
+          }
+
+          $notes = $lines[$start..($end - 1)] | Where-Object { $_ -ne $null }
+          $notes | Set-Content $env:RELEASE_NOTES_PATH
+
+          if (-not (Test-Path $env:RELEASE_NOTES_PATH) -or (Get-Item $env:RELEASE_NOTES_PATH).Length -eq 0) {
+            Write-Error "$env:CHANGELOG_PATH section for $tag is empty."
+            exit 1
+          }
+
+      - name: Publish Windows app
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.release.outputs.version }}"
+          $appVersion = [int](($version -replace '\.', '').PadRight(5, '0'))
+
+          dotnet publish "$env:PROJECT_PATH" `
+            --configuration "$env:CONFIGURATION" `
+            --framework "$env:TARGET_FRAMEWORK" `
+            --runtime "$env:RUNTIME_IDENTIFIER" `
+            --output "$env:PUBLISH_OUTPUT" `
+            -p:WindowsPackageType=None `
+            -p:ApplicationDisplayVersion="$version" `
+            -p:ApplicationVersion="$appVersion" `
+            -p:Version="$version" `
+            -p:PackageVersion="$version" `
+            -p:AssemblyVersion="$version.0" `
+            -p:FileVersion="$version.0" `
+            -p:InformationalVersion="$version"
+
+      - name: Package release artifact
+        id: package
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RELEASE_ARTIFACT_DIR" | Out-Null
+          $tag = "${{ steps.release.outputs.tag }}"
+          $artifactPath = Join-Path $env:RELEASE_ARTIFACT_DIR "$env:APP_NAME-$tag-$env:RUNTIME_IDENTIFIER.zip"
+          if (Test-Path $artifactPath) {
+            Remove-Item $artifactPath -Force
+          }
+
+          Compress-Archive -Path "$env:PUBLISH_OUTPUT\*" -DestinationPath $artifactPath
+          "artifact_path=$artifactPath" >> $env:GITHUB_OUTPUT
+
+      - name: Create or update release tag
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          $headSha = git rev-parse HEAD
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git ls-remote --exit-code --tags origin "refs/tags/$tag" | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            git fetch --force origin "refs/tags/$tag`:refs/tags/$tag"
+            $tagSha = git rev-list -n 1 "$tag"
+
+            if ($tagSha -eq $headSha) {
+              Write-Host "Tag $tag already points to $headSha. Nothing to update."
+            } else {
+              Write-Host "Tag $tag points to $tagSha and will be moved to $headSha."
+              git tag --force "$tag" "$headSha"
+              git push --force origin "refs/tags/$tag"
+            }
+          } else {
+            git tag --force "$tag" "$headSha"
+            git push origin "refs/tags/$tag"
+          }
+
+      - name: Create GitHub Release
+        if: steps.release.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.tag }}
+          body_path: ${{ env.RELEASE_NOTES_PATH }}
+          draft: false
+          prerelease: false
+          files: ${{ steps.package.outputs.artifact_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
