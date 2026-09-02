@@ -63,7 +63,10 @@ jobs:
 
       - name: Restore
         shell: pwsh
-        run: dotnet restore "$env:PROJECT_PATH" -f "$env:TARGET_FRAMEWORK" -r "$env:RUNTIME_IDENTIFIER"
+        run: >
+          dotnet restore "$env:PROJECT_PATH"
+          -p:TargetFramework="$env:TARGET_FRAMEWORK"
+          -r "$env:RUNTIME_IDENTIFIER"
 
       - name: Build
         shell: pwsh
