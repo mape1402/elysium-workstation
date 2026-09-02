@@ -78,37 +78,6 @@ jobs:
           --runtime "$env:RUNTIME_IDENTIFIER"
           -p:WindowsPackageType=None
 
-      - name: Validate release metadata
-        if: github.event_name == 'pull_request'
-        shell: pwsh
-        run: |
-          if (-not (Test-Path $env:RELEASE_MARKER_PATH)) {
-            Write-Host "$env:RELEASE_MARKER_PATH not present. Skipping release metadata validation."
-            exit 0
-          }
-
-          $tag = (Get-Content $env:RELEASE_MARKER_PATH | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
-          if ($tag.Count -ne 1) {
-            Write-Error "$env:RELEASE_MARKER_PATH must contain exactly one non-empty line."
-            exit 1
-          }
-
-          if ($tag[0] -notmatch $env:RELEASE_TAG_PATTERN) {
-            Write-Error "$env:RELEASE_MARKER_PATH must contain a tag matching $env:RELEASE_TAG_PATTERN. Current value: $($tag[0])"
-            exit 1
-          }
-
-          if (-not (Test-Path $env:CHANGELOG_PATH)) {
-            Write-Error "$env:CHANGELOG_PATH is required for releases."
-            exit 1
-          }
-
-          $tagPattern = "^## \[$([regex]::Escape($tag[0]))\]"
-          if (-not (Select-String -Path $env:CHANGELOG_PATH -Pattern $tagPattern -Quiet)) {
-            Write-Error "$env:CHANGELOG_PATH must contain a section for $($tag[0])."
-            exit 1
-          }
-
       - name: Resolve release marker
         id: release
         if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
@@ -156,22 +125,23 @@ jobs:
             exit 1
           }
 
-          if ($tag[0] -notmatch $env:RELEASE_TAG_PATTERN) {
-            Write-Error "$env:RELEASE_MARKER_PATH must contain a tag matching $env:RELEASE_TAG_PATTERN. Current value: $($tag[0])"
+          $tagValue = $tag[0]
+          if ($tagValue -notmatch $env:RELEASE_TAG_PATTERN) {
+            Write-Error "$env:RELEASE_MARKER_PATH must contain a tag matching $env:RELEASE_TAG_PATTERN. Current value: $tagValue"
             exit 1
           }
 
-          $tagPattern = "^## \[$([regex]::Escape($tag[0]))\]"
+          $tagPattern = "^## \[$([regex]::Escape($tagValue))\]"
           if (-not (Select-String -Path $env:CHANGELOG_PATH -Pattern $tagPattern -Quiet)) {
-            Write-Error "$env:CHANGELOG_PATH must contain a section for $($tag[0]) before releasing."
+            Write-Error "$env:CHANGELOG_PATH must contain a section for $tagValue before releasing."
             exit 1
           }
 
-          $version = $tag[0].TrimStart("v")
-          $branch = "$env:RELEASE_BRANCH_PREFIX$($tag[0])"
+          $version = $tagValue.TrimStart("v")
+          $branch = "$env:RELEASE_BRANCH_PREFIX$tagValue"
 
           "should_release=true" >> $env:GITHUB_OUTPUT
-          "tag=$($tag[0])" >> $env:GITHUB_OUTPUT
+          "tag=$tagValue" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
           "branch=$branch" >> $env:GITHUB_OUTPUT
 
