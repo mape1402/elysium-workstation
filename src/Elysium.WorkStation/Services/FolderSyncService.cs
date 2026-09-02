@@ -2623,15 +2623,49 @@ namespace Elysium.WorkStation.Services
 
         private IReadOnlyList<string> GetIgnorePaths(FolderSyncLink link)
         {
+            var result = new List<string>();
             if (string.IsNullOrWhiteSpace(link.IgnorePathsJson))
+            {
+                result.AddRange(GetGitIgnorePaths(link.LocalFolderPath));
+                return result;
+            }
+
+            try
+            {
+                var paths = JsonSerializer.Deserialize<List<string>>(link.IgnorePathsJson) ?? [];
+                result.AddRange(NormalizeIgnorePaths(paths));
+            }
+            catch
+            {
+                // Keep .gitignore support even if saved custom ignores are malformed.
+            }
+
+            result.AddRange(GetGitIgnorePaths(link.LocalFolderPath));
+            return result
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static IReadOnlyList<string> GetGitIgnorePaths(string rootFolderPath)
+        {
+            if (string.IsNullOrWhiteSpace(rootFolderPath))
+            {
+                return [];
+            }
+
+            var gitIgnorePath = Path.Combine(rootFolderPath, ".gitignore");
+            if (!File.Exists(gitIgnorePath))
             {
                 return [];
             }
 
             try
             {
-                var paths = JsonSerializer.Deserialize<List<string>>(link.IgnorePathsJson) ?? [];
-                return NormalizeIgnorePaths(paths);
+                return File.ReadLines(gitIgnorePath)
+                    .Select(IgnorePathMatcher.CreateGitIgnoreEntry)
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .ToList();
             }
             catch
             {
