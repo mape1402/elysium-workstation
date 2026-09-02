@@ -4,6 +4,12 @@ All notable changes to MyWorkStation will be documented in this file.
 
 ## [Unreleased]
 
+## [v2.2.7] - 2026-09-02
+
+### Changed
+
+- Prepared release workflow validation with version 2.2.7.
+
 ## [v2.2.6] - 2026-09-02
 
 ### Added
