@@ -4,6 +4,12 @@ All notable changes to MyWorkStation will be documented in this file.
 
 ## [Unreleased]
 
+## [v2.2.8] - 2026-09-02
+
+### Fixed
+
+- Removed the Android target from the Windows release build.
+
 ## [v2.2.7] - 2026-09-02
 
 ### Changed
