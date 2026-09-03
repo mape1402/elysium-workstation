@@ -461,6 +461,45 @@ namespace Elysium.WorkStation.Services
             RaiseStateChanged();
         }
 
+        public async Task ForceSyncAsync(int linkId)
+        {
+            var link = await _repository.GetByIdAsync(linkId);
+            if (link is null)
+            {
+                throw new InvalidOperationException("Sincronizacion no encontrada.");
+            }
+
+            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            {
+                throw new InvalidOperationException("Solo el emisor puede forzar la sincronizacion cuando esta activa.");
+            }
+
+            if (!Directory.Exists(link.LocalFolderPath))
+            {
+                throw new DirectoryNotFoundException("La carpeta local ya no existe.");
+            }
+
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para sincronizar.");
+            }
+
+            var syncLock = GetSyncLock(link.SyncId);
+            await syncLock.WaitAsync();
+            try
+            {
+                AddLog(link.SyncId, "force-start", string.Empty, "Sincronizacion forzada iniciada.", isOutgoing: true);
+                await SendDeltaSinceLastSnapshotAsync(link, isForced: true);
+                AddLog(link.SyncId, "force-done", string.Empty, "Sincronizacion forzada finalizada.", isOutgoing: true);
+            }
+            finally
+            {
+                syncLock.Release();
+            }
+
+            RaiseStateChanged();
+        }
+
         public async Task DeleteSyncAsync(int linkId)
         {
             var link = await _repository.GetByIdAsync(linkId);
@@ -2097,7 +2136,7 @@ namespace Elysium.WorkStation.Services
                 try
                 {
                     DeleteLocalFile(link.LocalFolderPath, normalizedRelative);
-                    await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "delete", fileHash: string.Empty);
+                    await ApplySyncedSnapshotAsync(link, normalizedRelative, action: "delete", fileHash: string.Empty, originClientId: senderClientId);
                     AddLog(syncId, "delete-recv", normalizedRelative, $"Recibido delete: {normalizedRelative}", isOutgoing: false);
                     AddSummary(syncId, normalizedRelative, action: "delete", isOutgoing: false);
                     RaiseStateChanged();
@@ -2132,7 +2171,11 @@ namespace Elysium.WorkStation.Services
                 await source.CopyToAsync(destination);
                 await destination.FlushAsync();
 
-                await ApplyIncomingSnapshotAsync(link, normalizedRelative, action: "upsert", fileHash: fileHash);
+                var receivedHash = IsSha256Hash(fileHash)
+                    ? fileHash
+                    : await ComputeFileHashAsync(destinationPath);
+
+                await ApplySyncedSnapshotAsync(link, normalizedRelative, action: "upsert", receivedHash, originClientId: senderClientId);
                 AddLog(syncId, "upsert-recv", normalizedRelative, $"Recibido update: {normalizedRelative} ({FormatSize(fileSize)}).", isOutgoing: false);
                 AddSummary(syncId, normalizedRelative, action: "upsert", isOutgoing: false);
                 RaiseStateChanged();
@@ -2153,7 +2196,17 @@ namespace Elysium.WorkStation.Services
             StopWatcher(link.SyncId);
             AddLog(link.SyncId, "emitter-start", string.Empty, reason, isOutgoing: true);
 
-            await SendDeltaSinceLastSnapshotAsync(link);
+            var syncLock = GetSyncLock(link.SyncId);
+            await syncLock.WaitAsync();
+            try
+            {
+                await SendDeltaSinceLastSnapshotAsync(link);
+            }
+            finally
+            {
+                syncLock.Release();
+            }
+
             StartWatcher(link);
             RaiseStateChanged();
         }
@@ -2168,25 +2221,30 @@ namespace Elysium.WorkStation.Services
                 return;
             }
 
-            var snapshot = await BuildSnapshotAsync(link.LocalFolderPath, GetIgnorePaths(link));
-            link.LastSnapshotJson = JsonSerializer.Serialize(snapshot);
-            link.LastStateHash = ComputeStateHash(snapshot);
-            await _repository.SaveAsync(link);
-            await UpsertLinkInMemoryAsync(link);
+            var current = await _repository.GetByIdAsync(link.Id) ?? link;
+            var previousSnapshot = DeserializeSnapshot(current.LastSnapshotJson);
+            var snapshot = await BuildSnapshotAsync(current.LocalFolderPath, GetIgnorePaths(current));
+            PreserveKnownSnapshotOrigins(snapshot, previousSnapshot);
+            current.LastSnapshotJson = JsonSerializer.Serialize(snapshot);
+            current.LastStateHash = ComputeStateHash(snapshot);
+            current = await _repository.SaveAsync(current);
+            await UpsertLinkInMemoryAsync(current);
         }
 
-        private async Task SendDeltaSinceLastSnapshotAsync(FolderSyncLink link)
+        private async Task SendDeltaSinceLastSnapshotAsync(FolderSyncLink link, bool isForced = false)
         {
+            var currentLink = await _repository.GetByIdAsync(link.Id) ?? link;
+            link = currentLink;
             var ignorePaths = GetIgnorePaths(link);
             var currentSnapshot = await BuildSnapshotAsync(link.LocalFolderPath, ignorePaths);
-            var previousSnapshot = DeserializeSnapshot(link.LastSnapshotJson);
+            var previousSnapshot = DeserializeSnapshot(currentLink.LastSnapshotJson);
             var pendingUpserts = new List<(string RelativePath, string Hash)>();
-            foreach (var (relativePath, hash) in currentSnapshot)
+            foreach (var (relativePath, currentVersion) in currentSnapshot)
             {
-                if (!previousSnapshot.TryGetValue(relativePath, out var previousHash) ||
-                    !string.Equals(previousHash, hash, StringComparison.Ordinal))
+                if (!previousSnapshot.TryGetValue(relativePath, out var previousVersion) ||
+                    !string.Equals(previousVersion.Hash, currentVersion.Hash, StringComparison.OrdinalIgnoreCase))
                 {
-                    pendingUpserts.Add((relativePath, hash));
+                    pendingUpserts.Add((relativePath, currentVersion.Hash));
                 }
             }
 
@@ -2197,11 +2255,17 @@ namespace Elysium.WorkStation.Services
             var totalOperations = pendingUpserts.Count + pendingDeletes.Count;
             if (totalOperations == 0)
             {
-                AddLog(link.SyncId, "bootstrap-noop", string.Empty, "Sin cambios pendientes en arranque.", isOutgoing: true);
+                var noopMessage = isForced
+                    ? "Sin cambios pendientes en sincronizacion forzada."
+                    : "Sin cambios pendientes en arranque.";
+                AddLog(link.SyncId, "bootstrap-noop", string.Empty, noopMessage, isOutgoing: true);
                 return;
             }
 
-            AddLog(link.SyncId, "bootstrap-start", string.Empty, $"Preparando {totalOperations} cambio(s) inicial(es)...", isOutgoing: true);
+            var startMessage = isForced
+                ? $"Preparando {totalOperations} cambio(s) en sincronizacion forzada..."
+                : $"Preparando {totalOperations} cambio(s) inicial(es)...";
+            AddLog(link.SyncId, "bootstrap-start", string.Empty, startMessage, isOutgoing: true);
 
             var processed = 0;
             for (var index = 0; index < pendingUpserts.Count; index++)
@@ -2213,7 +2277,8 @@ namespace Elysium.WorkStation.Services
 
                 if (processed % InitialSyncBatchSize == 0)
                 {
-                    AddLog(link.SyncId, "bootstrap-progress", string.Empty, $"Inicializando sincronizacion... {processed}/{totalOperations}", isOutgoing: true);
+                    var progressPrefix = isForced ? "Forzando sincronizacion" : "Inicializando sincronizacion";
+                    AddLog(link.SyncId, "bootstrap-progress", string.Empty, $"{progressPrefix}... {processed}/{totalOperations}", isOutgoing: true);
                     RaiseStateChanged();
                     await Task.Delay(InitialSyncBatchPause);
                 }
@@ -2226,13 +2291,17 @@ namespace Elysium.WorkStation.Services
 
                 if (processed % InitialSyncBatchSize == 0)
                 {
-                    AddLog(link.SyncId, "bootstrap-progress", string.Empty, $"Inicializando sincronizacion... {processed}/{totalOperations}", isOutgoing: true);
+                    var progressPrefix = isForced ? "Forzando sincronizacion" : "Inicializando sincronizacion";
+                    AddLog(link.SyncId, "bootstrap-progress", string.Empty, $"{progressPrefix}... {processed}/{totalOperations}", isOutgoing: true);
                     RaiseStateChanged();
                     await Task.Delay(InitialSyncBatchPause);
                 }
             }
 
-            AddLog(link.SyncId, "bootstrap-done", string.Empty, $"Sincronizacion inicial lista ({processed} cambio(s)).", isOutgoing: true);
+            var doneMessage = isForced
+                ? $"Sincronizacion forzada lista ({processed} cambio(s))."
+                : $"Sincronizacion inicial lista ({processed} cambio(s)).";
+            AddLog(link.SyncId, "bootstrap-done", string.Empty, doneMessage, isOutgoing: true);
             RaiseStateChanged();
         }
 
@@ -2494,6 +2563,9 @@ namespace Elysium.WorkStation.Services
                 return;
             }
 
+            var fileHash = IsSha256Hash(hash)
+                ? hash
+                : await ComputeFileHashAsync(fullPath);
             var uploadId = await UploadFileForSyncAsync(link.SyncId, relativePath, fullPath);
             var fileSize = new FileInfo(fullPath).Length;
 
@@ -2505,8 +2577,9 @@ namespace Elysium.WorkStation.Services
                 relativePath,
                 uploadId,
                 fileSize,
-                hash);
+                fileHash);
 
+            await ApplyOutgoingSnapshotAsync(link, relativePath, action: "upsert", fileHash);
             AddLog(link.SyncId, "upsert-send", relativePath, $"Enviado update: {relativePath} ({FormatSize(fileSize)}).", isOutgoing: true);
             AddSummary(link.SyncId, relativePath, action: "upsert", isOutgoing: true);
             if (raiseStateChanged)
@@ -2532,6 +2605,7 @@ namespace Elysium.WorkStation.Services
                 0L,
                 string.Empty);
 
+            await ApplyOutgoingSnapshotAsync(link, relativePath, action: "delete", fileHash: string.Empty);
             AddLog(link.SyncId, "delete-send", relativePath, $"Enviado delete: {relativePath}.", isOutgoing: true);
             AddSummary(link.SyncId, relativePath, action: "delete", isOutgoing: true);
             if (raiseStateChanged)
@@ -2586,9 +2660,9 @@ namespace Elysium.WorkStation.Services
             }
         }
 
-        private async Task<Dictionary<string, string>> BuildSnapshotAsync(string rootFolderPath, IReadOnlyList<string> ignorePaths)
+        private async Task<Dictionary<string, FolderSyncFileVersion>> BuildSnapshotAsync(string rootFolderPath, IReadOnlyList<string> ignorePaths)
         {
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, FolderSyncFileVersion>(StringComparer.OrdinalIgnoreCase);
             if (!Directory.Exists(rootFolderPath))
             {
                 return result;
@@ -2604,7 +2678,12 @@ namespace Elysium.WorkStation.Services
 
                 try
                 {
-                    result[relativePath] = ComputeFileFingerprint(file);
+                    result[relativePath] = new FolderSyncFileVersion
+                    {
+                        Hash = await ComputeFileHashAsync(file),
+                        OriginClientId = ClientId,
+                        SyncedAtUtc = DateTime.UtcNow
+                    };
                 }
                 catch
                 {
@@ -2615,36 +2694,106 @@ namespace Elysium.WorkStation.Services
             return result;
         }
 
-        private static Dictionary<string, string> DeserializeSnapshot(string snapshotJson)
+        private static Dictionary<string, FolderSyncFileVersion> DeserializeSnapshot(string snapshotJson)
         {
+            var result = new Dictionary<string, FolderSyncFileVersion>(StringComparer.OrdinalIgnoreCase);
             if (string.IsNullOrWhiteSpace(snapshotJson))
             {
-                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                return result;
             }
 
             try
             {
-                return JsonSerializer.Deserialize<Dictionary<string, string>>(snapshotJson)
-                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                using var document = JsonDocument.Parse(snapshotJson);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    return result;
+                }
+
+                foreach (var property in document.RootElement.EnumerateObject())
+                {
+                    if (string.IsNullOrWhiteSpace(property.Name))
+                    {
+                        continue;
+                    }
+
+                    var version = ReadSnapshotVersion(property.Value);
+                    if (!string.IsNullOrWhiteSpace(version.Hash))
+                    {
+                        result[property.Name] = version;
+                    }
+                }
             }
             catch
             {
-                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                return result;
             }
+
+            return result;
         }
 
-        private static string ComputeStateHash(Dictionary<string, string> snapshot)
+        private static FolderSyncFileVersion ReadSnapshotVersion(JsonElement value)
+        {
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                return new FolderSyncFileVersion
+                {
+                    Hash = value.GetString() ?? string.Empty,
+                    OriginClientId = string.Empty,
+                    SyncedAtUtc = DateTime.MinValue
+                };
+            }
+
+            if (value.ValueKind != JsonValueKind.Object)
+            {
+                return new FolderSyncFileVersion();
+            }
+
+            var syncedAt = DateTime.MinValue;
+            var syncedAtRaw = ReadString(value, nameof(FolderSyncFileVersion.SyncedAtUtc));
+            if (!string.IsNullOrWhiteSpace(syncedAtRaw))
+            {
+                DateTime.TryParse(syncedAtRaw, null, System.Globalization.DateTimeStyles.AssumeUniversal, out syncedAt);
+            }
+
+            return new FolderSyncFileVersion
+            {
+                Hash = ReadString(value, nameof(FolderSyncFileVersion.Hash)),
+                OriginClientId = ReadString(value, nameof(FolderSyncFileVersion.OriginClientId)),
+                SyncedAtUtc = syncedAt == DateTime.MinValue ? DateTime.UtcNow : syncedAt.ToUniversalTime()
+            };
+        }
+
+        private static string ComputeStateHash(Dictionary<string, FolderSyncFileVersion> snapshot)
         {
             var canonical = string.Join(
                 "\n",
                 snapshot
                     .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-                    .Select(kv => $"{kv.Key}|{kv.Value}"));
+                    .Select(kv => $"{kv.Key}|{kv.Value.Hash}|{kv.Value.OriginClientId}"));
 
             using var sha = SHA256.Create();
             var bytes = System.Text.Encoding.UTF8.GetBytes(canonical);
             var hash = sha.ComputeHash(bytes);
             return Convert.ToHexString(hash);
+        }
+
+        private static void PreserveKnownSnapshotOrigins(
+            Dictionary<string, FolderSyncFileVersion> currentSnapshot,
+            Dictionary<string, FolderSyncFileVersion> previousSnapshot)
+        {
+            foreach (var (relativePath, currentVersion) in currentSnapshot)
+            {
+                if (!previousSnapshot.TryGetValue(relativePath, out var previousVersion) ||
+                    string.IsNullOrWhiteSpace(previousVersion.OriginClientId) ||
+                    !string.Equals(previousVersion.Hash, currentVersion.Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                currentVersion.OriginClientId = previousVersion.OriginClientId;
+                currentVersion.SyncedAtUtc = previousVersion.SyncedAtUtc;
+            }
         }
 
         private static async Task<string> ComputeFileHashAsync(string filePath)
@@ -2655,10 +2804,14 @@ namespace Elysium.WorkStation.Services
             return Convert.ToHexString(hash);
         }
 
-        private static string ComputeFileFingerprint(string filePath)
+        private static bool IsSha256Hash(string value)
         {
-            var info = new FileInfo(filePath);
-            return $"{info.Length}:{info.LastWriteTimeUtc.Ticks}";
+            if (string.IsNullOrWhiteSpace(value) || value.Length != 64)
+            {
+                return false;
+            }
+
+            return value.All(Uri.IsHexDigit);
         }
 
         private static string TryGetRelativePath(string rootFolderPath, string fullPath)
@@ -2990,7 +3143,15 @@ namespace Elysium.WorkStation.Services
             }
         }
 
-        private async Task ApplyIncomingSnapshotAsync(FolderSyncLink link, string relativePath, string action, string fileHash)
+        private Task ApplyOutgoingSnapshotAsync(FolderSyncLink link, string relativePath, string action, string fileHash) =>
+            ApplySyncedSnapshotAsync(link, relativePath, action, fileHash, originClientId: ClientId);
+
+        private async Task ApplySyncedSnapshotAsync(
+            FolderSyncLink link,
+            string relativePath,
+            string action,
+            string fileHash,
+            string originClientId)
         {
             if (link is null || string.IsNullOrWhiteSpace(relativePath))
             {
@@ -3007,7 +3168,7 @@ namespace Elysium.WorkStation.Services
             else
             {
                 var resolvedHash = fileHash;
-                if (string.IsNullOrWhiteSpace(resolvedHash))
+                if (!IsSha256Hash(resolvedHash))
                 {
                     var fullPath = BuildSafeDestinationPath(current.LocalFolderPath, relativePath);
                     if (File.Exists(fullPath))
@@ -3025,13 +3186,19 @@ namespace Elysium.WorkStation.Services
 
                 if (!string.IsNullOrWhiteSpace(resolvedHash))
                 {
-                    snapshot[relativePath] = resolvedHash;
+                    snapshot[relativePath] = new FolderSyncFileVersion
+                    {
+                        Hash = resolvedHash,
+                        OriginClientId = originClientId ?? string.Empty,
+                        SyncedAtUtc = DateTime.UtcNow
+                    };
                 }
             }
 
             current.LastSnapshotJson = JsonSerializer.Serialize(snapshot);
             current.LastStateHash = ComputeStateHash(snapshot);
             await _repository.SaveAsync(current);
+            await UpsertLinkInMemoryAsync(current);
         }
 
         private async Task SendFolderSyncInviteResponseAsync(string inviteId, string syncId, bool accepted)
@@ -3292,6 +3459,13 @@ namespace Elysium.WorkStation.Services
             string SenderClientId,
             string CommandText,
             string SessionKey);
+        private sealed class FolderSyncFileVersion
+        {
+            public string Hash { get; set; } = string.Empty;
+            public string OriginClientId { get; set; } = string.Empty;
+            public DateTime SyncedAtUtc { get; set; } = DateTime.UtcNow;
+        }
+
         private sealed class RemoteTerminalSessionWorker
         {
             public Channel<RemoteTerminalWorkItem> Queue { get; }

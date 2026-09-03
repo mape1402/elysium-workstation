@@ -17,8 +17,8 @@
 		<ApplicationId>com.elysiumcoding.myworkstation</ApplicationId>
 
 		<!-- Versions -->
-    <ApplicationDisplayVersion>2.2.8</ApplicationDisplayVersion>
-    <ApplicationVersion>22008</ApplicationVersion>
+    <ApplicationDisplayVersion>$(ResolvedAppVersion)</ApplicationDisplayVersion>
+    <ApplicationVersion>$(ResolvedAppVersionCode)</ApplicationVersion>
 
 		<!-- Assembly / package metadata -->
 		<AssemblyName>MyWorkStation</AssemblyName>
@@ -26,12 +26,12 @@
 		<Product>MyWorkStation</Product>
 		<Company>Elysium Coding</Company>
 		<Authors>Elysium Coding</Authors>
-    <Version>2.2.8</Version>
-    <AssemblyVersion>2.2.8.0</AssemblyVersion>
-    <FileVersion>2.2.8.0</FileVersion>
-    <InformationalVersion>2.2.8</InformationalVersion>
+    <Version>$(ResolvedAppVersion)</Version>
+    <AssemblyVersion>$(ResolvedAppVersion).0</AssemblyVersion>
+    <FileVersion>$(ResolvedAppVersion).0</FileVersion>
+    <InformationalVersion>$(ResolvedAppVersion)</InformationalVersion>
 		<PackageId>MyWorkStation</PackageId>
-    <PackageVersion>2.2.8</PackageVersion>
+    <PackageVersion>$(ResolvedAppVersion)</PackageVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
 		<WindowsPackageType>None</WindowsPackageType>

@@ -128,6 +128,20 @@
                                        TextColor="{AppThemeBinding Light=#1F3E73, Dark=#D7E5FF}" />
                             </HorizontalStackLayout>
                         </Border>
+                        <Border StrokeThickness="0"
+                                Padding="10,6"
+                                BackgroundColor="{AppThemeBinding Light=#FFF6DF, Dark=#403724}">
+                            <HorizontalStackLayout Spacing="6">
+                                <Label Text="Version:"
+                                       FontSize="11"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{AppThemeBinding Light=#7D6333, Dark=#E5CAA2}" />
+                                <Label Text="{Binding SyncedVersionText}"
+                                       FontSize="12"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{AppThemeBinding Light=#78551A, Dark=#F0D49A}" />
+                            </HorizontalStackLayout>
+                        </Border>
                     </HorizontalStackLayout>
                     <FlexLayout Direction="Row"
                                 Wrap="Wrap"
@@ -152,6 +166,15 @@
                                 </DataTrigger>
                             </Button.Triggers>
                         </Button>
+                        <Button Text="{Binding ForceSyncButtonText}"
+                                IsVisible="{Binding CanForceSync}"
+                                TextColor="White"
+                                WidthRequest="174"
+                                HeightRequest="40"
+                                Margin="0,0,8,8"
+                                BorderColor="{AppThemeBinding Light=#AE8124, Dark=#8A6A25}"
+                                BackgroundColor="{AppThemeBinding Light=#D49B28, Dark=#A47A2E}"
+                                Command="{Binding ForceSyncCommand}" />
                         <Button Text="{Binding SendPairRequestText}"
                                 IsVisible="{Binding CanSendPairRequest}"
                                 TextColor="White"

@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <DefaultAppVersion>2.2.8</DefaultAppVersion>
+    <ReleaseMarkerPath>$(MSBuildThisFileDirectory).release</ReleaseMarkerPath>
+
+    <ResolvedReleaseTag Condition="'$(ResolvedReleaseTag)' == '' and '$(GITHUB_REF_TYPE)' == 'tag'">$(GITHUB_REF_NAME)</ResolvedReleaseTag>
+    <ResolvedReleaseTag Condition="'$(ResolvedReleaseTag)' == '' and '$(ReleaseTag)' != ''">$(ReleaseTag)</ResolvedReleaseTag>
+    <ResolvedReleaseTag Condition="'$(ResolvedReleaseTag)' == '' and Exists('$(ReleaseMarkerPath)')">$([System.IO.File]::ReadAllText('$(ReleaseMarkerPath)').Trim())</ResolvedReleaseTag>
+
+    <ResolvedAppVersion Condition="'$(ResolvedAppVersion)' == '' and '$(ResolvedReleaseTag)' != '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(ResolvedReleaseTag)', '^v[0-9]+\.[0-9]+\.[0-9]+$'))">$([System.Text.RegularExpressions.Regex]::Replace('$(ResolvedReleaseTag)', '^v', ''))</ResolvedAppVersion>
+    <ResolvedAppVersion Condition="'$(ResolvedAppVersion)' == ''">$(DefaultAppVersion)</ResolvedAppVersion>
+
+    <ResolvedAppVersionMajor>$([System.Version]::Parse('$(ResolvedAppVersion)').Major)</ResolvedAppVersionMajor>
+    <ResolvedAppVersionMinor>$([System.Version]::Parse('$(ResolvedAppVersion)').Minor)</ResolvedAppVersionMinor>
+    <ResolvedAppVersionPatch>$([System.Version]::Parse('$(ResolvedAppVersion)').Build)</ResolvedAppVersionPatch>
+    <ResolvedAppVersionCode>$([System.String]::Format('{0}{1}{2:D3}', $([System.Int32]::Parse('$(ResolvedAppVersionMajor)')), $([System.Int32]::Parse('$(ResolvedAppVersionMinor)')), $([System.Int32]::Parse('$(ResolvedAppVersionPatch)'))))</ResolvedAppVersionCode>
+  </PropertyGroup>
+</Project>
