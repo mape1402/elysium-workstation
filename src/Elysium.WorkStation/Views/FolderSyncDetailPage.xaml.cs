@@ -151,6 +151,7 @@ namespace Elysium.WorkStation.Views
         public bool ArePrimarySectionsVisible => !_isFolderMaximized;
         public bool CanSwitchRole => _link?.ContinuousSyncEnabled == true;
         public bool CanSendRemoteGitCommands => _link?.ContinuousSyncEnabled == true && _link?.IsEmitter == true;
+        public bool CanForceSync => _link?.ContinuousSyncEnabled == true && _link?.IsEmitter == true;
         public bool CanToggleMonitorSection => IsSyncStopped;
         public bool IsMonitorSectionVisible => !_isFolderMaximized && (IsContinuousEnabled || _isMonitorSectionExpanded);
         public string FolderMaximizeButtonIcon => _isFolderMaximized ? "\u2750" : "\u26F6";
@@ -165,6 +166,7 @@ namespace Elysium.WorkStation.Views
             ? "\U0001F501 Reenviar solicitud"
             : "\U0001F4E1 Enviar solicitud";
         public string SwitchRoleButtonText => "\U0001F504 Invertir rol";
+        public string ForceSyncButtonText => "\U0001F504 Forzar sync";
         public string OpenFolderButtonText => "\U0001F4C2 Abrir carpeta";
         public string ManageIgnorePathsButtonText => "\U0001F4CB Rutas ignoradas";
         public string RemoteGitSectionTitle => "Git remoto (ejecuta en receptor)";
@@ -176,6 +178,7 @@ namespace Elysium.WorkStation.Views
         public string IgnorePathsStatus => IgnorePaths.Count == 0
             ? "Sin rutas ignoradas"
             : $"{IgnorePaths.Count} ruta(s) ignorada(s)";
+        public string SyncedVersionText => _link?.SyncedVersionText ?? "sin snapshot";
         public bool CanGoBackFolderView =>
             !string.IsNullOrWhiteSpace(_folderRootPath) &&
             !string.IsNullOrWhiteSpace(_currentFolderViewPath) &&
@@ -198,6 +201,7 @@ namespace Elysium.WorkStation.Views
         public Command OpenFolderCommand { get; }
         public Command SendPairRequestCommand { get; }
         public Command ToggleContinuousCommand { get; }
+        public Command ForceSyncCommand { get; }
         public Command SwitchRoleCommand { get; }
         public Command OpenIgnorePathsEditorCommand { get; }
         public Command<FolderContentEntry> OpenFolderEntryCommand { get; }
@@ -281,6 +285,7 @@ namespace Elysium.WorkStation.Views
                         OnPropertyChanged(nameof(IsSyncStopped));
                         OnPropertyChanged(nameof(CanSwitchRole));
                         OnPropertyChanged(nameof(CanSendRemoteGitCommands));
+                        OnPropertyChanged(nameof(CanForceSync));
                         _isMonitorSectionExpanded = true;
                         _isFolderMaximized = false;
                         OnPropertyChanged(nameof(ArePrimarySectionsVisible));
@@ -294,6 +299,26 @@ namespace Elysium.WorkStation.Views
 
                     await _folderSyncService.SetContinuousAsync(_link.Id, targetEnabled);
                     await ReloadLinkAsync(reloadFromRepository: true);
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Sincronizacion", ex.Message, "OK");
+                }
+            });
+
+            ForceSyncCommand = new Command(async () =>
+            {
+                if (_link is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await _toastService.ShowAsync("Forzando sincronizacion...");
+                    await _folderSyncService.ForceSyncAsync(_link.Id);
+                    await ReloadLinkAsync(reloadFromRepository: true, reloadFolderView: false);
+                    await _toastService.ShowAsync("Sincronizacion forzada lista.");
                 }
                 catch (Exception ex)
                 {
@@ -694,6 +719,8 @@ namespace Elysium.WorkStation.Views
                 OnPropertyChanged(nameof(IsSyncStopped));
                 OnPropertyChanged(nameof(CanSwitchRole));
                 OnPropertyChanged(nameof(CanSendRemoteGitCommands));
+                OnPropertyChanged(nameof(CanForceSync));
+                OnPropertyChanged(nameof(SyncedVersionText));
                 if (IsContinuousEnabled)
                 {
                     _isMonitorSectionExpanded = true;

@@ -39,5 +39,10 @@ namespace Elysium.WorkStation.Models
         public string ContinuousButtonText => ContinuousSyncEnabled
             ? "Detener sincronización continua"
             : "Iniciar sincronización continua";
+
+        [NotMapped]
+        public string SyncedVersionText => string.IsNullOrWhiteSpace(LastStateHash)
+            ? "sin snapshot"
+            : LastStateHash[..Math.Min(8, LastStateHash.Length)];
     }
 }

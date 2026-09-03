@@ -177,22 +177,13 @@ jobs:
         if: steps.release.outputs.should_release == 'true'
         shell: pwsh
         run: |
-          $version = "${{ steps.release.outputs.version }}"
-          $appVersion = [int](($version -replace '\.', '').PadRight(5, '0'))
-
           dotnet publish "$env:PROJECT_PATH" `
             --configuration "$env:CONFIGURATION" `
             --framework "$env:TARGET_FRAMEWORK" `
             --runtime "$env:RUNTIME_IDENTIFIER" `
             --output "$env:PUBLISH_OUTPUT" `
             -p:WindowsPackageType=None `
-            -p:ApplicationDisplayVersion="$version" `
-            -p:ApplicationVersion="$appVersion" `
-            -p:Version="$version" `
-            -p:PackageVersion="$version" `
-            -p:AssemblyVersion="$version.0" `
-            -p:FileVersion="$version.0" `
-            -p:InformationalVersion="$version"
+            -p:ReleaseTag="${{ steps.release.outputs.tag }}"
 
       - name: Package release artifact
         id: package

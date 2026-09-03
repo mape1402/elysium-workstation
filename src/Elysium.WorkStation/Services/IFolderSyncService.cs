@@ -28,6 +28,7 @@ namespace Elysium.WorkStation.Services
         Task RejectInviteAsync(FolderSyncInvite invite);
 
         Task SetContinuousAsync(int linkId, bool enabled);
+        Task ForceSyncAsync(int linkId);
         Task SwitchRoleAsync(int linkId);
         Task UpdateIgnorePathsAsync(int linkId, IEnumerable<string> ignorePaths);
         Task DeleteSyncAsync(int linkId);
