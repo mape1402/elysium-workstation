@@ -4,6 +4,12 @@ All notable changes to MyWorkStation will be documented in this file.
 
 ## [Unreleased]
 
+## [v2.3.1] - 2026-09-03
+
+### Fixed
+
+- Fixed `.gitignore` folder sync matching for Visual Studio-style bracket patterns, anchored folder patterns, escaped spaces, and ignored directory deletes.
+
 ## [v2.3.0] - 2026-09-03
 
 ### Added
