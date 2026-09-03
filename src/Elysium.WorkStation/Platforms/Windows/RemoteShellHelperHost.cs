@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace Elysium.WorkStation.WinUI
 {
@@ -119,21 +120,55 @@ namespace Elysium.WorkStation.WinUI
 
                 var shell = GetOrCreateShell(request.SessionKey, request.WorkingDirectory);
                 await shell.Gate.WaitAsync();
+                Channel<HelperResponse> outputQueue = null;
+                Task outputPump = null;
                 try
                 {
+                    outputQueue = Channel.CreateUnbounded<HelperResponse>(
+                        new UnboundedChannelOptions
+                        {
+                            SingleReader = true,
+                            SingleWriter = false
+                        });
+                    outputPump = Task.Run(async () =>
+                    {
+                        await foreach (var response in outputQueue.Reader.ReadAllAsync())
+                        {
+                            await WriteAsync(writer, response);
+                        }
+                    });
+
                     var exitCode = await ExecuteInSessionAsync(shell, request.Command ?? string.Empty, async (txt, isErr) =>
                     {
                         if (shell.IsInterrupted) return;
-                        await WriteAsync(writer, new HelperResponse { Type = "line", Text = txt, IsError = isErr, ExitCode = 0 });
+                        outputQueue.Writer.TryWrite(new HelperResponse { Type = "line", Text = txt, IsError = isErr, ExitCode = 0 });
+                        await Task.CompletedTask;
                     });
 
-                await WriteAsync(writer, new HelperResponse { Type = "done", ExitCode = exitCode });
-                _lastActivityUtc = DateTime.UtcNow;
-            }
-            finally
-            {
-                shell.Gate.Release();
-            }
+                    outputQueue.Writer.TryComplete();
+                    await outputPump;
+                    await WriteAsync(writer, new HelperResponse { Type = "done", ExitCode = exitCode });
+                    _lastActivityUtc = DateTime.UtcNow;
+                }
+                catch (Exception ex)
+                {
+                    try { outputQueue?.Writer.TryComplete(); } catch { }
+                    if (outputPump is not null)
+                    {
+                        try { await outputPump; } catch { }
+                    }
+
+                    await WriteAsync(writer, new HelperResponse
+                    {
+                        Type = "error",
+                        Text = ex.Message,
+                        ExitCode = 1
+                    });
+                }
+                finally
+                {
+                    shell.Gate.Release();
+                }
             }
             catch
             {
@@ -149,110 +184,153 @@ namespace Elysium.WorkStation.WinUI
         {
             return Sessions.GetOrAdd(sessionKey, _ =>
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell",
-                    WorkingDirectory = Directory.Exists(workingDirectory) ? workingDirectory : Environment.CurrentDirectory,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                psi.ArgumentList.Add("-NoLogo");
-                psi.ArgumentList.Add("-NoProfile");
-                psi.ArgumentList.Add("-ExecutionPolicy");
-                psi.ArgumentList.Add("Bypass");
-                psi.ArgumentList.Add("-Command");
-                psi.ArgumentList.Add("-");
-
-                var process = new Process { StartInfo = psi };
-                process.EnableRaisingEvents = true;
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                return new SessionShell(process);
+                var initialWorkingDirectory = Directory.Exists(workingDirectory)
+                    ? workingDirectory
+                    : Environment.CurrentDirectory;
+                return new SessionShell(initialWorkingDirectory);
             });
         }
 
         private static async Task<int> ExecuteInSessionAsync(SessionShell session, string commandText, Func<string, bool, Task> onLineAsync)
         {
-            if (session.Process.HasExited)
+            var marker = "__CODEX_DONE__" + Guid.NewGuid().ToString("N") + ":";
+            var psi = new ProcessStartInfo
             {
-                throw new InvalidOperationException("Shell helper finalizado.");
+                FileName = "powershell",
+                WorkingDirectory = Directory.Exists(session.WorkingDirectory)
+                    ? session.WorkingDirectory
+                    : Environment.CurrentDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            };
+            psi.ArgumentList.Add("-NoLogo");
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+            psi.ArgumentList.Add("-EncodedCommand");
+            psi.ArgumentList.Add(BuildEncodedPowerShellCommand(commandText, marker));
+            psi.Environment["TERM"] = "xterm-256color";
+            psi.Environment["CLICOLOR_FORCE"] = "1";
+            psi.Environment["FORCE_COLOR"] = "1";
+
+            var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+
+            lock (session.ProcessGate)
+            {
+                session.ActiveProcess = process;
+                session.ActiveCommandCancellation = commandCts;
+                session.IsInterrupted = false;
             }
 
-            var marker = "__CODEX_DONE__" + Guid.NewGuid().ToString("N") + ":";
-            var done = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-            EventHandler exitHandler = (_, _) =>
+            int? markerExitCode = null;
+            string markerWorkingDirectory = null;
+
+            async Task PumpAsync(StreamReader reader, bool isError)
             {
-                try
+                while (true)
                 {
-                    done.TrySetResult(session.Process.ExitCode);
-                }
-                catch
-                {
-                    done.TrySetResult(130);
-                }
-            };
+                    var line = await reader.ReadLineAsync();
+                    if (line is null)
+                    {
+                        return;
+                    }
 
-            DataReceivedEventHandler outHandler = (_, e) =>
-            {
-                if (string.IsNullOrEmpty(e.Data))
-                {
-                    return;
-                }
+                    if (!isError && TryReadPowerShellCommandMarker(line, marker, out var exitCode, out var workingDirectory))
+                    {
+                        markerExitCode = exitCode;
+                        markerWorkingDirectory = workingDirectory;
+                        continue;
+                    }
 
-                if (e.Data.StartsWith(marker, StringComparison.Ordinal))
-                {
-                    var raw = e.Data[marker.Length..].Trim();
-                    done.TrySetResult(int.TryParse(raw, out var parsed) ? parsed : 1);
-                    return;
+                    await onLineAsync(line, isError);
                 }
+            }
 
-                _ = onLineAsync(e.Data, false);
-            };
-            DataReceivedEventHandler errHandler = (_, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    _ = onLineAsync(e.Data, true);
-                }
-            };
-
-            session.Process.OutputDataReceived += outHandler;
-            session.Process.ErrorDataReceived += errHandler;
-            session.Process.Exited += exitHandler;
             try
             {
-                foreach (var line in BuildWrappedLines(commandText, marker))
-                {
-                    await session.Process.StandardInput.WriteLineAsync(line);
-                }
-                await session.Process.StandardInput.FlushAsync();
+                process.Start();
+                var stdOutTask = PumpAsync(process.StandardOutput, isError: false);
+                var stdErrTask = PumpAsync(process.StandardError, isError: true);
 
-                var completed = await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromMinutes(5)));
-                if (completed != done.Task)
+                var canceled = false;
+                try
+                {
+                    await process.WaitForExitAsync(commandCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    canceled = true;
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            process.Kill(entireProcessTree: true);
+                        }
+                    }
+                    catch
+                    {
+                        // Best effort.
+                    }
+
+                    await process.WaitForExitAsync();
+                }
+
+                await Task.WhenAll(stdOutTask, stdErrTask);
+
+                if (!string.IsNullOrWhiteSpace(markerWorkingDirectory) && Directory.Exists(markerWorkingDirectory))
+                {
+                    session.WorkingDirectory = markerWorkingDirectory;
+                }
+
+                if (timeoutCts.IsCancellationRequested)
                 {
                     throw new TimeoutException("Timeout ejecutando comando.");
                 }
 
-                return await done.Task;
+                if (canceled || session.IsInterrupted)
+                {
+                    return 130;
+                }
+
+                return markerExitCode ?? process.ExitCode;
             }
             finally
             {
-                session.Process.OutputDataReceived -= outHandler;
-                session.Process.ErrorDataReceived -= errHandler;
-                session.Process.Exited -= exitHandler;
+                lock (session.ProcessGate)
+                {
+                    if (ReferenceEquals(session.ActiveProcess, process))
+                    {
+                        session.ActiveProcess = null;
+                    }
+
+                    if (ReferenceEquals(session.ActiveCommandCancellation, commandCts))
+                    {
+                        session.ActiveCommandCancellation = null;
+                    }
+                }
+
+                process.Dispose();
             }
         }
 
-        private static IEnumerable<string> BuildWrappedLines(string commandText, string marker)
+        private static string BuildEncodedPowerShellCommand(string commandText, string marker)
         {
+            var commandPayload = Convert.ToBase64String(Encoding.UTF8.GetBytes(commandText ?? string.Empty));
             var script = new StringBuilder();
+            script.AppendLine("[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)");
+            script.AppendLine("$OutputEncoding = [System.Text.UTF8Encoding]::new($false)");
+            script.AppendLine("$ProgressPreference = 'SilentlyContinue'");
+            script.AppendLine($"$__codex_command = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('{commandPayload}'))");
             script.AppendLine("$__codex_exit = 0");
             script.AppendLine("try {");
-            script.AppendLine(commandText ?? string.Empty);
+            script.AppendLine("  Invoke-Expression $__codex_command");
             script.AppendLine("} catch {");
             script.AppendLine("  Write-Error $_");
             script.AppendLine("  $__codex_exit = 1");
@@ -260,8 +338,48 @@ namespace Elysium.WorkStation.WinUI
             script.AppendLine("if ($__codex_exit -eq 0) {");
             script.AppendLine("  if ($LASTEXITCODE -ne $null) { $__codex_exit = [int]$LASTEXITCODE }");
             script.AppendLine("}");
-            script.AppendLine($"Write-Output \"{marker}$($__codex_exit)\"");
-            return script.ToString().Split(Environment.NewLine);
+            script.AppendLine("$__codex_pwd = ''");
+            script.AppendLine("try { $__codex_pwd = (Get-Location).ProviderPath } catch { $__codex_pwd = '' }");
+            script.AppendLine("$__codex_pwd_payload = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($__codex_pwd))");
+            script.AppendLine($"Write-Output \"{marker}$($__codex_exit)|$__codex_pwd_payload\"");
+            script.AppendLine("exit $__codex_exit");
+
+            return Convert.ToBase64String(Encoding.Unicode.GetBytes(script.ToString()));
+        }
+
+        private static bool TryReadPowerShellCommandMarker(
+            string line,
+            string marker,
+            out int exitCode,
+            out string workingDirectory)
+        {
+            exitCode = 1;
+            workingDirectory = string.Empty;
+            if (string.IsNullOrEmpty(line) || !line.StartsWith(marker, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var payload = line[marker.Length..];
+            var parts = payload.Split('|', 2);
+            if (!int.TryParse(parts[0], out exitCode))
+            {
+                exitCode = 1;
+            }
+
+            if (parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[1]))
+            {
+                try
+                {
+                    workingDirectory = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1]));
+                }
+                catch
+                {
+                    workingDirectory = string.Empty;
+                }
+            }
+
+            return true;
         }
 
         private static Task WriteAsync(StreamWriter writer, HelperResponse response)
@@ -272,7 +390,7 @@ namespace Elysium.WorkStation.WinUI
 
         private static bool InterruptSession(string sessionKey)
         {
-            if (!Sessions.TryRemove(sessionKey, out var shell))
+            if (!Sessions.TryGetValue(sessionKey, out var shell))
             {
                 return false;
             }
@@ -280,18 +398,31 @@ namespace Elysium.WorkStation.WinUI
             shell.IsInterrupted = true;
             try
             {
-                if (!shell.Process.HasExited)
+                Process activeProcess;
+                CancellationTokenSource activeCommandCancellation;
+                lock (shell.ProcessGate)
                 {
-                    shell.Process.Kill(entireProcessTree: true);
+                    activeProcess = shell.ActiveProcess;
+                    activeCommandCancellation = shell.ActiveCommandCancellation;
                 }
+
+                activeCommandCancellation?.Cancel();
+                if (activeProcess is not null && !activeProcess.HasExited)
+                {
+                    activeProcess.Kill(entireProcessTree: true);
+                    _lastActivityUtc = DateTime.UtcNow;
+                    return true;
+                }
+
+                _lastActivityUtc = DateTime.UtcNow;
+                return activeProcess is not null;
             }
             catch
             {
                 // Best effort.
             }
 
-            _lastActivityUtc = DateTime.UtcNow;
-            return true;
+            return false;
         }
 
         private static int? TryGetOwnerPid(string[] args)
@@ -385,11 +516,18 @@ namespace Elysium.WorkStation.WinUI
                         continue;
                     }
 
-                    if (Sessions.Count > 0)
+                    if (Sessions.Values.Any(session =>
+                    {
+                        lock (session.ProcessGate)
+                        {
+                            return session.ActiveProcess is not null && !session.ActiveProcess.HasExited;
+                        }
+                    }))
                     {
                         continue;
                     }
 
+                    Sessions.Clear();
                     try { Environment.Exit(0); } catch { }
                 }
             });
@@ -413,13 +551,16 @@ namespace Elysium.WorkStation.WinUI
 
         private sealed class SessionShell
         {
-            public Process Process { get; }
+            public object ProcessGate { get; } = new();
+            public Process ActiveProcess { get; set; }
+            public CancellationTokenSource ActiveCommandCancellation { get; set; }
+            public string WorkingDirectory { get; set; }
             public SemaphoreSlim Gate { get; } = new(1, 1);
             public volatile bool IsInterrupted;
 
-            public SessionShell(Process process)
+            public SessionShell(string workingDirectory)
             {
-                Process = process;
+                WorkingDirectory = workingDirectory;
             }
         }
     }

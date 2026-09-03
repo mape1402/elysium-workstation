@@ -911,11 +911,6 @@ namespace Elysium.WorkStation.Services
             string action,
             string argsJson)
         {
-            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
             var link = await _repository.GetBySyncIdAsync(syncId);
             if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
             {
@@ -1229,11 +1224,6 @@ namespace Elysium.WorkStation.Services
             string senderClientId,
             string commandText)
         {
-            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
             var link = await _repository.GetBySyncIdAsync(syncId);
             if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
             {
@@ -1287,7 +1277,22 @@ namespace Elysium.WorkStation.Services
                 {
                     while (reader.TryRead(out var item))
                     {
-                        await ExecuteQueuedRemoteTerminalCommandAsync(item);
+                        try
+                        {
+                            await ExecuteQueuedRemoteTerminalCommandAsync(item);
+                        }
+                        catch (Exception ex)
+                        {
+                            await SendRemoteTerminalOutputAsync(
+                                item.SessionId,
+                                item.SyncId,
+                                $"[error] {ex.Message}",
+                                isError: true,
+                                isCompleted: true,
+                                exitCode: 1);
+                            AddLog(item.SyncId, "remote-shell-worker-error", string.Empty, ex.Message, isOutgoing: false);
+                            RaiseStateChanged();
+                        }
                     }
                 }
             }
@@ -1312,8 +1317,17 @@ namespace Elysium.WorkStation.Services
             var link = await _repository.GetBySyncIdAsync(syncId);
             if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
             {
+                await SendRemoteTerminalOutputAsync(
+                    sessionId,
+                    syncId,
+                    "La sincronizacion no esta activa en el receptor.",
+                    isError: true,
+                    isCompleted: true,
+                    exitCode: 1);
                 return;
             }
+
+            AddLog(syncId, "remote-shell-recv", string.Empty, $"Shell remoto recibido: {commandText}", isOutgoing: false);
 
             var helperExit = await TryExecuteWithElevatedHelperAsync(
                 sessionKey,
@@ -1461,9 +1475,14 @@ namespace Elysium.WorkStation.Services
             string commandText,
             Func<string, bool, Task> onLineAsync)
         {
-            _activeElevatedHelperSessionKeys[sessionKey] = 1;
             try
             {
+                if (!await _remoteShellElevationService.IsHelperAvailableAsync())
+                {
+                    return null;
+                }
+
+                _activeElevatedHelperSessionKeys[sessionKey] = 1;
                 return await _remoteShellElevationService.ExecuteInHelperSessionAsync(
                     sessionKey,
                     workingDirectory,
@@ -1565,29 +1584,10 @@ namespace Elysium.WorkStation.Services
         {
             return _remoteShellSessionsByKey.GetOrAdd(sessionKey, _ =>
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell",
-                    WorkingDirectory = workingDirectory,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                psi.ArgumentList.Add("-NoLogo");
-                psi.ArgumentList.Add("-NoProfile");
-                psi.ArgumentList.Add("-ExecutionPolicy");
-                psi.ArgumentList.Add("Bypass");
-                psi.ArgumentList.Add("-Command");
-                psi.ArgumentList.Add("-");
-
-                var process = new Process { StartInfo = psi };
-                process.EnableRaisingEvents = true;
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                return new PersistentRemoteShellSession(sessionKey, syncId, ownerClientId, process);
+                var initialWorkingDirectory = Directory.Exists(workingDirectory)
+                    ? workingDirectory
+                    : Environment.CurrentDirectory;
+                return new PersistentRemoteShellSession(sessionKey, syncId, ownerClientId, initialWorkingDirectory);
             });
         }
 
@@ -1596,91 +1596,143 @@ namespace Elysium.WorkStation.Services
             string commandText,
             Func<string, bool, Task> onLineAsync)
         {
-            if (session.Process.HasExited)
+            var marker = "__CODEX_DONE__" + Guid.NewGuid().ToString("N") + ":";
+            var psi = new ProcessStartInfo
             {
-                throw new InvalidOperationException("La sesion remota de PowerShell termino inesperadamente.");
+                FileName = "powershell",
+                WorkingDirectory = Directory.Exists(session.WorkingDirectory)
+                    ? session.WorkingDirectory
+                    : Environment.CurrentDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            };
+            psi.ArgumentList.Add("-NoLogo");
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+            psi.ArgumentList.Add("-EncodedCommand");
+            psi.ArgumentList.Add(BuildEncodedPowerShellCommand(commandText, marker));
+            psi.Environment["TERM"] = "xterm-256color";
+            psi.Environment["CLICOLOR_FORCE"] = "1";
+            psi.Environment["FORCE_COLOR"] = "1";
+
+            var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+
+            lock (session.ProcessGate)
+            {
+                session.ActiveProcess = process;
+                session.ActiveCommandCancellation = commandCts;
             }
 
-            var marker = "__CODEX_DONE__" + Guid.NewGuid().ToString("N") + ":";
-            var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-            EventHandler exitHandler = (_, _) =>
-            {
-                try
-                {
-                    completion.TrySetResult(session.Process.ExitCode);
-                }
-                catch
-                {
-                    completion.TrySetResult(130);
-                }
-            };
+            int? markerExitCode = null;
+            string markerWorkingDirectory = null;
 
-            DataReceivedEventHandler stdOutHandler = (_, e) =>
+            async Task PumpAsync(StreamReader reader, bool isError)
             {
-                if (string.IsNullOrEmpty(e.Data))
+                while (true)
                 {
-                    return;
-                }
-
-                if (e.Data.StartsWith(marker, StringComparison.Ordinal))
-                {
-                    var exitRaw = e.Data[marker.Length..].Trim();
-                    if (int.TryParse(exitRaw, out var exitCode))
+                    var line = await reader.ReadLineAsync();
+                    if (line is null)
                     {
-                        completion.TrySetResult(exitCode);
+                        return;
                     }
-                    else
+
+                    if (!isError && TryReadPowerShellCommandMarker(line, marker, out var exitCode, out var workingDirectory))
                     {
-                        completion.TrySetResult(1);
+                        markerExitCode = exitCode;
+                        markerWorkingDirectory = workingDirectory;
+                        continue;
                     }
-                    return;
+
+                    await onLineAsync(line, isError);
                 }
+            }
 
-                _ = onLineAsync(e.Data, false);
-            };
-
-            DataReceivedEventHandler stdErrHandler = (_, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    _ = onLineAsync(e.Data, true);
-                }
-            };
-
-            session.Process.OutputDataReceived += stdOutHandler;
-            session.Process.ErrorDataReceived += stdErrHandler;
-            session.Process.Exited += exitHandler;
-            using var interruptReg = session.InterruptCts.Token.Register(() => completion.TrySetResult(130));
             try
             {
-                foreach (var line in BuildWrappedCommandLines(commandText, marker))
-                {
-                    await session.Process.StandardInput.WriteLineAsync(line);
-                }
-                await session.Process.StandardInput.FlushAsync();
+                process.Start();
+                var stdOutTask = PumpAsync(process.StandardOutput, isError: false);
+                var stdErrTask = PumpAsync(process.StandardError, isError: true);
 
-                var finished = await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromMinutes(5)));
-                if (finished != completion.Task)
+                var canceled = false;
+                try
+                {
+                    await process.WaitForExitAsync(commandCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    canceled = true;
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            process.Kill(entireProcessTree: true);
+                        }
+                    }
+                    catch
+                    {
+                        // Best effort.
+                    }
+
+                    await process.WaitForExitAsync();
+                }
+
+                await Task.WhenAll(stdOutTask, stdErrTask);
+
+                if (!string.IsNullOrWhiteSpace(markerWorkingDirectory) && Directory.Exists(markerWorkingDirectory))
+                {
+                    session.WorkingDirectory = markerWorkingDirectory;
+                }
+
+                if (timeoutCts.IsCancellationRequested)
                 {
                     throw new TimeoutException("La ejecucion remota excedio el tiempo limite.");
                 }
 
-                return await completion.Task;
+                if (canceled)
+                {
+                    return 130;
+                }
+
+                return markerExitCode ?? process.ExitCode;
             }
             finally
             {
-                session.Process.OutputDataReceived -= stdOutHandler;
-                session.Process.ErrorDataReceived -= stdErrHandler;
-                session.Process.Exited -= exitHandler;
+                lock (session.ProcessGate)
+                {
+                    if (ReferenceEquals(session.ActiveProcess, process))
+                    {
+                        session.ActiveProcess = null;
+                    }
+
+                    if (ReferenceEquals(session.ActiveCommandCancellation, commandCts))
+                    {
+                        session.ActiveCommandCancellation = null;
+                    }
+                }
+
+                process.Dispose();
             }
         }
 
-        private static IReadOnlyList<string> BuildWrappedCommandLines(string commandText, string marker)
+        private static string BuildEncodedPowerShellCommand(string commandText, string marker)
         {
+            var commandPayload = Convert.ToBase64String(Encoding.UTF8.GetBytes(commandText ?? string.Empty));
             var script = new StringBuilder();
+            script.AppendLine("[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)");
+            script.AppendLine("$OutputEncoding = [System.Text.UTF8Encoding]::new($false)");
+            script.AppendLine("$ProgressPreference = 'SilentlyContinue'");
+            script.AppendLine($"$__codex_command = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('{commandPayload}'))");
             script.AppendLine("$__codex_exit = 0");
             script.AppendLine("try {");
-            script.AppendLine(commandText ?? string.Empty);
+            script.AppendLine("  Invoke-Expression $__codex_command");
             script.AppendLine("} catch {");
             script.AppendLine("  Write-Error $_");
             script.AppendLine("  $__codex_exit = 1");
@@ -1688,12 +1740,48 @@ namespace Elysium.WorkStation.Services
             script.AppendLine("if ($__codex_exit -eq 0) {");
             script.AppendLine("  if ($LASTEXITCODE -ne $null) { $__codex_exit = [int]$LASTEXITCODE }");
             script.AppendLine("}");
-            script.AppendLine($"Write-Output \"{marker}$($__codex_exit)\"");
+            script.AppendLine("$__codex_pwd = ''");
+            script.AppendLine("try { $__codex_pwd = (Get-Location).ProviderPath } catch { $__codex_pwd = '' }");
+            script.AppendLine("$__codex_pwd_payload = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($__codex_pwd))");
+            script.AppendLine($"Write-Output \"{marker}$($__codex_exit)|$__codex_pwd_payload\"");
+            script.AppendLine("exit $__codex_exit");
 
-            return script
-                .ToString()
-                .Split(Environment.NewLine, StringSplitOptions.None)
-                .ToList();
+            return Convert.ToBase64String(Encoding.Unicode.GetBytes(script.ToString()));
+        }
+
+        private static bool TryReadPowerShellCommandMarker(
+            string line,
+            string marker,
+            out int exitCode,
+            out string workingDirectory)
+        {
+            exitCode = 1;
+            workingDirectory = string.Empty;
+            if (string.IsNullOrEmpty(line) || !line.StartsWith(marker, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var payload = line[marker.Length..];
+            var parts = payload.Split('|', 2);
+            if (!int.TryParse(parts[0], out exitCode))
+            {
+                exitCode = 1;
+            }
+
+            if (parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[1]))
+            {
+                try
+                {
+                    workingDirectory = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1]));
+                }
+                catch
+                {
+                    workingDirectory = string.Empty;
+                }
+            }
+
+            return true;
         }
 
         private void DisposeRemoteShellSession(string sessionKey)
@@ -1716,22 +1804,29 @@ namespace Elysium.WorkStation.Services
             _interruptedRemoteShellSessions[sessionKey] = 1;
             try
             {
-                session.InterruptCts.Cancel();
-                if (!session.Process.HasExited)
+                Process activeProcess;
+                CancellationTokenSource activeCommandCancellation;
+                lock (session.ProcessGate)
                 {
-                    session.Process.Kill(entireProcessTree: true);
+                    activeProcess = session.ActiveProcess;
+                    activeCommandCancellation = session.ActiveCommandCancellation;
                 }
+
+                activeCommandCancellation?.Cancel();
+                if (activeProcess is not null && !activeProcess.HasExited)
+                {
+                    activeProcess.Kill(entireProcessTree: true);
+                    return true;
+                }
+
+                return activeProcess is not null;
             }
             catch
             {
                 // Best effort.
             }
-            finally
-            {
-                DisposeRemoteShellSession(sessionKey);
-            }
 
-            return true;
+            return false;
         }
 
         private bool InterruptAnyRemoteShellSession(string syncId, string senderClientId)
@@ -3218,26 +3313,39 @@ namespace Elysium.WorkStation.Services
             public string SessionKey { get; }
             public string SyncId { get; }
             public string OwnerClientId { get; }
-            public Process Process { get; }
+            public object ProcessGate { get; } = new();
+            public Process ActiveProcess { get; set; }
+            public CancellationTokenSource ActiveCommandCancellation { get; set; }
+            public string WorkingDirectory { get; set; }
             public SemaphoreSlim CommandGate { get; } = new(1, 1);
-            public CancellationTokenSource InterruptCts { get; } = new();
 
-            public PersistentRemoteShellSession(string sessionKey, string syncId, string ownerClientId, Process process)
+            public PersistentRemoteShellSession(string sessionKey, string syncId, string ownerClientId, string workingDirectory)
             {
                 SessionKey = sessionKey;
                 SyncId = syncId;
                 OwnerClientId = ownerClientId;
-                Process = process;
+                WorkingDirectory = workingDirectory;
             }
 
             public void Dispose()
             {
+                Process activeProcess;
+                CancellationTokenSource activeCommandCancellation;
+                lock (ProcessGate)
+                {
+                    activeProcess = ActiveProcess;
+                    activeCommandCancellation = ActiveCommandCancellation;
+                    ActiveProcess = null;
+                    ActiveCommandCancellation = null;
+                }
+
                 try
                 {
-                    if (!Process.HasExited)
+                    activeCommandCancellation?.Cancel();
+                    if (activeProcess is not null && !activeProcess.HasExited)
                     {
-                        Process.Kill(entireProcessTree: true);
-                        Process.WaitForExit(2000);
+                        activeProcess.Kill(entireProcessTree: true);
+                        activeProcess.WaitForExit(2000);
                     }
                 }
                 catch
@@ -3245,9 +3353,9 @@ namespace Elysium.WorkStation.Services
                     // Best effort cleanup.
                 }
 
-                Process.Dispose();
+                activeProcess?.Dispose();
+                activeCommandCancellation?.Dispose();
                 CommandGate.Dispose();
-                InterruptCts.Dispose();
             }
         }
     }
