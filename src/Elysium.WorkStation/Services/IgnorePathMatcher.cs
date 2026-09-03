@@ -56,10 +56,15 @@ namespace Elysium.WorkStation.Services
                 return true;
             }
 
-            return normalized.Contains('*') || normalized.Contains('?');
+            return HasGitIgnorePatternTokens(normalized);
         }
 
         public static bool IsIgnored(string relativePath, IReadOnlyList<string> ignoreEntries)
+        {
+            return IsIgnored(relativePath, ignoreEntries, isDirectory: false);
+        }
+
+        public static bool IsIgnored(string relativePath, IReadOnlyList<string> ignoreEntries, bool isDirectory)
         {
             if (string.IsNullOrWhiteSpace(relativePath) || ignoreEntries is null || ignoreEntries.Count == 0)
             {
@@ -83,7 +88,7 @@ namespace Elysium.WorkStation.Services
 
                 if (ignore.StartsWith(GitIgnorePrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (TryMatchGitIgnore(candidate, ignore[GitIgnorePrefix.Length..], out var ignored))
+                    if (TryMatchGitIgnore(candidate, ignore[GitIgnorePrefix.Length..], isDirectory, out var ignored))
                     {
                         gitIgnored = ignored;
                     }
@@ -150,17 +155,15 @@ namespace Elysium.WorkStation.Services
                 return string.Empty;
             }
 
-            if (trimmed.StartsWith("\\#", StringComparison.Ordinal) ||
-                trimmed.StartsWith("\\!", StringComparison.Ordinal))
-            {
-                trimmed = trimmed[1..];
-            }
-
+            trimmed = trimmed
+                .Replace("\\ ", " ", StringComparison.Ordinal)
+                .Replace("\\#", "#", StringComparison.Ordinal)
+                .Replace("\\!", "!", StringComparison.Ordinal);
             trimmed = trimmed.Replace('\\', '/');
             return negated ? $"!{trimmed}" : trimmed;
         }
 
-        private static bool TryMatchGitIgnore(string candidate, string rawPattern, out bool ignored)
+        private static bool TryMatchGitIgnore(string candidate, string rawPattern, bool isDirectory, out bool ignored)
         {
             ignored = false;
             var pattern = NormalizeGitIgnorePattern(rawPattern);
@@ -183,7 +186,7 @@ namespace Elysium.WorkStation.Services
                 return false;
             }
 
-            if (!IsGitIgnoreMatch(candidate, pattern, rootAnchored, directoryOnly))
+            if (!IsGitIgnoreMatch(candidate, pattern, rootAnchored, directoryOnly, isDirectory))
             {
                 return false;
             }
@@ -192,18 +195,22 @@ namespace Elysium.WorkStation.Services
             return true;
         }
 
-        private static bool IsGitIgnoreMatch(string candidate, string pattern, bool rootAnchored, bool directoryOnly)
+        private static bool IsGitIgnoreMatch(string candidate, string pattern, bool rootAnchored, bool directoryOnly, bool isDirectory)
         {
             var anchored = rootAnchored || pattern.Contains('/');
             if (anchored)
             {
-                return IsGitIgnorePathMatch(candidate, pattern, directoryOnly);
+                return IsGitIgnorePathMatch(candidate, pattern, directoryOnly, isDirectory);
             }
 
             var segments = candidate.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var segment in segments)
+            var segmentCount = directoryOnly && !isDirectory
+                ? Math.Max(segments.Length - 1, 0)
+                : segments.Length;
+
+            for (var index = 0; index < segmentCount; index++)
             {
-                if (IsGitIgnoreNameMatch(segment, pattern))
+                if (IsGitIgnoreNameMatch(segments[index], pattern))
                 {
                     return true;
                 }
@@ -212,25 +219,40 @@ namespace Elysium.WorkStation.Services
             return false;
         }
 
-        private static bool IsGitIgnorePathMatch(string candidate, string pattern, bool directoryOnly)
+        private static bool IsGitIgnorePathMatch(string candidate, string pattern, bool directoryOnly, bool isDirectory)
         {
-            if (IsGitIgnoreNameMatch(candidate, pattern))
+            if ((!directoryOnly || isDirectory) && IsGitIgnoreNameMatch(candidate, pattern))
             {
                 return true;
             }
 
-            return directoryOnly && candidate.StartsWith(pattern + "/", StringComparison.OrdinalIgnoreCase);
+            foreach (var parentPath in EnumerateParentPaths(candidate))
+            {
+                if (IsGitIgnoreNameMatch(parentPath, pattern))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsGitIgnoreNameMatch(string candidate, string pattern)
         {
-            if (!pattern.Contains('*') && !pattern.Contains('?'))
+            if (!HasGitIgnorePatternTokens(pattern))
             {
                 return string.Equals(candidate, pattern, StringComparison.OrdinalIgnoreCase);
             }
 
             var regex = GitIgnoreCache.GetOrAdd(pattern, CreateGitIgnoreRegex);
             return regex.IsMatch(candidate);
+        }
+
+        private static bool HasGitIgnorePatternTokens(string pattern)
+        {
+            return pattern.Contains('*') ||
+                   pattern.Contains('?') ||
+                   pattern.Contains('[');
         }
 
         public static bool IsValidRegexEntry(string entry)
@@ -312,14 +334,33 @@ namespace Elysium.WorkStation.Services
                 {
                     if (index + 1 < normalized.Length && normalized[index + 1] == '*')
                     {
-                        sb.Append(".*");
-                        index++;
+                        if (index + 2 < normalized.Length && normalized[index + 2] == '/')
+                        {
+                            sb.Append("(?:.*/)?");
+                            index += 2;
+                        }
+                        else
+                        {
+                            sb.Append(".*");
+                            index++;
+                        }
                     }
                     else
                     {
                         sb.Append("[^/]*");
                     }
                     continue;
+                }
+
+                if (ch == '[')
+                {
+                    var classEnd = FindCharacterClassEnd(normalized, index + 1);
+                    if (classEnd > index + 1)
+                    {
+                        sb.Append(ConvertCharacterClass(normalized[(index + 1)..classEnd]));
+                        index = classEnd;
+                        continue;
+                    }
                 }
 
                 if (ch == '?')
@@ -336,6 +377,61 @@ namespace Elysium.WorkStation.Services
                 sb.ToString(),
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
                 RegexTimeout);
+        }
+
+        private static IEnumerable<string> EnumerateParentPaths(string candidate)
+        {
+            var current = candidate;
+            while (true)
+            {
+                var slashIndex = current.LastIndexOf('/');
+                if (slashIndex <= 0)
+                {
+                    yield break;
+                }
+
+                current = current[..slashIndex];
+                yield return current;
+            }
+        }
+
+        private static int FindCharacterClassEnd(string pattern, int startIndex)
+        {
+            for (var index = startIndex; index < pattern.Length; index++)
+            {
+                if (pattern[index] == ']' && index > startIndex)
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        private static string ConvertCharacterClass(string content)
+        {
+            var sb = new StringBuilder("[");
+            var index = 0;
+
+            if (content.Length > 0 && (content[0] == '!' || content[0] == '^'))
+            {
+                sb.Append('^');
+                index = 1;
+            }
+
+            for (; index < content.Length; index++)
+            {
+                var ch = content[index];
+                if (ch is '\\' or ']')
+                {
+                    sb.Append('\\');
+                }
+
+                sb.Append(ch);
+            }
+
+            sb.Append(']');
+            return sb.ToString();
         }
     }
 }

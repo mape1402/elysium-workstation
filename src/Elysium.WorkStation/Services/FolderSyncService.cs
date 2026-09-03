@@ -2488,11 +2488,6 @@ namespace Elysium.WorkStation.Services
 
         private async Task HandleWatcherChangedAsync(string syncId, WatcherChangeTypes changeType, string fullPath)
         {
-            if (Directory.Exists(fullPath))
-            {
-                return;
-            }
-
             var link = await _repository.GetBySyncIdAsync(syncId);
             if (link is null || !link.ContinuousSyncEnabled || !link.IsEmitter || !Directory.Exists(link.LocalFolderPath))
             {
@@ -2506,6 +2501,16 @@ namespace Elysium.WorkStation.Services
             }
 
             var ignorePaths = GetIgnorePaths(link);
+            if (Directory.Exists(fullPath))
+            {
+                if (IsIgnored(relativePath, ignorePaths, isDirectory: true))
+                {
+                    return;
+                }
+
+                return;
+            }
+
             if (IsIgnored(relativePath, ignorePaths))
             {
                 return;
@@ -2522,6 +2527,13 @@ namespace Elysium.WorkStation.Services
             {
                 if (changeType == WatcherChangeTypes.Deleted)
                 {
+                    var latestLink = await _repository.GetByIdAsync(link.Id) ?? link;
+                    var previousSnapshot = DeserializeSnapshot(latestLink.LastSnapshotJson);
+                    if (!previousSnapshot.ContainsKey(relativePath))
+                    {
+                        return;
+                    }
+
                     await SendDeleteAsync(link, relativePath);
                     return;
                 }
@@ -2668,26 +2680,51 @@ namespace Elysium.WorkStation.Services
                 return result;
             }
 
-            foreach (var file in Directory.EnumerateFiles(rootFolderPath, "*", SearchOption.AllDirectories))
+            var pendingDirectories = new Stack<string>();
+            pendingDirectories.Push(rootFolderPath);
+
+            while (pendingDirectories.Count > 0)
             {
-                var relativePath = TryGetRelativePath(rootFolderPath, file);
-                if (string.IsNullOrWhiteSpace(relativePath) || IsIgnored(relativePath, ignorePaths))
+                var currentDirectory = pendingDirectories.Pop();
+
+                foreach (var directory in EnumerateDirectoriesSafely(currentDirectory))
                 {
-                    continue;
+                    if (IsReparsePoint(directory))
+                    {
+                        continue;
+                    }
+
+                    var relativeDirectoryPath = TryGetRelativePath(rootFolderPath, directory);
+                    if (string.IsNullOrWhiteSpace(relativeDirectoryPath) ||
+                        IsIgnored(relativeDirectoryPath, ignorePaths, isDirectory: true))
+                    {
+                        continue;
+                    }
+
+                    pendingDirectories.Push(directory);
                 }
 
-                try
+                foreach (var file in EnumerateFilesSafely(currentDirectory))
                 {
-                    result[relativePath] = new FolderSyncFileVersion
+                    var relativePath = TryGetRelativePath(rootFolderPath, file);
+                    if (string.IsNullOrWhiteSpace(relativePath) || IsIgnored(relativePath, ignorePaths))
                     {
-                        Hash = await ComputeFileHashAsync(file),
-                        OriginClientId = ClientId,
-                        SyncedAtUtc = DateTime.UtcNow
-                    };
-                }
-                catch
-                {
-                    // Skip files that are currently locked.
+                        continue;
+                    }
+
+                    try
+                    {
+                        result[relativePath] = new FolderSyncFileVersion
+                        {
+                            Hash = await ComputeFileHashAsync(file),
+                            OriginClientId = ClientId,
+                            SyncedAtUtc = DateTime.UtcNow
+                        };
+                    }
+                    catch
+                    {
+                        // Skip files that are currently locked.
+                    }
                 }
             }
 
@@ -2854,9 +2891,9 @@ namespace Elysium.WorkStation.Services
                 .ToList();
         }
 
-        private static bool IsIgnored(string relativePath, IReadOnlyList<string> ignorePaths)
+        private static bool IsIgnored(string relativePath, IReadOnlyList<string> ignorePaths, bool isDirectory = false)
         {
-            return IgnorePathMatcher.IsIgnored(relativePath, ignorePaths);
+            return IgnorePathMatcher.IsIgnored(relativePath, ignorePaths, isDirectory);
         }
 
         private static string NormalizeFolderPath(string folderPath)
@@ -2903,21 +2940,65 @@ namespace Elysium.WorkStation.Services
             }
 
             var gitIgnorePath = Path.Combine(rootFolderPath, ".gitignore");
+            var gitFolderPath = Path.Combine(rootFolderPath, ".git");
+            var gitEntries = new List<string>();
+            if (Directory.Exists(gitFolderPath))
+            {
+                gitEntries.Add(IgnorePathMatcher.CreateGitIgnoreEntry(".git/"));
+            }
+
             if (!File.Exists(gitIgnorePath))
             {
-                return [];
+                return gitEntries;
             }
 
             try
             {
-                return File.ReadLines(gitIgnorePath)
+                gitEntries.AddRange(File.ReadLines(gitIgnorePath)
                     .Select(IgnorePathMatcher.CreateGitIgnoreEntry)
                     .Where(path => !string.IsNullOrWhiteSpace(path))
-                    .ToList();
+                    .ToList());
+                return gitEntries;
+            }
+            catch
+            {
+                return gitEntries;
+            }
+        }
+
+        private static IEnumerable<string> EnumerateDirectoriesSafely(string directoryPath)
+        {
+            try
+            {
+                return Directory.EnumerateDirectories(directoryPath).ToList();
             }
             catch
             {
                 return [];
+            }
+        }
+
+        private static IEnumerable<string> EnumerateFilesSafely(string directoryPath)
+        {
+            try
+            {
+                return Directory.EnumerateFiles(directoryPath).ToList();
+            }
+            catch
+            {
+                return [];
+            }
+        }
+
+        private static bool IsReparsePoint(string path)
+        {
+            try
+            {
+                return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            }
+            catch
+            {
+                return true;
             }
         }
 
