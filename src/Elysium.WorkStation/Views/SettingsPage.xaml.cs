@@ -59,6 +59,7 @@ namespace Elysium.WorkStation.Views
         private readonly IVariableRepository _variableRepository;
         private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
         private readonly IRemoteShellElevationService _remoteShellElevationService;
+        private readonly IAppUpdateService _appUpdateService;
         private string _serverUrl;
         private string _sqliteDbPath;
         private string _preparedDbPath = string.Empty;
@@ -69,6 +70,12 @@ namespace Elysium.WorkStation.Views
         private int _kanbanCleanupIntervalHours;
         private int _signalRReconnectMinutes;
         private string _selectedTheme = "Light";
+        private AppUpdateInfo _latestUpdate;
+        private string _updateStatusText = "Busca nuevas versiones publicadas en GitHub Releases.";
+        private string _updateProgressText = string.Empty;
+        private double _updateProgress;
+        private bool _isCheckingForUpdates;
+        private bool _isInstallingUpdate;
 
         public string ServerUrl
         {
@@ -166,6 +173,77 @@ namespace Elysium.WorkStation.Views
         public Color FeedbackColor { get; private set; } = Colors.Transparent;
         public bool HasFeedback { get; private set; }
 
+        public string CurrentAppVersionText => $"Version instalada: {_appUpdateService.CurrentVersion}";
+
+        public string UpdateStatusText
+        {
+            get => _updateStatusText;
+            private set
+            {
+                _updateStatusText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string UpdateProgressText
+        {
+            get => _updateProgressText;
+            private set
+            {
+                _updateProgressText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public double UpdateProgress
+        {
+            get => _updateProgress;
+            private set
+            {
+                _updateProgress = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasUpdateProgress));
+            }
+        }
+
+        public bool IsCheckingForUpdates
+        {
+            get => _isCheckingForUpdates;
+            private set
+            {
+                if (_isCheckingForUpdates == value)
+                    return;
+
+                _isCheckingForUpdates = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanCheckForUpdates));
+                OnPropertyChanged(nameof(CanInstallUpdate));
+                RefreshUpdateCommandStates();
+            }
+        }
+
+        public bool IsInstallingUpdate
+        {
+            get => _isInstallingUpdate;
+            private set
+            {
+                if (_isInstallingUpdate == value)
+                    return;
+
+                _isInstallingUpdate = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanCheckForUpdates));
+                OnPropertyChanged(nameof(CanInstallUpdate));
+                OnPropertyChanged(nameof(HasUpdateProgress));
+                RefreshUpdateCommandStates();
+            }
+        }
+
+        public bool HasUpdateProgress => IsInstallingUpdate || UpdateProgress > 0;
+        public bool HasAvailableUpdate => _latestUpdate?.IsUpdateAvailable == true;
+        public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsInstallingUpdate;
+        public bool CanInstallUpdate => HasAvailableUpdate && !IsCheckingForUpdates && !IsInstallingUpdate;
+
         private bool _mouseEnabled;
         public bool MouseEnabled
         {
@@ -225,6 +303,8 @@ namespace Elysium.WorkStation.Views
         public Command UseDefaultDbPathCommand { get; }
         public Command ResetDatabaseCommand { get; }
         public Command ElevatePermissionsCommand { get; }
+        public Command CheckForUpdatesCommand { get; }
+        public Command InstallUpdateCommand { get; }
         public bool IsWindowsPlatform => DeviceInfo.Platform == DevicePlatform.WinUI;
 
         public SettingsPage(
@@ -233,6 +313,7 @@ namespace Elysium.WorkStation.Views
             ISecretVaultService secretVaultService,
             IVariableRepository variableRepository,
             IDbContextFactory<AppDbContext> dbContextFactory,
+            IAppUpdateService appUpdateService,
             IRemoteShellElevationService remoteShellElevationService)
         {
             _settingsService = settingsService;
@@ -240,6 +321,7 @@ namespace Elysium.WorkStation.Views
             _secretVaultService = secretVaultService;
             _variableRepository = variableRepository;
             _dbContextFactory = dbContextFactory;
+            _appUpdateService = appUpdateService;
             _remoteShellElevationService = remoteShellElevationService;
             _serverUrl = settingsService.ServerUrl;
             _sqliteDbPath = settingsService.SqliteDbPath;
@@ -348,6 +430,14 @@ namespace Elysium.WorkStation.Views
                     ShowFeedback("❌  No se pudo conectar al servidor.", Color.FromArgb("#B71C1C"));
                 }
             });
+
+            CheckForUpdatesCommand = new Command(
+                async () => await CheckForUpdatesAsync(),
+                () => CanCheckForUpdates);
+
+            InstallUpdateCommand = new Command(
+                async () => await InstallAvailableUpdateAsync(),
+                () => CanInstallUpdate);
 
             ResetPinCommand = new Command(async () =>
             {
@@ -622,6 +712,132 @@ namespace Elysium.WorkStation.Views
             !string.IsNullOrWhiteSpace(url) &&
             Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
             (uri.Scheme == "http" || uri.Scheme == "https");
+
+        private async Task CheckForUpdatesAsync()
+        {
+            if (!CanCheckForUpdates)
+            {
+                return;
+            }
+
+            IsCheckingForUpdates = true;
+            UpdateProgress = 0;
+            UpdateProgressText = string.Empty;
+            UpdateStatusText = "Buscando la version mas reciente en GitHub Releases...";
+
+            try
+            {
+                _latestUpdate = await _appUpdateService.CheckLatestAsync();
+                NotifyUpdateAvailabilityChanged();
+
+                if (_latestUpdate.IsUpdateAvailable)
+                {
+                    var assetSize = _latestUpdate.AssetSizeBytes > 0
+                        ? $" ({FormatBytes(_latestUpdate.AssetSizeBytes)})"
+                        : string.Empty;
+
+                    UpdateStatusText = $"Disponible {_latestUpdate.LatestTag}{assetSize}.";
+                    ShowFeedback($"Actualizacion disponible: {_latestUpdate.LatestTag}.", Color.FromArgb("#1565C0"));
+                }
+                else
+                {
+                    UpdateStatusText = _latestUpdate.Message;
+                    ShowFeedback(_latestUpdate.Message, Color.FromArgb("#1B5E20"));
+                }
+            }
+            catch
+            {
+                _latestUpdate = null;
+                NotifyUpdateAvailabilityChanged();
+                UpdateStatusText = "No se pueden buscar actualizaciones en este momento.";
+                ShowFeedback("No se pueden buscar actualizaciones en este momento.", Color.FromArgb("#B71C1C"));
+            }
+            finally
+            {
+                IsCheckingForUpdates = false;
+                NotifyUpdateAvailabilityChanged();
+            }
+        }
+
+        private async Task InstallAvailableUpdateAsync()
+        {
+            if (!CanInstallUpdate || _latestUpdate is null)
+            {
+                return;
+            }
+
+            var confirmed = await DisplayAlert(
+                "Actualizar MyWorkStation",
+                $"Se descargara {_latestUpdate.LatestTag} desde GitHub Releases y la app se cerrara para aplicar los cambios.",
+                "Actualizar",
+                "Cancelar");
+
+            if (!confirmed)
+            {
+                return;
+            }
+
+            IsInstallingUpdate = true;
+            UpdateProgress = 0;
+            UpdateProgressText = "Preparando actualizacion...";
+            UpdateStatusText = $"Instalando {_latestUpdate.LatestTag}...";
+
+            try
+            {
+                var progress = new Progress<AppUpdateProgress>(p =>
+                {
+                    UpdateProgress = p.Progress;
+                    UpdateProgressText = p.Message;
+                });
+
+                await _appUpdateService.DownloadAndApplyAsync(_latestUpdate, progress);
+
+                ShowFeedback("Actualizacion descargada. Cerrando app para aplicar cambios...", Color.FromArgb("#1B5E20"));
+                await Task.Delay(700);
+                Application.Current?.Quit();
+            }
+            catch (Exception ex)
+            {
+                IsInstallingUpdate = false;
+                UpdateProgress = 0;
+                UpdateProgressText = string.Empty;
+                UpdateStatusText = $"No se pudo instalar la actualizacion: {ex.Message}";
+                ShowFeedback("No se pudo instalar la actualizacion.", Color.FromArgb("#B71C1C"));
+            }
+        }
+
+        private void NotifyUpdateAvailabilityChanged()
+        {
+            OnPropertyChanged(nameof(HasAvailableUpdate));
+            OnPropertyChanged(nameof(CanInstallUpdate));
+            RefreshUpdateCommandStates();
+        }
+
+        private void RefreshUpdateCommandStates()
+        {
+            CheckForUpdatesCommand?.ChangeCanExecute();
+            InstallUpdateCommand?.ChangeCanExecute();
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes <= 0)
+            {
+                return "0 B";
+            }
+
+            string[] units = ["B", "KB", "MB", "GB"];
+            var size = (double)bytes;
+            var unitIndex = 0;
+
+            while (size >= 1024 && unitIndex < units.Length - 1)
+            {
+                size /= 1024;
+                unitIndex++;
+            }
+
+            return $"{size:0.##} {units[unitIndex]}";
+        }
 
         private void ApplyThemePreview()
         {

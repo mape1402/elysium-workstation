@@ -4,10 +4,13 @@ All notable changes to MyWorkStation will be documented in this file.
 
 ## [Unreleased]
 
+## [v2.3.0] - 2026-09-03
+
 ### Added
 
 - Added a forced folder synchronization action for active emitters.
 - Added synchronized snapshot version visibility in folder sync details.
+- Added a GitHub Releases updater in settings to download and apply the latest Windows build.
 
 ### Changed
 

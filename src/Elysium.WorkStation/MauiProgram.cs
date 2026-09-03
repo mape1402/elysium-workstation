@@ -77,6 +77,7 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.IVariableRepository,     Services.VariableRepository>();
             builder.Services.AddSingleton<Services.ISecretVaultService,     Services.SecretVaultService>();
             builder.Services.AddSingleton<Services.IToastService,            Services.ToastService>();
+            builder.Services.AddSingleton<Services.IAppUpdateService,        Services.GitHubReleaseAppUpdateService>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
             builder.Services.AddTransient<Views.FolderSyncPage>();
