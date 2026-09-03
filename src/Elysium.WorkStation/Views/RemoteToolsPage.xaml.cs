@@ -212,7 +212,7 @@ namespace Elysium.WorkStation.Views
                     return;
                 }
 
-                if (!string.IsNullOrWhiteSpace(e.Chunk))
+                if (!string.IsNullOrEmpty(e.Chunk))
                 {
                     var level = e.IsError ? "error" : "out";
                     await EvalJsAsync($"termAppendLine({ToJsString(e.Chunk)}, '{level}');");

@@ -171,9 +171,10 @@ namespace Elysium.WorkStation.Services
                 Command = commandText ?? string.Empty
             }, cts.Token);
 
+            using var reader = new StreamReader(client, Encoding.UTF8, leaveOpen: true);
             while (true)
             {
-                var message = await ReadResponseAsync(client, cts.Token);
+                var message = await ReadResponseAsync(reader, cts.Token);
                 if (message is null)
                 {
                     return 1;
@@ -195,6 +196,26 @@ namespace Elysium.WorkStation.Services
                     await onLineAsync(message.Text ?? "Error en helper remoto.", true);
                     return message.ExitCode == 0 ? 1 : message.ExitCode;
                 }
+            }
+        }
+
+        private static async Task<HelperResponse> ReadResponseAsync(
+            StreamReader reader,
+            CancellationToken cancellationToken)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<HelperResponse>(line);
+            }
+            catch
+            {
+                return new HelperResponse { Type = "error", Text = "Respuesta invalida del helper.", ExitCode = 1 };
             }
         }
 
