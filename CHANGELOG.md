@@ -14,6 +14,10 @@ All notable changes to MyWorkStation will be documented in this file.
 - Added UI support to register or remove `mws.exe` from the user PATH.
 - Added a visible updater progress window while the external PowerShell updater applies downloaded release files.
 
+### Fixed
+
+- Fixed Windows release publishing to build with the portable `win-x64` runtime identifier while keeping the release ZIP compatible with existing `win10-x64` updater lookups.
+
 ## [v2.3.1] - 2026-09-03
 
 ### Fixed

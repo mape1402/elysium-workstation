@@ -11,7 +11,7 @@ namespace Elysium.WorkStation.Services
         private const string AppName = "MyWorkStation";
         private const string Owner = "mape1402";
         private const string Repository = "elysium-workstation";
-        private const string RuntimeIdentifier = "win10-x64";
+        private static readonly string[] CompatibleRuntimeIdentifiers = ["win10-x64", "win-x64"];
         private const string LatestReleaseUrl = "https://api.github.com/repos/mape1402/elysium-workstation/releases/latest";
         private const string UserAgent = "MyWorkStation-Updater";
 
@@ -80,7 +80,7 @@ namespace Elysium.WorkStation.Services
                         LatestVersion = latestVersion,
                         ReleaseUrl = releaseUrl,
                         IsUpdateAvailable = false,
-                        Message = $"Existe {latestTag}, pero no encontre un zip compatible para {RuntimeIdentifier}."
+                        Message = $"Existe {latestTag}, pero no encontre un zip compatible para {string.Join("/", CompatibleRuntimeIdentifiers)}."
                     };
                 }
 
@@ -232,7 +232,9 @@ namespace Elysium.WorkStation.Services
 
         private static ReleaseAsset SelectReleaseAsset(JsonElement assets, string tag)
         {
-            var expectedName = $"{AppName}-{tag}-{RuntimeIdentifier}.zip";
+            var expectedNames = CompatibleRuntimeIdentifiers
+                .Select(rid => $"{AppName}-{tag}-{rid}.zip")
+                .ToList();
             ReleaseAsset fallback = null;
 
             foreach (var asset in assets.EnumerateArray())
@@ -247,7 +249,7 @@ namespace Elysium.WorkStation.Services
                 }
 
                 var releaseAsset = new ReleaseAsset(name, downloadUrl, sizeBytes);
-                if (string.Equals(name, expectedName, StringComparison.OrdinalIgnoreCase))
+                if (expectedNames.Any(expectedName => string.Equals(name, expectedName, StringComparison.OrdinalIgnoreCase)))
                 {
                     return releaseAsset;
                 }
@@ -255,7 +257,7 @@ namespace Elysium.WorkStation.Services
                 if (fallback is null &&
                     name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
                     name.Contains(AppName, StringComparison.OrdinalIgnoreCase) &&
-                    name.Contains(RuntimeIdentifier, StringComparison.OrdinalIgnoreCase))
+                    CompatibleRuntimeIdentifiers.Any(rid => name.Contains(rid, StringComparison.OrdinalIgnoreCase)))
                 {
                     fallback = releaseAsset;
                 }
