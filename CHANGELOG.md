@@ -4,6 +4,12 @@ All notable changes to MyWorkStation will be documented in this file.
 
 ## [Unreleased]
 
+## [v3.0.1] - 2026-09-04
+
+### Fixed
+
+- Fixed CLI PATH registration from Settings so Windows environment notifications no longer block the UI, with busy-state feedback while registering or removing `mws.exe`.
+
 ## [v3.0.0] - 2026-09-04
 
 ### Added

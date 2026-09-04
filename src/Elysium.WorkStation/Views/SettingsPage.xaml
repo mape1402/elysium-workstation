@@ -164,12 +164,19 @@
 
                         <Button Text="Actualizar estado"
                                 Command="{Binding RefreshCliRegistrationCommand}"
+                                IsEnabled="{Binding CanRefreshCliRegistration}"
                                 FontFamily="OpenSansSemibold"
                                 FontSize="13"
                                 CornerRadius="10"
                                 AnchorX="0"
                                 HorizontalOptions="Start"
                                 StyleClass="SecondaryButton" />
+
+                        <ActivityIndicator WidthRequest="22"
+                                           HeightRequest="22"
+                                           IsRunning="{Binding IsCliRegistrationBusy}"
+                                           IsVisible="{Binding IsCliRegistrationBusy}"
+                                           VerticalOptions="Center" />
                     </HorizontalStackLayout>
                 </VerticalStackLayout>
             </Border>

@@ -77,6 +77,7 @@ namespace Elysium.WorkStation.Views
         private double _updateProgress;
         private bool _isCheckingForUpdates;
         private bool _isInstallingUpdate;
+        private bool _isCliRegistrationBusy;
         private CliRegistrationStatus _cliRegistrationStatus;
 
         public string ServerUrl
@@ -249,8 +250,23 @@ namespace Elysium.WorkStation.Views
         public string CliPathText => string.IsNullOrWhiteSpace(_cliRegistrationStatus?.CliPath)
             ? "mws.exe no detectado"
             : _cliRegistrationStatus.CliPath;
-        public bool CanRegisterCli => _cliRegistrationStatus is { IsSupported: true, CliExists: true, IsRegistered: false };
-        public bool CanUnregisterCli => _cliRegistrationStatus is { IsSupported: true, IsRegistered: true };
+        public bool IsCliRegistrationBusy
+        {
+            get => _isCliRegistrationBusy;
+            private set
+            {
+                if (_isCliRegistrationBusy == value)
+                    return;
+
+                _isCliRegistrationBusy = value;
+                OnPropertyChanged();
+                NotifyCliRegistrationChanged();
+            }
+        }
+
+        public bool CanRegisterCli => !IsCliRegistrationBusy && _cliRegistrationStatus is { IsSupported: true, CliExists: true, IsRegistered: false };
+        public bool CanUnregisterCli => !IsCliRegistrationBusy && _cliRegistrationStatus is { IsSupported: true, IsRegistered: true };
+        public bool CanRefreshCliRegistration => !IsCliRegistrationBusy;
 
         private bool _mouseEnabled;
         public bool MouseEnabled
@@ -452,7 +468,9 @@ namespace Elysium.WorkStation.Views
                 async () => await InstallAvailableUpdateAsync(),
                 () => CanInstallUpdate);
 
-            RefreshCliRegistrationCommand = new Command(RefreshCliRegistrationStatus);
+            RefreshCliRegistrationCommand = new Command(
+                RefreshCliRegistrationStatus,
+                () => CanRefreshCliRegistration);
             RegisterCliCommand = new Command(
                 async () => await RegisterCliAsync(),
                 () => CanRegisterCli);
@@ -738,6 +756,13 @@ namespace Elysium.WorkStation.Views
 
         private async Task RegisterCliAsync()
         {
+            if (IsCliRegistrationBusy)
+            {
+                return;
+            }
+
+            IsCliRegistrationBusy = true;
+            ShowFeedback("Registrando CLI en PATH...", Color.FromArgb("#1565C0"));
             try
             {
                 _cliRegistrationStatus = await _cliRegistrationService.RegisterAsync();
@@ -748,10 +773,21 @@ namespace Elysium.WorkStation.Views
             {
                 ShowFeedback($"No se pudo registrar CLI: {ex.Message}", Color.FromArgb("#B71C1C"));
             }
+            finally
+            {
+                IsCliRegistrationBusy = false;
+            }
         }
 
         private async Task UnregisterCliAsync()
         {
+            if (IsCliRegistrationBusy)
+            {
+                return;
+            }
+
+            IsCliRegistrationBusy = true;
+            ShowFeedback("Quitando CLI del PATH...", Color.FromArgb("#1565C0"));
             try
             {
                 _cliRegistrationStatus = await _cliRegistrationService.UnregisterAsync();
@@ -762,14 +798,21 @@ namespace Elysium.WorkStation.Views
             {
                 ShowFeedback($"No se pudo quitar CLI: {ex.Message}", Color.FromArgb("#B71C1C"));
             }
+            finally
+            {
+                IsCliRegistrationBusy = false;
+            }
         }
 
         private void NotifyCliRegistrationChanged()
         {
             OnPropertyChanged(nameof(CliStatusText));
             OnPropertyChanged(nameof(CliPathText));
+            OnPropertyChanged(nameof(IsCliRegistrationBusy));
             OnPropertyChanged(nameof(CanRegisterCli));
             OnPropertyChanged(nameof(CanUnregisterCli));
+            OnPropertyChanged(nameof(CanRefreshCliRegistration));
+            RefreshCliRegistrationCommand?.ChangeCanExecute();
             RegisterCliCommand?.ChangeCanExecute();
             UnregisterCliCommand?.ChangeCanExecute();
         }
