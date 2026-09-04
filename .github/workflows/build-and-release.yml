@@ -40,7 +40,8 @@ env:
   RELEASE_MARKER_PATH: .release
   RELEASE_NOTES_PATH: release_notes.txt
   RELEASE_TAG_PATTERN: ^v[0-9]+\.[0-9]+\.[0-9]+$
-  RUNTIME_IDENTIFIER: win10-x64
+  ARTIFACT_RUNTIME_IDENTIFIER: win10-x64
+  BUILD_RUNTIME_IDENTIFIER: win-x64
   TARGET_FRAMEWORK: net9.0-windows10.0.19041.0
 
 jobs:
@@ -69,7 +70,7 @@ jobs:
         run: >
           dotnet restore "$env:PROJECT_PATH"
           -p:TargetFramework="$env:TARGET_FRAMEWORK"
-          -r "$env:RUNTIME_IDENTIFIER"
+          -r "$env:BUILD_RUNTIME_IDENTIFIER"
 
       - name: Restore CLI
         shell: pwsh
@@ -86,7 +87,7 @@ jobs:
           --no-restore
           --configuration "$env:CONFIGURATION"
           --framework "$env:TARGET_FRAMEWORK"
-          --runtime "$env:RUNTIME_IDENTIFIER"
+          --runtime "$env:BUILD_RUNTIME_IDENTIFIER"
           -p:WindowsPackageType=None
 
       - name: Build CLI
@@ -206,7 +207,7 @@ jobs:
           dotnet publish "$env:PROJECT_PATH" `
             --configuration "$env:CONFIGURATION" `
             --framework "$env:TARGET_FRAMEWORK" `
-            --runtime "$env:RUNTIME_IDENTIFIER" `
+            --runtime "$env:BUILD_RUNTIME_IDENTIFIER" `
             --output "$env:PUBLISH_OUTPUT" `
             -p:WindowsPackageType=None `
             -p:ReleaseTag="${{ steps.release.outputs.tag }}"
@@ -240,7 +241,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "$env:RELEASE_ARTIFACT_DIR" | Out-Null
           $tag = "${{ steps.release.outputs.tag }}"
-          $artifactPath = Join-Path $env:RELEASE_ARTIFACT_DIR "$env:APP_NAME-$tag-$env:RUNTIME_IDENTIFIER.zip"
+          $artifactPath = Join-Path $env:RELEASE_ARTIFACT_DIR "$env:APP_NAME-$tag-$env:ARTIFACT_RUNTIME_IDENTIFIER.zip"
           if (Test-Path $artifactPath) {
             Remove-Item $artifactPath -Force
           }
