@@ -19,6 +19,8 @@ namespace Elysium.WorkStation.Services
 
     public sealed class CliRegistrationService : ICliRegistrationService
     {
+        private static readonly SemaphoreSlim RegistrationLock = new(1, 1);
+
         public CliRegistrationStatus GetStatus()
         {
             if (!OperatingSystem.IsWindows())
@@ -50,39 +52,61 @@ namespace Elysium.WorkStation.Services
             };
         }
 
-        public Task<CliRegistrationStatus> RegisterAsync()
+        public async Task<CliRegistrationStatus> RegisterAsync()
         {
-            var status = GetStatus();
-            if (!status.IsSupported || !status.CliExists)
+            await RegistrationLock.WaitAsync();
+            try
             {
-                return Task.FromResult(status);
-            }
+                return await Task.Run(() =>
+                {
+                    var status = GetStatus();
+                    if (!status.IsSupported || !status.CliExists)
+                    {
+                        return status;
+                    }
 
-            if (!status.IsRegistered)
+                    if (!status.IsRegistered)
+                    {
+                        var entries = GetUserPathEntries().ToList();
+                        entries.Add(status.InstallDirectory);
+                        Environment.SetEnvironmentVariable("Path", string.Join(';', entries), EnvironmentVariableTarget.User);
+                        BroadcastEnvironmentChanged();
+                    }
+
+                    return GetStatus();
+                });
+            }
+            finally
             {
-                var entries = GetUserPathEntries().ToList();
-                entries.Add(status.InstallDirectory);
-                Environment.SetEnvironmentVariable("Path", string.Join(';', entries), EnvironmentVariableTarget.User);
-                BroadcastEnvironmentChanged();
+                RegistrationLock.Release();
             }
-
-            return Task.FromResult(GetStatus());
         }
 
-        public Task<CliRegistrationStatus> UnregisterAsync()
+        public async Task<CliRegistrationStatus> UnregisterAsync()
         {
-            var status = GetStatus();
-            if (!status.IsSupported)
+            await RegistrationLock.WaitAsync();
+            try
             {
-                return Task.FromResult(status);
-            }
+                return await Task.Run(() =>
+                {
+                    var status = GetStatus();
+                    if (!status.IsSupported)
+                    {
+                        return status;
+                    }
 
-            var entries = GetUserPathEntries()
-                .Where(entry => !PathsEqual(entry, status.InstallDirectory))
-                .ToList();
-            Environment.SetEnvironmentVariable("Path", string.Join(';', entries), EnvironmentVariableTarget.User);
-            BroadcastEnvironmentChanged();
-            return Task.FromResult(GetStatus());
+                    var entries = GetUserPathEntries()
+                        .Where(entry => !PathsEqual(entry, status.InstallDirectory))
+                        .ToList();
+                    Environment.SetEnvironmentVariable("Path", string.Join(';', entries), EnvironmentVariableTarget.User);
+                    BroadcastEnvironmentChanged();
+                    return GetStatus();
+                });
+            }
+            finally
+            {
+                RegistrationLock.Release();
+            }
         }
 
         private static IEnumerable<string> GetUserPathEntries()
@@ -121,14 +145,11 @@ namespace Elysium.WorkStation.Services
 
             try
             {
-                NativeMethods.SendMessageTimeout(
+                NativeMethods.SendNotifyMessage(
                     new IntPtr(0xffff),
                     0x001A,
                     IntPtr.Zero,
-                    "Environment",
-                    0,
-                    5000,
-                    out _);
+                    "Environment");
             }
             catch
             {
@@ -139,14 +160,11 @@ namespace Elysium.WorkStation.Services
         private static class NativeMethods
         {
             [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
-            public static extern IntPtr SendMessageTimeout(
+            public static extern bool SendNotifyMessage(
                 IntPtr hWnd,
                 uint msg,
                 IntPtr wParam,
-                string lParam,
-                uint flags,
-                uint timeout,
-                out IntPtr result);
+                string lParam);
         }
     }
 }
