@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Elysium.WorkStation.Engine</AssemblyName>
+    <RootNamespace>Elysium.WorkStation.Engine</RootNamespace>
+    <Version>$(ResolvedAppVersion)</Version>
+    <AssemblyVersion>$(ResolvedAppVersion).0</AssemblyVersion>
+    <FileVersion>$(ResolvedAppVersion).0</FileVersion>
+    <InformationalVersion>$(ResolvedAppVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,59 @@
+{
+  "aliases": [
+    {
+      "name": "lsync",
+      "template": "sync list",
+      "description": "Lista sincronizaciones configuradas."
+    },
+    {
+      "name": "fsync",
+      "template": "sync force --id {0}",
+      "description": "Fuerza sincronizacion por id."
+    },
+    {
+      "name": "screate",
+      "template": "sync create --name {0} --path {1}",
+      "description": "Crea una sincronizacion local."
+    },
+    {
+      "name": "sinvite",
+      "template": "sync invite --id {0}",
+      "description": "Invita al otro equipo a sincronizar."
+    },
+    {
+      "name": "saccept",
+      "template": "sync accept --sync-id {0} --path {1}",
+      "description": "Acepta una invitacion de sincronizacion."
+    },
+    {
+      "name": "slogs",
+      "template": "sync logs --id {0} --tail 50",
+      "description": "Muestra ultimos logs de una sincronizacion."
+    },
+    {
+      "name": "rexec",
+      "template": "remote exec --sync-id {0} -- {1}",
+      "description": "Ejecuta un comando en la PC remota."
+    },
+    {
+      "name": "rstatus",
+      "template": "remote exec --sync-id {0} -- git status",
+      "description": "Ejecuta git status en la PC remota."
+    },
+    {
+      "name": "rbuild",
+      "template": "remote exec --sync-id {0} -- dotnet build",
+      "description": "Ejecuta dotnet build en la PC remota."
+    },
+    {
+      "name": "rtest",
+      "template": "remote exec --sync-id {0} -- dotnet test",
+      "description": "Ejecuta dotnet test en la PC remota."
+    },
+    {
+      "name": "rgit",
+      "template": "remote exec --sync-id {0} -- git {1}",
+      "description": "Ejecuta git remoto con argumentos libres."
+    }
+  ]
+}

@@ -9,6 +9,10 @@ namespace Elysium.WorkStation
         private readonly Services.IMouseService _mouseService;
         private readonly Services.ITrayService _trayService;
         private readonly Services.IRemoteShellElevationService _remoteShellElevationService;
+        private readonly Services.IEngineControlHostService _engineControlHostService;
+        private readonly Services.IEngineHostProcessService _engineHostProcessService;
+        private readonly Services.IRoleService _roleService;
+        private readonly Services.IWorkspaceRuntimeService _workspaceRuntimeService;
         private readonly AppShell _appShell;
         private readonly Controls.WindowsFlyoutItemAnimations _windowsFlyoutItemAnimations = new();
 
@@ -27,7 +31,11 @@ namespace Elysium.WorkStation
             Services.IWebHostService webHostService,
             Services.IMouseService mouseService,
             Services.ITrayService trayService,
-            Services.IRemoteShellElevationService remoteShellElevationService)
+            Services.IRemoteShellElevationService remoteShellElevationService,
+            Services.IEngineControlHostService engineControlHostService,
+            Services.IEngineHostProcessService engineHostProcessService,
+            Services.IRoleService roleService,
+            Services.IWorkspaceRuntimeService workspaceRuntimeService)
         {
             _appShell = appShell;
             _settingsService = settingsService;
@@ -35,9 +43,17 @@ namespace Elysium.WorkStation
             _mouseService = mouseService;
             _trayService = trayService;
             _remoteShellElevationService = remoteShellElevationService;
+            _engineControlHostService = engineControlHostService;
+            _engineHostProcessService = engineHostProcessService;
+            _roleService = roleService;
+            _workspaceRuntimeService = workspaceRuntimeService;
 
             InitializeComponent();
             UserAppTheme = ResolveTheme(_settingsService.ThemeMode);
+            _ = StartEngineBridgeAsync();
+#if DEBUG
+            _ = StartDebugRuntimeFromEnvironmentAsync();
+#endif
 
             RequestedThemeChanged += (_, _) =>
             {
@@ -75,6 +91,8 @@ namespace Elysium.WorkStation
                 try
                 {
                     _remoteShellElevationService.StopHelperAsync().GetAwaiter().GetResult();
+                    _engineHostProcessService.StopAsync().GetAwaiter().GetResult();
+                    _engineControlHostService.StopAsync().GetAwaiter().GetResult();
                 }
                 catch
                 {
@@ -154,6 +172,73 @@ namespace Elysium.WorkStation
         }
 
 #if WINDOWS
+        private async Task StartEngineBridgeAsync()
+        {
+            try
+            {
+                await _engineControlHostService.StartAsync();
+                var externalHostStarted = await _engineHostProcessService.StartAsync(_engineControlHostService.AppBridgePipeName);
+                if (!externalHostStarted)
+                {
+                    await _engineControlHostService.StartPublicFallbackAsync();
+                }
+            }
+            catch
+            {
+                try
+                {
+                    await _engineControlHostService.StartPublicFallbackAsync();
+                }
+                catch
+                {
+                    // Best effort. The CLI will report unavailable Engine if startup failed.
+                }
+            }
+        }
+
+#if DEBUG
+        private async Task StartDebugRuntimeFromEnvironmentAsync()
+        {
+            var role = Environment.GetEnvironmentVariable("MWS_DEBUG_ROLE");
+            try
+            {
+                if (string.Equals(role, "server", StringComparison.OrdinalIgnoreCase))
+                {
+                    Services.PreferenceScopeProvider.SetDebugRole(Models.AppRole.Server);
+                    ApplyDebugEnvironmentConfiguration();
+                    await _roleService.ActivateServerAsync();
+                }
+                else if (string.Equals(role, "client", StringComparison.OrdinalIgnoreCase))
+                {
+                    Services.PreferenceScopeProvider.SetDebugRole(Models.AppRole.Client);
+                    ApplyDebugEnvironmentConfiguration();
+                    _roleService.SetClientRole();
+                }
+                else
+                {
+                    return;
+                }
+
+                await _workspaceRuntimeService.EnsureStartedAsync();
+            }
+            catch
+            {
+                // The CLI doctor/status commands surface runtime issues during automated tests.
+            }
+        }
+
+        private void ApplyDebugEnvironmentConfiguration()
+        {
+            var serverUrl = Environment.GetEnvironmentVariable("MWS_SERVER_URL");
+            if (string.IsNullOrWhiteSpace(serverUrl))
+            {
+                serverUrl = "http://localhost:5001";
+            }
+
+            _settingsService.ServerUrl = serverUrl;
+        }
+#endif
+
         private void ConfigureWindowsTitleBar(Window window, Microsoft.UI.Xaml.Window nativeWindow)
         {
             if (_isWindowsTitleBarConfigured)
@@ -555,6 +640,24 @@ namespace Elysium.WorkStation
                 try
                 {
                     await _remoteShellElevationService.StopHelperAsync();
+                }
+                catch
+                {
+                    // Best effort.
+                }
+
+                try
+                {
+                    await _engineHostProcessService.StopAsync();
+                }
+                catch
+                {
+                    // Best effort.
+                }
+
+                try
+                {
+                    await _engineControlHostService.StopAsync();
                 }
                 catch
                 {

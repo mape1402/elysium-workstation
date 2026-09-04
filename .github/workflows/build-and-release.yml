@@ -28,6 +28,10 @@ env:
   APP_NAME: MyWorkStation
   CHANGELOG_PATH: CHANGELOG.md
   CONFIGURATION: Release
+  CLI_PROJECT_PATH: src/Elysium.WorkStation.Cli/Elysium.WorkStation.Cli.csproj
+  CLI_PUBLISH_OUTPUT: artifacts/cli
+  ENGINE_HOST_PROJECT_PATH: src/Elysium.WorkStation.Engine.Host/Elysium.WorkStation.Engine.Host.csproj
+  ENGINE_HOST_PUBLISH_OUTPUT: artifacts/engine-host
   PROJECT_PATH: src/Elysium.WorkStation/Elysium.WorkStation.csproj
   PUBLISH_OUTPUT: artifacts/publish
   RELEASE_ARTIFACT_DIR: artifacts/release
@@ -67,6 +71,14 @@ jobs:
           -p:TargetFramework="$env:TARGET_FRAMEWORK"
           -r "$env:RUNTIME_IDENTIFIER"
 
+      - name: Restore CLI
+        shell: pwsh
+        run: dotnet restore "$env:CLI_PROJECT_PATH"
+
+      - name: Restore Engine Host
+        shell: pwsh
+        run: dotnet restore "$env:ENGINE_HOST_PROJECT_PATH"
+
       - name: Build
         shell: pwsh
         run: >
@@ -76,6 +88,20 @@ jobs:
           --framework "$env:TARGET_FRAMEWORK"
           --runtime "$env:RUNTIME_IDENTIFIER"
           -p:WindowsPackageType=None
+
+      - name: Build CLI
+        shell: pwsh
+        run: >
+          dotnet build "$env:CLI_PROJECT_PATH"
+          --no-restore
+          --configuration "$env:CONFIGURATION"
+
+      - name: Build Engine Host
+        shell: pwsh
+        run: >
+          dotnet build "$env:ENGINE_HOST_PROJECT_PATH"
+          --no-restore
+          --configuration "$env:CONFIGURATION"
 
       - name: Resolve release marker
         id: release
@@ -184,6 +210,28 @@ jobs:
             --output "$env:PUBLISH_OUTPUT" `
             -p:WindowsPackageType=None `
             -p:ReleaseTag="${{ steps.release.outputs.tag }}"
+
+      - name: Publish CLI into app artifact
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          dotnet publish "$env:CLI_PROJECT_PATH" `
+            --configuration "$env:CONFIGURATION" `
+            --output "$env:CLI_PUBLISH_OUTPUT" `
+            -p:ReleaseTag="${{ steps.release.outputs.tag }}"
+
+          Copy-Item -Path "$env:CLI_PUBLISH_OUTPUT\*" -Destination "$env:PUBLISH_OUTPUT" -Recurse -Force
+
+      - name: Publish Engine Host into app artifact
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          dotnet publish "$env:ENGINE_HOST_PROJECT_PATH" `
+            --configuration "$env:CONFIGURATION" `
+            --output "$env:ENGINE_HOST_PUBLISH_OUTPUT" `
+            -p:ReleaseTag="${{ steps.release.outputs.tag }}"
+
+          Copy-Item -Path "$env:ENGINE_HOST_PUBLISH_OUTPUT\*" -Destination "$env:PUBLISH_OUTPUT" -Recurse -Force
 
       - name: Package release artifact
         id: package
