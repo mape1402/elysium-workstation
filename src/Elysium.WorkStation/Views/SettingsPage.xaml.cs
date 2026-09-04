@@ -60,6 +60,7 @@ namespace Elysium.WorkStation.Views
         private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
         private readonly IRemoteShellElevationService _remoteShellElevationService;
         private readonly IAppUpdateService _appUpdateService;
+        private readonly ICliRegistrationService _cliRegistrationService;
         private string _serverUrl;
         private string _sqliteDbPath;
         private string _preparedDbPath = string.Empty;
@@ -76,6 +77,7 @@ namespace Elysium.WorkStation.Views
         private double _updateProgress;
         private bool _isCheckingForUpdates;
         private bool _isInstallingUpdate;
+        private CliRegistrationStatus _cliRegistrationStatus;
 
         public string ServerUrl
         {
@@ -243,6 +245,12 @@ namespace Elysium.WorkStation.Views
         public bool HasAvailableUpdate => _latestUpdate?.IsUpdateAvailable == true;
         public bool CanCheckForUpdates => !IsCheckingForUpdates && !IsInstallingUpdate;
         public bool CanInstallUpdate => HasAvailableUpdate && !IsCheckingForUpdates && !IsInstallingUpdate;
+        public string CliStatusText => _cliRegistrationStatus?.Message ?? "Revisando estado del CLI...";
+        public string CliPathText => string.IsNullOrWhiteSpace(_cliRegistrationStatus?.CliPath)
+            ? "mws.exe no detectado"
+            : _cliRegistrationStatus.CliPath;
+        public bool CanRegisterCli => _cliRegistrationStatus is { IsSupported: true, CliExists: true, IsRegistered: false };
+        public bool CanUnregisterCli => _cliRegistrationStatus is { IsSupported: true, IsRegistered: true };
 
         private bool _mouseEnabled;
         public bool MouseEnabled
@@ -305,6 +313,9 @@ namespace Elysium.WorkStation.Views
         public Command ElevatePermissionsCommand { get; }
         public Command CheckForUpdatesCommand { get; }
         public Command InstallUpdateCommand { get; }
+        public Command RefreshCliRegistrationCommand { get; }
+        public Command RegisterCliCommand { get; }
+        public Command UnregisterCliCommand { get; }
         public bool IsWindowsPlatform => DeviceInfo.Platform == DevicePlatform.WinUI;
 
         public SettingsPage(
@@ -314,7 +325,8 @@ namespace Elysium.WorkStation.Views
             IVariableRepository variableRepository,
             IDbContextFactory<AppDbContext> dbContextFactory,
             IAppUpdateService appUpdateService,
-            IRemoteShellElevationService remoteShellElevationService)
+            IRemoteShellElevationService remoteShellElevationService,
+            ICliRegistrationService cliRegistrationService)
         {
             _settingsService = settingsService;
             _startupService = startupService;
@@ -323,6 +335,7 @@ namespace Elysium.WorkStation.Views
             _dbContextFactory = dbContextFactory;
             _appUpdateService = appUpdateService;
             _remoteShellElevationService = remoteShellElevationService;
+            _cliRegistrationService = cliRegistrationService;
             _serverUrl = settingsService.ServerUrl;
             _sqliteDbPath = settingsService.SqliteDbPath;
             _fileRetentionHours = settingsService.FileRetentionHours;
@@ -438,6 +451,14 @@ namespace Elysium.WorkStation.Views
             InstallUpdateCommand = new Command(
                 async () => await InstallAvailableUpdateAsync(),
                 () => CanInstallUpdate);
+
+            RefreshCliRegistrationCommand = new Command(RefreshCliRegistrationStatus);
+            RegisterCliCommand = new Command(
+                async () => await RegisterCliAsync(),
+                () => CanRegisterCli);
+            UnregisterCliCommand = new Command(
+                async () => await UnregisterCliAsync(),
+                () => CanUnregisterCli);
 
             ResetPinCommand = new Command(async () =>
             {
@@ -697,6 +718,7 @@ namespace Elysium.WorkStation.Views
 
             InitializeComponent();
             BindingContext = this;
+            RefreshCliRegistrationStatus();
 
 #if WINDOWS
             Loaded += (_, _) => ApplyWindowsThemePickerStyling();
@@ -706,6 +728,50 @@ namespace Elysium.WorkStation.Views
                 Application.Current.RequestedThemeChanged += (_, _) => ApplyWindowsThemePickerStyling();
             }
 #endif
+        }
+
+        private void RefreshCliRegistrationStatus()
+        {
+            _cliRegistrationStatus = _cliRegistrationService.GetStatus();
+            NotifyCliRegistrationChanged();
+        }
+
+        private async Task RegisterCliAsync()
+        {
+            try
+            {
+                _cliRegistrationStatus = await _cliRegistrationService.RegisterAsync();
+                NotifyCliRegistrationChanged();
+                ShowFeedback(_cliRegistrationStatus.Message, Color.FromArgb("#1B5E20"));
+            }
+            catch (Exception ex)
+            {
+                ShowFeedback($"No se pudo registrar CLI: {ex.Message}", Color.FromArgb("#B71C1C"));
+            }
+        }
+
+        private async Task UnregisterCliAsync()
+        {
+            try
+            {
+                _cliRegistrationStatus = await _cliRegistrationService.UnregisterAsync();
+                NotifyCliRegistrationChanged();
+                ShowFeedback("CLI removido del PATH del usuario.", Color.FromArgb("#1565C0"));
+            }
+            catch (Exception ex)
+            {
+                ShowFeedback($"No se pudo quitar CLI: {ex.Message}", Color.FromArgb("#B71C1C"));
+            }
+        }
+
+        private void NotifyCliRegistrationChanged()
+        {
+            OnPropertyChanged(nameof(CliStatusText));
+            OnPropertyChanged(nameof(CliPathText));
+            OnPropertyChanged(nameof(CanRegisterCli));
+            OnPropertyChanged(nameof(CanUnregisterCli));
+            RegisterCliCommand?.ChangeCanExecute();
+            UnregisterCliCommand?.ChangeCanExecute();
         }
 
         private static bool IsValidUrl(string url) =>

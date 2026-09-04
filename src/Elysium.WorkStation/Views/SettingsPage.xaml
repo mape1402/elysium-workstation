@@ -114,6 +114,75 @@
                     <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
                 </Border.Shadow>
                 <VerticalStackLayout Spacing="12">
+                    <Label Text="CLI"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="15"
+                           TextColor="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource SecondaryDarkText}}" />
+
+                    <Label Text="Registra mws.exe en el PATH del usuario para controlar MyWorkStation desde terminal o agentes AI."
+                           FontFamily="OpenSansRegular"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+
+                    <Border Padding="14,12"
+                            StrokeShape="RoundRectangle 12"
+                            Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray700}}"
+                            StrokeThickness="1"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource Gray100}, Dark={StaticResource Gray900}}">
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="{Binding CliStatusText}"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="13"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray800}, Dark={StaticResource Gray100}}" />
+                            <Label Text="{Binding CliPathText}"
+                                   FontFamily="OpenSansRegular"
+                                   FontSize="12"
+                                   LineBreakMode="TailTruncation"
+                                   TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray400}}" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <HorizontalStackLayout Spacing="8">
+                        <Button Text="Registrar CLI en PATH"
+                                Command="{Binding RegisterCliCommand}"
+                                IsEnabled="{Binding CanRegisterCli}"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="13"
+                                CornerRadius="10"
+                                AnchorX="0"
+                                HorizontalOptions="Start" />
+
+                        <Button Text="Quitar de PATH"
+                                Command="{Binding UnregisterCliCommand}"
+                                IsEnabled="{Binding CanUnregisterCli}"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="13"
+                                CornerRadius="10"
+                                AnchorX="0"
+                                HorizontalOptions="Start"
+                                StyleClass="SecondaryButton" />
+
+                        <Button Text="Actualizar estado"
+                                Command="{Binding RefreshCliRegistrationCommand}"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="13"
+                                CornerRadius="10"
+                                AnchorX="0"
+                                HorizontalOptions="Start"
+                                StyleClass="SecondaryButton" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Padding="20,16"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray600}}"
+                    StrokeThickness="1"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource Gray950}}">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,2" Radius="8" Opacity="0.07" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="12">
                     <Label Text="Apariencia"
                            FontFamily="OpenSansSemibold"
                            FontSize="15"

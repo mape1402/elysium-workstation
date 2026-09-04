@@ -279,6 +279,7 @@ namespace Elysium.WorkStation.Services
             };
 
             startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-STA");
             startInfo.ArgumentList.Add("-ExecutionPolicy");
             startInfo.ArgumentList.Add("Bypass");
             startInfo.ArgumentList.Add("-File");
@@ -311,6 +312,10 @@ namespace Elysium.WorkStation.Services
             $logDir = Join-Path $env:LOCALAPPDATA 'MyWorkStation\updates'
             New-Item -ItemType Directory -Force -Path $logDir | Out-Null
             $logPath = Join-Path $logDir 'updater.log'
+            $script:UpdaterWindow = $null
+            $script:UpdaterStatusLabel = $null
+            $script:UpdaterDetailsLabel = $null
+            $script:UpdaterLogBox = $null
 
             function Write-UpdaterLog {
                 param([string]$Message)
@@ -318,7 +323,133 @@ namespace Elysium.WorkStation.Services
                 "$timestamp $Message" | Add-Content -Path $logPath
             }
 
+            function Initialize-UpdaterWindow {
+                try {
+                    Add-Type -AssemblyName System.Windows.Forms
+                    Add-Type -AssemblyName System.Drawing
+                    [System.Windows.Forms.Application]::EnableVisualStyles()
+
+                    $form = New-Object System.Windows.Forms.Form
+                    $form.Text = 'Actualizando MyWorkStation'
+                    $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+                    $form.Size = New-Object System.Drawing.Size(520, 300)
+                    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+                    $form.MaximizeBox = $false
+                    $form.MinimizeBox = $true
+                    $form.TopMost = $true
+                    $form.BackColor = [System.Drawing.Color]::FromArgb(244, 248, 255)
+
+                    $title = New-Object System.Windows.Forms.Label
+                    $title.Text = 'Actualizando MyWorkStation'
+                    $title.AutoSize = $false
+                    $title.Location = New-Object System.Drawing.Point(22, 18)
+                    $title.Size = New-Object System.Drawing.Size(460, 28)
+                    $title.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
+                    $title.ForeColor = [System.Drawing.Color]::FromArgb(16, 51, 118)
+
+                    $status = New-Object System.Windows.Forms.Label
+                    $status.Text = 'Preparando actualizacion...'
+                    $status.AutoSize = $false
+                    $status.Location = New-Object System.Drawing.Point(24, 58)
+                    $status.Size = New-Object System.Drawing.Size(456, 24)
+                    $status.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Regular)
+                    $status.ForeColor = [System.Drawing.Color]::FromArgb(28, 45, 78)
+
+                    $progress = New-Object System.Windows.Forms.ProgressBar
+                    $progress.Location = New-Object System.Drawing.Point(24, 92)
+                    $progress.Size = New-Object System.Drawing.Size(456, 18)
+                    $progress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+                    $progress.MarqueeAnimationSpeed = 35
+
+                    $details = New-Object System.Windows.Forms.Label
+                    $details.Text = 'No cierres esta ventana. La app se abrira de nuevo al terminar.'
+                    $details.AutoSize = $false
+                    $details.Location = New-Object System.Drawing.Point(24, 122)
+                    $details.Size = New-Object System.Drawing.Size(456, 36)
+                    $details.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Regular)
+                    $details.ForeColor = [System.Drawing.Color]::FromArgb(84, 101, 132)
+
+                    $logBox = New-Object System.Windows.Forms.TextBox
+                    $logBox.Location = New-Object System.Drawing.Point(24, 166)
+                    $logBox.Size = New-Object System.Drawing.Size(456, 72)
+                    $logBox.Multiline = $true
+                    $logBox.ReadOnly = $true
+                    $logBox.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+                    $logBox.BackColor = [System.Drawing.Color]::White
+                    $logBox.ForeColor = [System.Drawing.Color]::FromArgb(22, 38, 67)
+                    $logBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+                    $logBox.Font = New-Object System.Drawing.Font('Consolas', 8.5, [System.Drawing.FontStyle]::Regular)
+
+                    $form.Controls.Add($title)
+                    $form.Controls.Add($status)
+                    $form.Controls.Add($progress)
+                    $form.Controls.Add($details)
+                    $form.Controls.Add($logBox)
+
+                    $script:UpdaterWindow = $form
+                    $script:UpdaterStatusLabel = $status
+                    $script:UpdaterDetailsLabel = $details
+                    $script:UpdaterLogBox = $logBox
+
+                    $form.Show()
+                    $form.Activate()
+                    [System.Windows.Forms.Application]::DoEvents()
+                } catch {
+                    Write-UpdaterLog "Progress window unavailable: $($_.Exception.Message)"
+                }
+            }
+
+            function Set-UpdaterStatus {
+                param(
+                    [string]$Message,
+                    [string]$Details = ''
+                )
+
+                if ($null -eq $script:UpdaterWindow) {
+                    return
+                }
+
+                try {
+                    $script:UpdaterStatusLabel.Text = $Message
+                    if (-not [string]::IsNullOrWhiteSpace($Details)) {
+                        $script:UpdaterDetailsLabel.Text = $Details
+                    }
+
+                    if ($null -ne $script:UpdaterLogBox -and -not [string]::IsNullOrWhiteSpace($Message)) {
+                        $timestamp = Get-Date -Format 'HH:mm:ss'
+                        $script:UpdaterLogBox.AppendText("$timestamp $Message`r`n")
+                    }
+
+                    $script:UpdaterWindow.Refresh()
+                    [System.Windows.Forms.Application]::DoEvents()
+                } catch {
+                    Write-UpdaterLog "Progress window update failed: $($_.Exception.Message)"
+                }
+            }
+
+            function Close-UpdaterWindow {
+                param([int]$DelayMilliseconds = 0)
+
+                if ($DelayMilliseconds -gt 0) {
+                    Start-Sleep -Milliseconds $DelayMilliseconds
+                }
+
+                if ($null -eq $script:UpdaterWindow) {
+                    return
+                }
+
+                try {
+                    $script:UpdaterWindow.Close()
+                    $script:UpdaterWindow.Dispose()
+                    [System.Windows.Forms.Application]::DoEvents()
+                } catch {
+                    Write-UpdaterLog "Progress window close failed: $($_.Exception.Message)"
+                }
+            }
+
             try {
+                Initialize-UpdaterWindow
+                Set-UpdaterStatus 'Esperando a que MyWorkStation cierre...' 'Estamos preparando el reemplazo de archivos.'
                 Write-UpdaterLog "Waiting for app pid $AppPid"
 
                 if ($AppPid -gt 0) {
@@ -330,6 +461,7 @@ namespace Elysium.WorkStation.Services
                 }
 
                 Start-Sleep -Milliseconds 800
+                Set-UpdaterStatus 'Validando paquete descargado...' 'Revisando carpeta temporal de actualizacion.'
 
                 if (-not (Test-Path -LiteralPath $SourceDir)) {
                     throw "Payload folder not found: $SourceDir"
@@ -339,6 +471,7 @@ namespace Elysium.WorkStation.Services
                     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
                 }
 
+                Set-UpdaterStatus 'Aplicando actualizacion...' 'Copiando archivos nuevos al directorio de instalacion.'
                 $copied = $false
                 for ($i = 1; $i -le 60; $i++) {
                     try {
@@ -346,6 +479,7 @@ namespace Elysium.WorkStation.Services
                         $copied = $true
                         break
                     } catch {
+                        Set-UpdaterStatus "Reintentando copia de archivos ($i/60)..." 'Algunos archivos siguen ocupados; esperamos un momento.'
                         Write-UpdaterLog "Copy attempt $i failed: $($_.Exception.Message)"
                         Start-Sleep -Milliseconds 500
                     }
@@ -358,13 +492,19 @@ namespace Elysium.WorkStation.Services
                 Write-UpdaterLog "Update files copied to $InstallDir"
 
                 if (Test-Path -LiteralPath $ExePath) {
+                    Set-UpdaterStatus 'Actualizacion aplicada.' 'Reiniciando MyWorkStation...'
                     Start-Process -FilePath $ExePath -WorkingDirectory $InstallDir
                     Write-UpdaterLog "App restarted: $ExePath"
                 } else {
+                    Set-UpdaterStatus 'Actualizacion aplicada, pero no se encontro el ejecutable.' 'Puedes abrir MyWorkStation manualmente.'
                     Write-UpdaterLog "Executable not found after copy: $ExePath"
                 }
+
+                Close-UpdaterWindow -DelayMilliseconds 1200
             } catch {
+                Set-UpdaterStatus 'No se pudo aplicar la actualizacion.' "$($_.Exception.Message)"
                 Write-UpdaterLog "Update failed: $($_.Exception.Message)"
+                Close-UpdaterWindow -DelayMilliseconds 10000
             }
             """;
 

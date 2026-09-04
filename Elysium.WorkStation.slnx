@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Elysium.WorkStation.Engine/Elysium.WorkStation.Engine.csproj" />
+    <Project Path="src/Elysium.WorkStation.Engine.Host/Elysium.WorkStation.Engine.Host.csproj" />
+    <Project Path="src/Elysium.WorkStation.Cli/Elysium.WorkStation.Cli.csproj" />
     <Project Path="src/Elysium.WorkStation/Elysium.WorkStation.csproj">
       <Deploy Solution="Debug|*" />
     </Project>

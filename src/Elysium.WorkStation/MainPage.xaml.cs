@@ -15,6 +15,7 @@ namespace Elysium.WorkStation
         private readonly IFolderSyncService _folderSyncService;
         private readonly ICleanupService _cleanupService;
         private readonly IKanbanCleanupService _kanbanCleanupService;
+        private readonly IWorkspaceRuntimeService _workspaceRuntimeService;
         private readonly HashSet<VisualElement> _hoveredQuickCards = [];
         private bool _isQuickActionNavigating;
 
@@ -68,7 +69,8 @@ namespace Elysium.WorkStation
             IFileTransferService fileTransferService,
             IFolderSyncService folderSyncService,
             ICleanupService cleanupService,
-            IKanbanCleanupService kanbanCleanupService)
+            IKanbanCleanupService kanbanCleanupService,
+            IWorkspaceRuntimeService workspaceRuntimeService)
         {
             _roleService = roleService;
             _clipboardSyncService = clipboardSyncService;
@@ -77,6 +79,7 @@ namespace Elysium.WorkStation
             _folderSyncService = folderSyncService;
             _cleanupService = cleanupService;
             _kanbanCleanupService = kanbanCleanupService;
+            _workspaceRuntimeService = workspaceRuntimeService;
 
             OpenVariablesCommand = new Command(async () => await NavigateToRouteAsync("//variables-root"));
             OpenKanbanCommand = new Command(async () => await NavigateToRouteAsync("//kanban-root"));
@@ -125,17 +128,11 @@ namespace Elysium.WorkStation
 #if DEBUG
             if (_roleService.CurrentRole == AppRole.Undetermined)
             {
-                bool runAsServer = await DisplayAlert(
-                    "Rol de instancia",
-                    "Selecciona como iniciar esta instancia en DEBUG.",
-                    "Servidor",
-                    "Cliente");
-
-                if (runAsServer)
+                var environmentRole = ResolveDebugRoleFromEnvironment();
+                if (environmentRole is AppRole.Server)
                 {
-                    // En DEBUG debemos definir primero el scope de preferencias
-                    // para leer la configuracion correcta de server.
                     PreferenceScopeProvider.SetDebugRole(AppRole.Server);
+                    ApplyDebugEnvironmentConfiguration();
                     if (settingsMissing())
                     {
                         await Shell.Current.GoToAsync("//settings-root");
@@ -144,9 +141,37 @@ namespace Elysium.WorkStation
 
                     await _roleService.ActivateServerAsync();
                 }
+                else if (environmentRole is AppRole.Client)
+                {
+                    PreferenceScopeProvider.SetDebugRole(AppRole.Client);
+                    ApplyDebugEnvironmentConfiguration();
+                    _roleService.SetClientRole();
+                }
                 else
                 {
-                    _roleService.SetClientRole();
+                    bool runAsServer = await DisplayAlert(
+                        "Rol de instancia",
+                        "Selecciona como iniciar esta instancia en DEBUG.",
+                        "Servidor",
+                        "Cliente");
+
+                    if (runAsServer)
+                    {
+                        // En DEBUG debemos definir primero el scope de preferencias
+                        // para leer la configuracion correcta de server.
+                        PreferenceScopeProvider.SetDebugRole(AppRole.Server);
+                        if (settingsMissing())
+                        {
+                            await Shell.Current.GoToAsync("//settings-root");
+                            return;
+                        }
+
+                        await _roleService.ActivateServerAsync();
+                    }
+                    else
+                    {
+                        _roleService.SetClientRole();
+                    }
                 }
             }
 
@@ -189,15 +214,7 @@ namespace Elysium.WorkStation
             }
 #endif
 
-            string hubUrl = _roleService.CurrentRole == AppRole.Server
-                ? $"http://localhost:{_settingsService.ServerPort}/hubs/workstation"
-                : _settingsService.HubUrl;
-
-            await _clipboardSyncService.StartAsync(hubUrl);
-            await _fileTransferService.StartAsync(hubUrl);
-            await _folderSyncService.StartAsync(hubUrl);
-            await _cleanupService.StartAsync();
-            await _kanbanCleanupService.StartAsync();
+            await _workspaceRuntimeService.EnsureStartedAsync();
 
             RefreshDashboardBindings();
         }
@@ -262,6 +279,35 @@ namespace Elysium.WorkStation
         {
             MainThread.BeginInvokeOnMainThread(RefreshDashboardBindings);
         }
+
+#if DEBUG
+        private AppRole? ResolveDebugRoleFromEnvironment()
+        {
+            var role = Environment.GetEnvironmentVariable("MWS_DEBUG_ROLE");
+            if (string.Equals(role, "server", StringComparison.OrdinalIgnoreCase))
+            {
+                return AppRole.Server;
+            }
+
+            if (string.Equals(role, "client", StringComparison.OrdinalIgnoreCase))
+            {
+                return AppRole.Client;
+            }
+
+            return null;
+        }
+
+        private void ApplyDebugEnvironmentConfiguration()
+        {
+            var serverUrl = Environment.GetEnvironmentVariable("MWS_SERVER_URL");
+            if (string.IsNullOrWhiteSpace(serverUrl))
+            {
+                serverUrl = "http://localhost:5001";
+            }
+
+            _settingsService.ServerUrl = serverUrl;
+        }
+#endif
 
         private async Task NavigateToRouteAsync(string route)
         {

@@ -61,6 +61,9 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.IClipboardSyncService,  Services.ClipboardSyncService>();
             builder.Services.AddSingleton<Services.IFileTransferService,   Services.FileTransferService>();
             builder.Services.AddSingleton<Services.IFolderSyncService, Services.FolderSyncService>();
+            builder.Services.AddSingleton<Services.IWorkspaceRuntimeService, Services.WorkspaceRuntimeService>();
+            builder.Services.AddSingleton<Services.IEngineHostProcessService, Services.EngineHostProcessService>();
+            builder.Services.AddSingleton<Services.IEngineControlHostService, Services.EngineControlHostService>();
             builder.Services.AddSingleton<Services.IRemoteToolPlugin, Services.GitRemoteToolPlugin>();
             builder.Services.AddSingleton<Services.IRemoteToolPlugin, Services.RemoteShellToolPlugin>();
             builder.Services.AddSingleton<Services.IRemoteToolCatalog, Services.RemoteToolCatalog>();
@@ -78,6 +81,7 @@ namespace Elysium.WorkStation
             builder.Services.AddSingleton<Services.ISecretVaultService,     Services.SecretVaultService>();
             builder.Services.AddSingleton<Services.IToastService,            Services.ToastService>();
             builder.Services.AddSingleton<Services.IAppUpdateService,        Services.GitHubReleaseAppUpdateService>();
+            builder.Services.AddSingleton<Services.ICliRegistrationService,  Services.CliRegistrationService>();
             builder.Services.AddTransient<Views.ClipboardHistoryPage>();
             builder.Services.AddTransient<Views.FilesPage>();
             builder.Services.AddTransient<Views.FolderSyncPage>();

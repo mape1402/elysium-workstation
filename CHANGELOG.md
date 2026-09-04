@@ -4,6 +4,16 @@ All notable changes to MyWorkStation will be documented in this file.
 
 ## [Unreleased]
 
+## [v3.0.0] - 2026-09-04
+
+### Added
+
+- Added the MyWorkStation CLI (`mws`) with a shared Engine contract, Named Pipe control host, default aliases, AI-agent quick context documentation, and initial commands for status, diagnostics, sync control, remote execution, Git, file sending, updates, and workflows.
+- Added CLI commands to create folder sync links, send invites, list incoming invites, accept/reject invites, delete links, and run end-to-end dummy sync simulations.
+- Added a companion `mws-engine-host.exe` bridge so the CLI talks to an external host process that follows the lifetime of the owning app instance.
+- Added UI support to register or remove `mws.exe` from the user PATH.
+- Added a visible updater progress window while the external PowerShell updater applies downloaded release files.
+
 ## [v2.3.1] - 2026-09-03
 
 ### Fixed
