@@ -31,29 +31,69 @@
       "description": "Muestra ultimos logs de una sincronizacion."
     },
     {
+      "name": "tpeers",
+      "template": "terminal peers",
+      "description": "Lista PCs MyWorkStation disponibles para terminal."
+    },
+    {
+      "name": "texec",
+      "template": "terminal exec --sync-id {0} -- {1}",
+      "description": "Ejecuta terminal MWS en la carpeta sincronizada remota."
+    },
+    {
+      "name": "tpeer",
+      "template": "terminal exec --peer {0} -- {1}",
+      "description": "Ejecuta terminal MWS por peer, sin carpeta sincronizada."
+    },
+    {
+      "name": "tstatus",
+      "template": "terminal exec --sync-id {0} -- git status",
+      "description": "Ejecuta git status en la carpeta sincronizada remota."
+    },
+    {
+      "name": "tbuild",
+      "template": "terminal exec --sync-id {0} -- dotnet build",
+      "description": "Ejecuta dotnet build en la carpeta sincronizada remota."
+    },
+    {
+      "name": "ttest",
+      "template": "terminal exec --sync-id {0} -- dotnet test",
+      "description": "Ejecuta dotnet test en la carpeta sincronizada remota."
+    },
+    {
+      "name": "tgit",
+      "template": "terminal exec --sync-id {0} -- git {1}",
+      "description": "Ejecuta git en la carpeta sincronizada remota."
+    },
+    {
+      "name": "cliptext",
+      "template": "clipboard send --text {0}",
+      "description": "Envia texto al clipboard remoto."
+    },
+    {
       "name": "rexec",
       "template": "remote exec --sync-id {0} -- {1}",
-      "description": "Ejecuta un comando en la PC remota."
+      "description": "Compatibilidad: usa texec para nuevos flujos."
     },
     {
       "name": "rstatus",
       "template": "remote exec --sync-id {0} -- git status",
-      "description": "Ejecuta git status en la PC remota."
+      "description": "Compatibilidad: usa tstatus para nuevos flujos."
     },
     {
       "name": "rbuild",
       "template": "remote exec --sync-id {0} -- dotnet build",
-      "description": "Ejecuta dotnet build en la PC remota."
+      "description": "Compatibilidad: usa tbuild para nuevos flujos."
     },
     {
       "name": "rtest",
       "template": "remote exec --sync-id {0} -- dotnet test",
-      "description": "Ejecuta dotnet test en la PC remota."
+      "description": "Compatibilidad: usa ttest para nuevos flujos."
     },
     {
       "name": "rgit",
       "template": "remote exec --sync-id {0} -- git {1}",
-      "description": "Ejecuta git remoto con argumentos libres."
+      "description": "Compatibilidad: usa tgit para nuevos flujos."
     }
   ]
 }

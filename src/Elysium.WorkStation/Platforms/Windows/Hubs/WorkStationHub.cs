@@ -163,5 +163,64 @@ namespace Elysium.WorkStation.Hubs
                 isCompleted,
                 exitCode,
                 executorClientId);
+
+        public async Task AnnouncePeer(
+            string clientId,
+            string clientName,
+            string machineName,
+            string role)
+            => await Clients.Others.SendAsync(
+                "ReceivePeerPresence",
+                clientId,
+                clientName,
+                machineName,
+                role);
+
+        public async Task RequestPeerPresence(string requesterClientId)
+            => await Clients.Others.SendAsync(
+                "ReceivePeerPresenceRequest",
+                requesterClientId);
+
+        public async Task SendPeerTerminalInput(
+            string sessionId,
+            string senderClientId,
+            string targetClientId,
+            string workingDirectory,
+            string commandText)
+            => await Clients.Others.SendAsync(
+                "ReceivePeerTerminalInput",
+                sessionId,
+                senderClientId,
+                targetClientId,
+                workingDirectory,
+                commandText);
+
+        public async Task SendPeerTerminalInterrupt(
+            string sessionId,
+            string senderClientId,
+            string targetClientId)
+            => await Clients.Others.SendAsync(
+                "ReceivePeerTerminalInterrupt",
+                sessionId,
+                senderClientId,
+                targetClientId);
+
+        public async Task SendPeerTerminalOutput(
+            string sessionId,
+            string recipientClientId,
+            string chunk,
+            bool isError,
+            bool isCompleted,
+            int exitCode,
+            string executorClientId)
+            => await Clients.Others.SendAsync(
+                "ReceivePeerTerminalOutput",
+                sessionId,
+                recipientClientId,
+                chunk,
+                isError,
+                isCompleted,
+                exitCode,
+                executorClientId);
     }
 }

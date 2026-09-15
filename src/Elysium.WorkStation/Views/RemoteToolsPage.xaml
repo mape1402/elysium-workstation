@@ -6,8 +6,8 @@
              x:DataType="local:RemoteToolsPage"
              x:Name="thisPage"
              BackgroundColor="{AppThemeBinding Light=#EEF2F7, Dark=#0E1117}"
-             Title="Terminal remota">
-    <Grid Padding="10" RowDefinitions="Auto,*" RowSpacing="8">
+             Title="Terminal MWS">
+    <Grid Padding="10" RowDefinitions="Auto,Auto,*" RowSpacing="8">
         <Border Grid.Row="0"
                 Padding="10,8"
                 StrokeShape="RoundRectangle 8"
@@ -47,6 +47,43 @@
         </Border>
 
         <Border Grid.Row="1"
+                IsVisible="{Binding IsPeerTerminalMode}"
+                Padding="10,8"
+                StrokeShape="RoundRectangle 8"
+                Stroke="{AppThemeBinding Light=#C8D1DD, Dark=#2A2F3A}"
+                BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#161B22}">
+            <Grid ColumnDefinitions="2*,2*,Auto" ColumnSpacing="8">
+                <Picker Grid.Column="0"
+                        Title="PC destino"
+                        ItemsSource="{Binding Peers}"
+                        SelectedItem="{Binding SelectedPeer, Mode=TwoWay}"
+                        ItemDisplayBinding="{Binding MachineName}"
+                        FontFamily="Consolas"
+                        FontSize="12"
+                        TextColor="{AppThemeBinding Light=#243447, Dark=#C9D1D9}"
+                        TitleColor="{AppThemeBinding Light=#637083, Dark=#8B949E}"
+                        BackgroundColor="{AppThemeBinding Light=#EEF3F8, Dark=#0D1117}" />
+                <Entry Grid.Column="1"
+                       Text="{Binding PeerWorkingDirectory}"
+                       Placeholder="Directorio remoto opcional"
+                       FontFamily="Consolas"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=#243447, Dark=#C9D1D9}"
+                       PlaceholderColor="{AppThemeBinding Light=#637083, Dark=#8B949E}"
+                       BackgroundColor="{AppThemeBinding Light=#EEF3F8, Dark=#0D1117}" />
+                <Button Grid.Column="2"
+                        Text="Actualizar"
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Padding="8,4"
+                        TextColor="{AppThemeBinding Light=#243447, Dark=#C9D1D9}"
+                        Command="{Binding RefreshPeersCommand}"
+                        BorderColor="{AppThemeBinding Light=#B8C2CF, Dark=#30363D}"
+                        BackgroundColor="{AppThemeBinding Light=#E9EEF5, Dark=#21262D}" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
                 Padding="0"
                 StrokeShape="RoundRectangle 10"
                 Stroke="{AppThemeBinding Light=#C8D1DD, Dark=#2A2F3A}"
@@ -56,7 +93,7 @@
                      Navigating="OnTerminalNavigating" />
         </Border>
 
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 IsVisible="{Binding IsWebViewLoading}"
                 Padding="0"
                 StrokeThickness="0"

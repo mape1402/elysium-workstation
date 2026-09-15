@@ -4,13 +4,25 @@ This file is the fast-start context for agents that need to operate MyWorkStatio
 
 ## Mental model
 
-MyWorkStation now exposes a shared Engine that is used by both the visual App and the CLI.
+MyWorkStation exposes a shared Engine used by both the visual App and the CLI.
 
 ```text
 mws CLI  ->  MyWorkStation Engine  <-  MAUI App UI
 ```
 
 The CLI does not talk directly to SQLite and does not duplicate sync logic. It sends commands to the running app through a local Named Pipe owned by the Engine Host.
+
+## Vocabulary
+
+Use these names exactly to avoid confusing MyWorkStation operations with Git operations:
+
+- `folder sync`: file synchronization between two configured folders.
+- `MWS terminal`: command execution on another MyWorkStation PC.
+- `sync-linked terminal`: MWS terminal that uses an accepted folder sync link only to pick the remote working directory. File transfer does not need to be started.
+- `peer terminal`: MWS terminal that targets another connected MyWorkStation PC without a folder sync link.
+- `Git remote`: only the Git concept/origin/upstream. Do not call MWS terminal commands "git remote".
+
+Legacy `mws remote ...` commands still exist for compatibility, but new automation should prefer `mws terminal ...`.
 
 ## Requirements
 
@@ -89,44 +101,64 @@ mws sync summary --id 22
 Notes:
 
 - `--id` and `--sync-id` can be the local numeric link id or the shared `SyncId`.
-- `sync create` creates the local sync record.
-- `sync invite` broadcasts the pairing request through the existing SignalR hub.
-- `sync invites` lists incoming invitations on the receiver.
-- `sync accept` creates the receiver-side link and replies to the emitter.
-- `sync force` uses the same folder sync service as the visual button.
+- `sync start` and `sync stop` control continuous file transfer only.
+- `sync force` uses the same folder sync service as the visual force button.
 - `sync logs` prints a human readable tail and supports JSON output.
+- The app also reads `.gitignore` from the root synchronized folder when present.
 
-## Ignore path commands
+## MWS terminal commands
+
+The MWS terminal executes commands on another connected MyWorkStation PC.
+
+### Sync-linked terminal
+
+Use this when you want the command to run in the destination folder of an accepted folder sync link. The folder sync link does not need continuous file transfer to be started.
 
 ```powershell
-mws sync ignores list --id 22
-mws sync ignores add --id 22 --path bin
-mws sync ignores remove --id 22 --path bin
+mws terminal exec --sync-id 22 -- git status
+mws terminal exec 22 -- git status
+mws terminal exec --sync-id 22 --timeout 60 -- dotnet build
+mws terminal shell --sync-id 22
+mws terminal stop --sync-id 22 --session <sessionId>
 ```
 
-The app also reads `.gitignore` from the root synchronized folder when present.
+Rules:
 
-## Remote execution commands
+- The local side must be the emitter for that accepted folder sync link.
+- `sync start` is not required. The link is used only to know the remote working folder.
+- Prefer `terminal exec` for AI automation.
+- Use `--timeout <seconds>` for long-running commands.
+- If timeout is reached, the Engine sends an interrupt and returns exit code `124`.
+
+### Peer terminal without folder sync
+
+Use this when you only want to run a command on another connected MyWorkStation PC.
 
 ```powershell
-mws remote exec --sync-id 22 -- "git status"
-mws remote exec 22 -- git status
-mws remote exec --sync-id 22 --timeout 30 -- "dotnet build"
+mws terminal peers
+mws terminal peers --json
+mws terminal exec --peer Laptop2 -- hostname
+mws terminal exec --peer Laptop2 --cwd C:\Work\Repo -- git status
+mws terminal shell --peer Laptop2 --cwd C:\Work\Repo
+mws terminal stop --peer Laptop2 --session <sessionId>
+```
+
+Rules:
+
+- Use `mws terminal peers` to discover available targets.
+- If exactly one peer is connected, `--peer` can be omitted.
+- Use `--cwd` to choose the remote working directory. If omitted or invalid, the receiver uses its user profile folder.
+- This mode does not require a folder sync link.
+
+### Compatibility commands
+
+These legacy commands still work, but do not use them for new agent workflows:
+
+```powershell
+mws remote exec --sync-id 22 -- git status
 mws remote shell --sync-id 22
 mws remote stop --sync-id 22 --session <sessionId>
 ```
-
-Remote execution uses the existing remote terminal channel over SignalR. The command runs on the destination PC in the synchronized working folder owned by that remote side.
-
-Important behavior:
-
-- The local side must be the emitter for that folder sync link, matching the visual remote terminal behavior.
-- Each execution gets a session id.
-- The response contains `stdout`, `stderr`, `exitCode` and `sessionId` in JSON mode.
-- If timeout is reached, the Engine sends a remote interrupt and returns exit code `124`.
-- Long-running commands should be given an explicit timeout.
-- `remote shell` opens a simple command loop over one remote terminal session. It is useful for repeated commands, but use `remote exec --json` for reliable agent automation.
-- In `remote shell`, Ctrl+C sends `remote stop` for the active session.
 
 ## Git commands
 
@@ -144,7 +176,18 @@ mws git diff
 mws git branch create feature/demo
 ```
 
-Remote Git through the remote terminal:
+Git on another PC should normally go through MWS terminal:
+
+```powershell
+mws terminal exec --sync-id 22 -- git status
+mws terminal exec --sync-id 22 -- git pull
+mws terminal exec --sync-id 22 -- git add .
+mws terminal exec --sync-id 22 -- git commit -m "Commit message"
+mws terminal exec --sync-id 22 -- git push
+mws terminal exec --sync-id 22 -- git checkout -b feature/demo
+```
+
+Existing Git shortcuts are still supported:
 
 ```powershell
 mws git status --remote --sync-id 22
@@ -152,14 +195,17 @@ mws git pull --remote --sync-id 22
 mws git add . --remote --sync-id 22
 mws git commit -m "Commit message" --remote --sync-id 22
 mws git push --remote --sync-id 22
-mws git branch create feature/demo --remote --sync-id 22
 ```
 
-For unusual Git operations, prefer `remote exec`:
+## Clipboard commands
 
 ```powershell
-mws remote exec --sync-id 22 -- "git checkout -b feature/demo"
+mws clipboard send --text "texto para la otra PC"
+mws clipboard send -- "texto libre con espacios"
+mws clipboard send --current
 ```
+
+`clipboard send` sends text through the existing clipboard sync channel. It requires the app runtime to be connected to the hub.
 
 ## File transfer commands
 
@@ -168,7 +214,7 @@ mws files send C:\Temp\a.txt
 mws files send C:\Temp\a.txt C:\Temp\b.txt
 ```
 
-This uses the existing file transfer service.
+This uses the existing file transfer service and is independent from folder sync.
 
 ## Update commands
 
@@ -198,13 +244,7 @@ mws workflow remote-build --sync-id 22
 3. Force folder sync for that link.
 ```
 
-`workflow remote-build` runs:
-
-```powershell
-dotnet build
-```
-
-on the remote synchronized folder.
+`workflow remote-build` runs `dotnet build` on the destination folder of the sync link. Future workflows should prefer `terminal` naming.
 
 ## Alias commands
 
@@ -220,32 +260,40 @@ Useful commands:
 mws alias list
 mws alias path
 mws alias init
-mws alias set rclean remote exec --sync-id {0} -- git clean -fdx
-mws alias remove rclean
+mws alias set cleanbuild terminal exec --sync-id {0} -- dotnet clean
+mws alias remove cleanbuild
 ```
 
 Default aliases:
 
 ```text
-lsync   -> sync list
-fsync   -> sync force --id {0}
-slogs   -> sync logs --id {0} --tail 50
-rexec   -> remote exec --sync-id {0} -- {1}
-rstatus -> remote exec --sync-id {0} -- git status
-rbuild  -> remote exec --sync-id {0} -- dotnet build
-rtest   -> remote exec --sync-id {0} -- dotnet test
-rgit    -> remote exec --sync-id {0} -- git {1}
+lsync    -> sync list
+fsync    -> sync force --id {0}
+slogs    -> sync logs --id {0} --tail 50
+tpeers   -> terminal peers
+texec    -> terminal exec --sync-id {0} -- {1}
+tpeer    -> terminal exec --peer {0} -- {1}
+tstatus  -> terminal exec --sync-id {0} -- git status
+tbuild   -> terminal exec --sync-id {0} -- dotnet build
+ttest    -> terminal exec --sync-id {0} -- dotnet test
+tgit     -> terminal exec --sync-id {0} -- git {1}
+cliptext -> clipboard send --text {0}
 ```
+
+Legacy `rexec`, `rstatus`, `rbuild`, `rtest`, and `rgit` may exist for compatibility. Prefer the `t*` aliases.
 
 Examples:
 
 ```powershell
 mws lsync
 mws fsync 22
-mws rstatus 22
-mws rbuild 22
-mws rgit 22 "status --short"
-mws rexec 22 "dotnet test"
+mws tpeers
+mws tstatus 22
+mws tbuild 22
+mws tgit 22 "status --short"
+mws texec 22 "dotnet test"
+mws tpeer Laptop2 "hostname"
+mws cliptext "hola desde mws"
 ```
 
 Alias placeholders use zero-based arguments: `{0}`, `{1}`, `{2}`.
@@ -254,12 +302,13 @@ Alias placeholders use zero-based arguments: `{0}`, `{1}`, `{2}`.
 
 - First call `mws status --json`.
 - If the app is not running, ask the user to open MyWorkStation or open it if the environment allows GUI apps.
-- Use `mws sync list --json` to discover valid sync ids.
-- Use numeric link ids for short commands and `SyncId` for logs/auditing if needed.
-- Prefer `mws remote exec --sync-id <id> -- "command"` for arbitrary remote CLI tools.
+- Use `mws sync list --json` to discover folder sync link ids.
+- Use `mws terminal peers --json` to discover PC targets for peer terminal.
+- Prefer `mws terminal exec --sync-id <id> -- <command>` for commands in the paired sync folder.
+- Prefer `mws terminal exec --peer <peer> --cwd <path> -- <command>` for commands not tied to a sync folder.
 - Prefer `--json` for machine decisions and plain output for user-facing summaries.
 - Avoid destructive commands unless the user explicitly asked for them.
-- For long-running commands, set `--timeout` and be ready to call `mws remote stop` with the returned session id.
+- For long-running commands, set `--timeout` and be ready to call `mws terminal stop` with the returned session id.
 
 ## Local simulation
 
@@ -269,7 +318,7 @@ The repo includes a smoke simulation for AI agents and developers:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Simulate-MwsCli.ps1
 ```
 
-It builds against Debug outputs already present, copies `mws.exe` and `mws-engine-host.exe` beside `MyWorkStation.exe`, starts two local app instances with isolated pipes, creates dummy sender/receiver folders, pairs them, forces sync in both directions, validates `.gitignore`, executes remote commands, interrupts a long-running command by timeout, verifies remote execution still works after interruption, and confirms the spawned app/host processes exit cleanly.
+It builds against Debug outputs already present, copies `mws.exe` and `mws-engine-host.exe` beside `MyWorkStation.exe`, starts two local app instances with isolated pipes, creates dummy sender/receiver folders, pairs them, forces sync in both directions, validates `.gitignore`, executes terminal commands, interrupts a long-running command by timeout, verifies terminal execution still works after interruption, and confirms the spawned app/host processes exit cleanly.
 
 For manual multi-instance testing:
 

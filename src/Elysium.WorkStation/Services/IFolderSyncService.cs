@@ -8,6 +8,7 @@ namespace Elysium.WorkStation.Services
         ObservableCollection<FolderSyncLink> Links { get; }
         ObservableCollection<FolderSyncInvite> PendingInvites { get; }
         bool IsConnected { get; }
+        IReadOnlyList<PeerDeviceInfo> KnownPeers { get; }
 
         event EventHandler StateChanged;
         event EventHandler<RemoteCommandResultEventArgs> RemoteCommandResultReceived;
@@ -38,6 +39,9 @@ namespace Elysium.WorkStation.Services
         Task RequestRemoteGitPushAsync(int linkId);
         Task SendRemoteTerminalCommandAsync(int linkId, string sessionId, string commandText);
         Task SendRemoteTerminalInterruptAsync(int linkId, string sessionId);
+        Task RequestPeerPresenceAsync();
+        Task SendPeerTerminalCommandAsync(string sessionId, string targetClientId, string workingDirectory, string commandText);
+        Task SendPeerTerminalInterruptAsync(string sessionId, string targetClientId);
         Task<(bool Received, bool IsElevated, string Details)> QueryRemoteAdminStatusAsync(int linkId, TimeSpan? timeout = null);
 
         IReadOnlyList<FolderSyncLogEntry> GetLogs(string syncId);

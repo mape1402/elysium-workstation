@@ -92,6 +92,7 @@ namespace Elysium.WorkStation
             NotesContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.NotesPage>());
             ClipboardContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.ClipboardHistoryPage>());
             FilesContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.FilesPage>());
+            TerminalContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.RemoteToolsPage>());
             FolderSyncContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.FolderSyncPage>());
             NotificationsContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.NotificationsPage>());
             BrainstormContent.ContentTemplate = new DataTemplate(() => services.GetRequiredService<Views.BrainstormPage>());

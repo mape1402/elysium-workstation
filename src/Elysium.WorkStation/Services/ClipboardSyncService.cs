@@ -106,6 +106,11 @@ namespace Elysium.WorkStation.Services
             string text = await MainThread.InvokeOnMainThreadAsync(
                 () => Clipboard.Default.GetTextAsync());
 
+            await SendTextAsync(text);
+        }
+
+        public async Task SendTextAsync(string text)
+        {
             if (string.IsNullOrWhiteSpace(text)) return;
 
             var entry = new ClipboardEntry

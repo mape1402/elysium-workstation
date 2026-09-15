@@ -4,6 +4,19 @@ All notable changes to MyWorkStation will be documented in this file.
 
 ## [Unreleased]
 
+## [v3.0.2] - 2026-09-15
+
+### Added
+
+- Added standalone MWS terminal commands and UI access so commands can run on another PC without starting folder synchronization.
+- Added peer discovery for MWS terminal sessions, keeping folder sync and command execution as separate flows while still allowing sync-linked working directories.
+- Added CLI support to send text clipboard content through MWS.
+- Added terminal-focused aliases and updated the AI-agent CLI context documentation.
+
+### Changed
+
+- Renamed remote command concepts toward "MWS terminal" wording to avoid confusion with Git remotes while preserving legacy CLI compatibility.
+
 ## [v3.0.1] - 2026-09-04
 
 ### Fixed
