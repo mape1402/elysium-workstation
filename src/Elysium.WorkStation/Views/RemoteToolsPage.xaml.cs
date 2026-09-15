@@ -1,6 +1,7 @@
-﻿using Elysium.WorkStation.Models;
+using Elysium.WorkStation.Models;
 using Elysium.WorkStation.Services;
 using Microsoft.Maui.Controls;
+using System.Collections.ObjectModel;
 
 namespace Elysium.WorkStation.Views
 {
@@ -14,7 +15,9 @@ namespace Elysium.WorkStation.Views
         private bool _terminalReady;
         private bool _commandInFlight;
         private bool _isWebViewLoading = true;
-
+        private PeerDeviceInfo _selectedPeer;
+        private string _peerWorkingDirectory = string.Empty;
+        private const string PeerTerminalChannelId = "__mws_peer_terminal__";
         public string LinkIdQuery
         {
             set
@@ -26,10 +29,63 @@ namespace Elysium.WorkStation.Views
             }
         }
 
-        public string HeaderText => $"remote@sync-{_linkId}:~";
+        public string HeaderText
+        {
+            get
+            {
+                if (!IsPeerTerminalMode)
+                {
+                    return $"mws@sync-{_linkId}:~";
+                }
+
+                var peerName = SelectedPeer?.MachineName;
+                if (string.IsNullOrWhiteSpace(peerName))
+                {
+                    peerName = SelectedPeer?.ClientName;
+                }
+
+                return $"mws@{(string.IsNullOrWhiteSpace(peerName) ? "peer" : peerName)}:~";
+            }
+        }
+
+        public ObservableCollection<PeerDeviceInfo> Peers { get; } = [];
+
+        public PeerDeviceInfo SelectedPeer
+        {
+            get => _selectedPeer;
+            set
+            {
+                if (ReferenceEquals(_selectedPeer, value))
+                {
+                    return;
+                }
+
+                _selectedPeer = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HeaderText));
+            }
+        }
+
+        public string PeerWorkingDirectory
+        {
+            get => _peerWorkingDirectory;
+            set
+            {
+                if (string.Equals(_peerWorkingDirectory, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _peerWorkingDirectory = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsPeerTerminalMode => _linkId <= 0;
         public bool IsWebViewLoading => _isWebViewLoading;
         public Command ClearTerminalCommand { get; }
         public Command StopTerminalCommand { get; }
+        public Command RefreshPeersCommand { get; }
 
         public RemoteToolsPage(IFolderSyncService folderSyncService)
         {
@@ -55,7 +111,7 @@ namespace Elysium.WorkStation.Views
 
                 try
                 {
-                    await _folderSyncService.SendRemoteTerminalInterruptAsync(_linkId, _sessionId);
+                    await SendTerminalInterruptAsync();
                     _commandInFlight = false;
                     await EvalJsAsync("termSetLocked(false); termResetPrompt();");
                 }
@@ -64,6 +120,7 @@ namespace Elysium.WorkStation.Views
                     await EvalJsAsync($"termAppendLine({ToJsString("[error] " + ex.Message)}, 'error');");
                 }
             });
+            RefreshPeersCommand = new Command(async () => await LoadPeersAsync());
             InitializeComponent();
             BindingContext = this;
             TerminalWebView.Source = new HtmlWebViewSource
@@ -156,7 +213,7 @@ namespace Elysium.WorkStation.Views
             {
                 try
                 {
-                    await _folderSyncService.SendRemoteTerminalInterruptAsync(_linkId, _sessionId);
+                    await SendTerminalInterruptAsync();
                     _commandInFlight = false;
                     await EvalJsAsync("termSetLocked(false); termResetPrompt();");
                 }
@@ -179,7 +236,7 @@ namespace Elysium.WorkStation.Views
             await EvalJsAsync("termSetLocked(true);");
             try
             {
-                await _folderSyncService.SendRemoteTerminalCommandAsync(_linkId, _sessionId, command);
+                await SendTerminalCommandAsync(command);
             }
             catch (Exception ex)
             {
@@ -188,6 +245,74 @@ namespace Elysium.WorkStation.Views
             }
         }
 
+        private async Task LoadPeersAsync()
+        {
+            if (!IsPeerTerminalMode)
+            {
+                return;
+            }
+
+            try
+            {
+                await _folderSyncService.RequestPeerPresenceAsync();
+                await Task.Delay(500);
+                var previousClientId = SelectedPeer?.ClientId ?? string.Empty;
+                var peers = _folderSyncService.KnownPeers;
+                Peers.Clear();
+                foreach (var peer in peers)
+                {
+                    Peers.Add(peer);
+                }
+
+                SelectedPeer = Peers.FirstOrDefault(peer => string.Equals(peer.ClientId, previousClientId, StringComparison.OrdinalIgnoreCase))
+                    ?? (Peers.Count == 1 ? Peers[0] : null);
+            }
+            catch (Exception ex)
+            {
+                await EvalJsAsync($"termAppendLine({ToJsString("[warn] No se pudieron consultar PCs: " + ex.Message)}, 'error');");
+            }
+        }
+
+        private async Task SendTerminalCommandAsync(string command)
+        {
+            if (IsPeerTerminalMode)
+            {
+                if (SelectedPeer is null)
+                {
+                    await LoadPeersAsync();
+                }
+
+                if (SelectedPeer is null)
+                {
+                    throw new InvalidOperationException("Selecciona una PC destino o verifica que haya otra instancia MyWorkStation conectada.");
+                }
+
+                await _folderSyncService.SendPeerTerminalCommandAsync(
+                    _sessionId,
+                    SelectedPeer.ClientId,
+                    PeerWorkingDirectory,
+                    command);
+                return;
+            }
+
+            await _folderSyncService.SendRemoteTerminalCommandAsync(_linkId, _sessionId, command);
+        }
+
+        private async Task SendTerminalInterruptAsync()
+        {
+            if (IsPeerTerminalMode)
+            {
+                if (SelectedPeer is null)
+                {
+                    return;
+                }
+
+                await _folderSyncService.SendPeerTerminalInterruptAsync(_sessionId, SelectedPeer.ClientId);
+                return;
+            }
+
+            await _folderSyncService.SendRemoteTerminalInterruptAsync(_linkId, _sessionId);
+        }
         private void OnRemoteTerminalOutputReceived(object sender, RemoteTerminalOutputEventArgs e)
         {
             if (e is null)
@@ -267,7 +392,7 @@ namespace Elysium.WorkStation.Views
 
         private static string BuildTerminalHtml(string header, bool isDarkTheme)
         {
-            var safeHeader = System.Net.WebUtility.HtmlEncode(header ?? "remote@sync");
+            var safeHeader = System.Net.WebUtility.HtmlEncode(header ?? "mws@sync");
             var themeClass = isDarkTheme ? "dark" : "light";
             return $$"""
 <!doctype html>
@@ -652,7 +777,7 @@ namespace Elysium.WorkStation.Views
       ensurePrompt();
     }
 
-    line('Remote terminal ready.', 'muted');
+    line('Terminal MWS ready.', 'muted');
     ensurePrompt();
     setTimeout(focusPromptCursor, 0);
     window.location.href = 'termready://ready';

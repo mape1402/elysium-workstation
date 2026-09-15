@@ -20,6 +20,7 @@ namespace Elysium.WorkStation.Services
         private readonly IAppUpdateService _appUpdateService;
         private readonly IEngineHostProcessService _engineHostProcessService;
         private readonly ConcurrentDictionary<string, CliRemoteSession> _remoteSessions = new(StringComparer.Ordinal);
+        private const string PeerTerminalChannelId = "__mws_peer_terminal__";
         private EnginePipeServer _server;
         private EnginePipeServer _publicFallbackServer;
 
@@ -120,6 +121,12 @@ namespace Elysium.WorkStation.Services
                     "remote.read" => RemoteRead(request),
                     "remote.exec" => await RemoteExecAsync(request, cancellationToken),
                     "remote.stop" or "remote.interrupt" => await RemoteStopAsync(request),
+                    "terminal.peers" or "terminal.list-peers" => await TerminalPeersAsync(request, cancellationToken),
+                    "terminal.start" => await TerminalStartAsync(request, cancellationToken),
+                    "terminal.read" => RemoteRead(request),
+                    "terminal.exec" => await TerminalExecAsync(request, cancellationToken),
+                    "terminal.stop" or "terminal.interrupt" => await TerminalStopAsync(request, cancellationToken),
+                    "clipboard.send" => await ClipboardSendAsync(request),
                     "git.status" or "git.pull" or "git.fetch" or "git.add" or "git.commit" or "git.push" or "git.branch" or "git.checkout" or "git.log" or "git.diff" => await GitAsync(request, cancellationToken),
                     "files.send" => await FilesSendAsync(request),
                     "update.check" => await UpdateCheckAsync(request, cancellationToken),
@@ -642,7 +649,14 @@ namespace Elysium.WorkStation.Services
             var sessionId = GetRequired(request, "session");
             if (_remoteSessions.TryGetValue(sessionId, out var session))
             {
-                await _folderSyncService.SendRemoteTerminalInterruptAsync(session.LinkId, sessionId);
+                if (session.IsPeerTerminal)
+                {
+                    await _folderSyncService.SendPeerTerminalInterruptAsync(sessionId, session.TargetClientId);
+                }
+                else
+                {
+                    await _folderSyncService.SendRemoteTerminalInterruptAsync(session.LinkId, sessionId);
+                }
             }
             else
             {
@@ -651,6 +665,198 @@ namespace Elysium.WorkStation.Services
             }
 
             return EngineCommandResponse.Ok(request.RequestId, $"Interrupt enviado a sesion remota {sessionId}.");
+        }
+
+        private async Task<EngineCommandResponse> TerminalPeersAsync(EngineCommandRequest request, CancellationToken cancellationToken)
+        {
+            await EnsureRuntimeAsync();
+            await _folderSyncService.RequestPeerPresenceAsync();
+            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+
+            var peers = _folderSyncService.KnownPeers;
+            var output = new StringBuilder();
+            foreach (var peer in peers)
+            {
+                output.AppendLine($"{peer.ClientId}  {peer.ClientName}  {peer.MachineName}");
+            }
+
+            return EngineCommandResponse.Ok(
+                request.RequestId,
+                $"{peers.Count} peer(s) detectado(s).",
+                peers,
+                output.ToString());
+        }
+
+        private async Task<EngineCommandResponse> TerminalStartAsync(EngineCommandRequest request, CancellationToken cancellationToken)
+        {
+            if (HasSyncTarget(request))
+            {
+                return await RemoteStartAsync(request);
+            }
+
+            await EnsureRuntimeAsync();
+            CleanupCompletedRemoteSessions();
+
+            var commandText = request.GetArgument("commandText");
+            if (string.IsNullOrWhiteSpace(commandText))
+            {
+                throw new InvalidOperationException("Usa: mws terminal exec [--sync-id <id>|--peer <peer>] [--cwd <ruta>] -- <comando>");
+            }
+
+            var sessionId = request.GetArgument("session");
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                sessionId = "mws-" + Guid.NewGuid().ToString("N");
+            }
+
+            if (_remoteSessions.ContainsKey(sessionId))
+            {
+                throw new InvalidOperationException($"Ya existe una sesion de terminal con id {sessionId}.");
+            }
+
+            var peer = await ResolvePeerTargetAsync(request, cancellationToken);
+            var workingDirectory = ResolveRequestedPeerWorkingDirectory(request);
+            var session = new CliRemoteSession(sessionId, 0, PeerTerminalChannelId, peer.ClientId, isPeerTerminal: true);
+            EventHandler<RemoteTerminalOutputEventArgs> handler = null;
+            handler = (_, e) =>
+            {
+                if (!string.Equals(e.SyncId, PeerTerminalChannelId, StringComparison.Ordinal) ||
+                    !string.Equals(e.SessionId, sessionId, StringComparison.Ordinal) ||
+                    !string.Equals(e.ExecutorClientId, peer.ClientId, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                session.Add(e.Chunk, e.IsError, e.IsCompleted, e.ExitCode);
+                if (e.IsCompleted && handler is not null)
+                {
+                    _folderSyncService.RemoteTerminalOutputReceived -= handler;
+                    session.Detach = null;
+                }
+            };
+
+            session.Detach = () => _folderSyncService.RemoteTerminalOutputReceived -= handler;
+            _remoteSessions[sessionId] = session;
+            _folderSyncService.RemoteTerminalOutputReceived += handler;
+
+            try
+            {
+                await _folderSyncService.SendPeerTerminalCommandAsync(sessionId, peer.ClientId, workingDirectory, commandText);
+            }
+            catch
+            {
+                session.Detach?.Invoke();
+                _remoteSessions.TryRemove(sessionId, out _);
+                throw;
+            }
+
+            return EngineCommandResponse.Ok(
+                request.RequestId,
+                $"Sesion de terminal MyWorkStation iniciada: {sessionId}",
+                new
+                {
+                    mode = "peer",
+                    sessionId,
+                    peer,
+                    targetClientId = peer.ClientId,
+                    workingDirectory,
+                    commandText
+                });
+        }
+
+        private async Task<EngineCommandResponse> TerminalExecAsync(EngineCommandRequest request, CancellationToken cancellationToken)
+        {
+            if (HasSyncTarget(request))
+            {
+                return await RemoteExecAsync(request, cancellationToken);
+            }
+
+            await EnsureRuntimeAsync();
+            var commandText = request.GetArgument("commandText");
+            if (string.IsNullOrWhiteSpace(commandText))
+            {
+                throw new InvalidOperationException("Usa: mws terminal exec [--sync-id <id>|--peer <peer>] [--cwd <ruta>] -- <comando>");
+            }
+
+            var peer = await ResolvePeerTargetAsync(request, cancellationToken);
+            var result = await ExecutePeerTerminalCommandAsync(peer, commandText, request, cancellationToken);
+            return new EngineCommandResponse
+            {
+                RequestId = request.RequestId,
+                Success = result.ExitCode == 0,
+                ExitCode = result.ExitCode,
+                Message = result.TimedOut ? "Comando de terminal MyWorkStation agotado por timeout." : $"Comando de terminal MyWorkStation finalizado con exit {result.ExitCode}.",
+                StandardOutput = result.StdOut,
+                StandardError = result.StdErr,
+                Data = JsonSerializer.SerializeToElement(new
+                {
+                    mode = "peer",
+                    peer,
+                    targetClientId = peer.ClientId,
+                    result.SessionId,
+                    result.ExitCode,
+                    result.TimedOut
+                }, EngineJson.Options)
+            };
+        }
+
+        private async Task<EngineCommandResponse> TerminalStopAsync(EngineCommandRequest request, CancellationToken cancellationToken)
+        {
+            await EnsureRuntimeAsync();
+            var sessionId = GetRequired(request, "session");
+            if (_remoteSessions.TryGetValue(sessionId, out var session))
+            {
+                if (session.IsPeerTerminal)
+                {
+                    await _folderSyncService.SendPeerTerminalInterruptAsync(sessionId, session.TargetClientId);
+                }
+                else
+                {
+                    await _folderSyncService.SendRemoteTerminalInterruptAsync(session.LinkId, sessionId);
+                }
+
+                return EngineCommandResponse.Ok(request.RequestId, $"Interrupt enviado a sesion de terminal {sessionId}.");
+            }
+
+            if (HasSyncTarget(request))
+            {
+                var link = ResolveLink(request);
+                await _folderSyncService.SendRemoteTerminalInterruptAsync(link.Id, sessionId);
+            }
+            else
+            {
+                var peer = await ResolvePeerTargetAsync(request, cancellationToken);
+                await _folderSyncService.SendPeerTerminalInterruptAsync(sessionId, peer.ClientId);
+            }
+
+            return EngineCommandResponse.Ok(request.RequestId, $"Interrupt enviado a sesion de terminal {sessionId}.");
+        }
+
+        private async Task<EngineCommandResponse> ClipboardSendAsync(EngineCommandRequest request)
+        {
+            await EnsureRuntimeAsync();
+            if (!_clipboardSyncService.IsConnected)
+            {
+                throw new InvalidOperationException("Clipboard sync no esta conectado al hub.");
+            }
+
+            if (request.GetBoolArgument("current"))
+            {
+                await _clipboardSyncService.SendCurrentClipboardAsync();
+                return EngineCommandResponse.Ok(request.RequestId, "Clipboard actual enviado.");
+            }
+
+            var text = ResolveClipboardText(request);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                throw new InvalidOperationException("Usa: mws clipboard send --text <texto> o mws clipboard send -- <texto>");
+            }
+
+            await _clipboardSyncService.SendTextAsync(text);
+            return EngineCommandResponse.Ok(
+                request.RequestId,
+                "Texto enviado al clipboard remoto.",
+                new { length = text.Length });
         }
 
         private async Task<EngineCommandResponse> GitAsync(EngineCommandRequest request, CancellationToken cancellationToken)
@@ -850,6 +1056,73 @@ namespace Elysium.WorkStation.Services
             }
         }
 
+        private async Task<RemoteExecutionResult> ExecutePeerTerminalCommandAsync(
+            PeerDeviceInfo peer,
+            string commandText,
+            EngineCommandRequest request,
+            CancellationToken cancellationToken)
+        {
+            var sessionId = request.GetArgument("session", "mws-" + Guid.NewGuid().ToString("N"));
+            var timeoutSeconds = Math.Clamp(request.GetIntArgument("timeout", EngineDefaults.DefaultTimeoutSeconds), 1, 3600);
+            var workingDirectory = ResolveRequestedPeerWorkingDirectory(request);
+            var stdout = new StringBuilder();
+            var stderr = new StringBuilder();
+            var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            void Handler(object sender, RemoteTerminalOutputEventArgs e)
+            {
+                if (!string.Equals(e.SyncId, PeerTerminalChannelId, StringComparison.Ordinal) ||
+                    !string.Equals(e.SessionId, sessionId, StringComparison.Ordinal) ||
+                    !string.Equals(e.ExecutorClientId, peer.ClientId, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(e.Chunk))
+                {
+                    if (e.IsError)
+                    {
+                        stderr.AppendLine(e.Chunk);
+                    }
+                    else
+                    {
+                        stdout.AppendLine(e.Chunk);
+                    }
+                }
+
+                if (e.IsCompleted)
+                {
+                    tcs.TrySetResult(e.ExitCode);
+                }
+            }
+
+            _folderSyncService.RemoteTerminalOutputReceived += Handler;
+            try
+            {
+                await _folderSyncService.SendPeerTerminalCommandAsync(sessionId, peer.ClientId, workingDirectory, commandText);
+                var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(timeoutSeconds), cancellationToken));
+                if (completed == tcs.Task)
+                {
+                    return new RemoteExecutionResult(sessionId, await tcs.Task, stdout.ToString(), stderr.ToString(), false);
+                }
+
+                try
+                {
+                    await _folderSyncService.SendPeerTerminalInterruptAsync(sessionId, peer.ClientId);
+                }
+                catch
+                {
+                    // Best effort timeout interrupt.
+                }
+
+                return new RemoteExecutionResult(sessionId, 124, stdout.ToString(), stderr.ToString(), true);
+            }
+            finally
+            {
+                _folderSyncService.RemoteTerminalOutputReceived -= Handler;
+            }
+        }
+
         private void CleanupCompletedRemoteSessions()
         {
             var threshold = DateTime.UtcNow.AddMinutes(-2);
@@ -927,6 +1200,69 @@ namespace Elysium.WorkStation.Services
 
             link ??= _folderSyncService.Links.FirstOrDefault(l => string.Equals(l.SyncId, raw, StringComparison.OrdinalIgnoreCase));
             return link ?? throw new InvalidOperationException($"Sincronizacion no encontrada: {raw}");
+        }
+
+        private static bool HasSyncTarget(EngineCommandRequest request)
+        {
+            var raw = request.GetArgument("sync-id", request.GetArgument("id"));
+            return !string.IsNullOrWhiteSpace(raw);
+        }
+
+        private async Task<PeerDeviceInfo> ResolvePeerTargetAsync(
+            EngineCommandRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _folderSyncService.RequestPeerPresenceAsync();
+            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+
+            var requestedPeer = request.GetArgument(
+                "peer",
+                request.GetArgument("target", request.GetArgument("target-client-id")));
+            var peers = _folderSyncService.KnownPeers;
+
+            if (string.IsNullOrWhiteSpace(requestedPeer))
+            {
+                if (peers.Count == 1)
+                {
+                    return peers[0];
+                }
+
+                if (peers.Count == 0)
+                {
+                    throw new InvalidOperationException("No se detectaron peers MyWorkStation conectados. Usa mws terminal peers para verificar.");
+                }
+
+                throw new InvalidOperationException("Hay varios peers conectados. Usa --peer <nombre|machine|clientId>.");
+            }
+
+            var peer = peers.FirstOrDefault(p =>
+                string.Equals(p.ClientId, requestedPeer, StringComparison.OrdinalIgnoreCase) ||
+                p.ClientId.StartsWith(requestedPeer, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.ClientName, requestedPeer, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.MachineName, requestedPeer, StringComparison.OrdinalIgnoreCase));
+
+            return peer ?? throw new InvalidOperationException($"Peer MyWorkStation no encontrado: {requestedPeer}. Usa mws terminal peers para ver opciones.");
+        }
+
+        private static string ResolveRequestedPeerWorkingDirectory(EngineCommandRequest request) =>
+            request.GetArgument("cwd", request.GetArgument("directory"));
+
+        private static string ResolveClipboardText(EngineCommandRequest request)
+        {
+            var text = request.GetArgument("text", request.GetArgument("commandText"));
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+
+            var tokens = request.Tokens;
+            var sendIndex = tokens.FindIndex(token => string.Equals(token, "send", StringComparison.OrdinalIgnoreCase));
+            if (sendIndex < 0 || sendIndex >= tokens.Count - 1)
+            {
+                return string.Empty;
+            }
+
+            return string.Join(' ', tokens.Skip(sendIndex + 1));
         }
 
         private FolderSyncInvite ResolveInvite(EngineCommandRequest request)
@@ -1060,16 +1396,25 @@ namespace Elysium.WorkStation.Services
             public string SessionId { get; }
             public int LinkId { get; }
             public string SyncId { get; }
+            public string TargetClientId { get; }
+            public bool IsPeerTerminal { get; }
             public bool IsCompleted { get; private set; }
             public int ExitCode { get; private set; }
             public DateTime UpdatedAtUtc { get; private set; } = DateTime.UtcNow;
             public Action Detach { get; set; }
 
-            public CliRemoteSession(string sessionId, int linkId, string syncId)
+            public CliRemoteSession(
+                string sessionId,
+                int linkId,
+                string syncId,
+                string targetClientId = "",
+                bool isPeerTerminal = false)
             {
                 SessionId = sessionId;
                 LinkId = linkId;
                 SyncId = syncId;
+                TargetClientId = targetClientId ?? string.Empty;
+                IsPeerTerminal = isPeerTerminal;
             }
 
             public void Add(string text, bool isError, bool isCompleted, int exitCode)

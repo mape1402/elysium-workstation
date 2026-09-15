@@ -61,6 +61,20 @@ internal static class Program
                 return await RunRemoteExecAsync(args, wantsJson);
             }
 
+            if (args.Length >= 2 &&
+                string.Equals(args[0], "terminal", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(args[1], "shell", StringComparison.OrdinalIgnoreCase))
+            {
+                return await RunTerminalShellAsync(args, wantsJson);
+            }
+
+            if (args.Length >= 2 &&
+                string.Equals(args[0], "terminal", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(args[1], "exec", StringComparison.OrdinalIgnoreCase))
+            {
+                return await RunTerminalExecAsync(args, wantsJson);
+            }
+
             var request = BuildEngineRequest(args);
             var timeoutSeconds = request.GetIntArgument("timeout", EngineDefaults.DefaultTimeoutSeconds);
             timeoutSeconds = Math.Clamp(timeoutSeconds, 1, 3600);
@@ -165,6 +179,102 @@ internal static class Program
             }
 
             await ExecuteRemoteStreamingAsync(syncId, sessionId, commandText, timeoutSeconds, wantsJson: false);
+        }
+    }
+
+    private static async Task<int> RunTerminalExecAsync(string[] args, bool wantsJson)
+    {
+        var parsed = ParsedArgs.Parse(args);
+        var commandText = string.Join(' ', parsed.CommandAfterSeparator).Trim();
+        if (string.IsNullOrWhiteSpace(commandText))
+        {
+            Console.Error.WriteLine("Uso: mws terminal exec [--sync-id <id>|--peer <peer>] [--cwd <ruta>] -- <comando>");
+            return 2;
+        }
+
+        var timeoutSeconds = ResolveTimeout(parsed);
+        var sessionId = parsed.Options.TryGetValue("session", out var rawSession) && !string.IsNullOrWhiteSpace(rawSession)
+            ? rawSession
+            : "mws-" + Guid.NewGuid().ToString("N");
+
+        return await ExecuteTerminalStreamingAsync(
+            ResolveSyncId(parsed),
+            ResolvePeer(parsed),
+            ResolveCwd(parsed),
+            sessionId,
+            commandText,
+            timeoutSeconds,
+            wantsJson);
+    }
+
+    private static async Task<int> RunTerminalShellAsync(string[] args, bool wantsJson)
+    {
+        if (wantsJson)
+        {
+            Console.Error.WriteLine("terminal shell es interactivo; usa terminal exec con --json para automatizacion.");
+            return 2;
+        }
+
+        var parsed = ParsedArgs.Parse(args);
+        var syncId = ResolveSyncId(parsed);
+        var peer = ResolvePeer(parsed);
+        var cwd = ResolveCwd(parsed);
+        var timeoutSeconds = ResolveTimeout(parsed);
+        var sessionId = parsed.Options.TryGetValue("session", out var rawSession) && !string.IsNullOrWhiteSpace(rawSession)
+            ? rawSession
+            : "mws-terminal-" + Guid.NewGuid().ToString("N");
+
+        Console.WriteLine("MyWorkStation terminal shell");
+        if (!string.IsNullOrWhiteSpace(syncId))
+        {
+            Console.WriteLine($"sync-id: {syncId}");
+        }
+        else if (!string.IsNullOrWhiteSpace(peer))
+        {
+            Console.WriteLine($"peer: {peer}");
+        }
+        else
+        {
+            Console.WriteLine("peer: auto");
+        }
+
+        if (!string.IsNullOrWhiteSpace(cwd))
+        {
+            Console.WriteLine($"cwd remoto: {cwd}");
+        }
+
+        Console.WriteLine($"session: {sessionId}");
+        Console.WriteLine("Escribe exit para salir. Ctrl+C intenta detener el comando remoto en curso.");
+
+        while (true)
+        {
+            Console.Write("terminal> ");
+            var commandText = Console.ReadLine();
+            if (commandText is null)
+            {
+                return 0;
+            }
+
+            commandText = commandText.Trim();
+            if (string.IsNullOrWhiteSpace(commandText))
+            {
+                continue;
+            }
+
+            if (commandText.Equals("exit", StringComparison.OrdinalIgnoreCase))
+            {
+                return 0;
+            }
+
+            if (commandText.Equals("cls", StringComparison.OrdinalIgnoreCase) ||
+                commandText.Equals("clear", StringComparison.OrdinalIgnoreCase) ||
+                commandText.Equals("clean", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Clear();
+                continue;
+            }
+
+            await ExecuteTerminalStreamingAsync(syncId, peer, cwd, sessionId, commandText, timeoutSeconds, wantsJson: false);
         }
     }
 
@@ -326,6 +436,185 @@ internal static class Program
         return exitCode;
     }
 
+    private static async Task<int> ExecuteTerminalStreamingAsync(
+        string syncId,
+        string peer,
+        string cwd,
+        string sessionId,
+        string commandText,
+        int timeoutSeconds,
+        bool wantsJson)
+    {
+        var client = new EnginePipeClient();
+        var stdout = new System.Text.StringBuilder();
+        var stderr = new System.Text.StringBuilder();
+        var cursor = 0;
+        var exitCode = 1;
+        var completed = false;
+        var timedOut = false;
+        var stopRequested = false;
+
+        var startArguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["session"] = sessionId,
+            ["commandText"] = commandText,
+            ["timeout"] = timeoutSeconds.ToString()
+        };
+
+        if (!string.IsNullOrWhiteSpace(syncId))
+        {
+            startArguments["sync-id"] = syncId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(peer))
+        {
+            startArguments["peer"] = peer;
+        }
+
+        if (!string.IsNullOrWhiteSpace(cwd))
+        {
+            startArguments["cwd"] = cwd;
+        }
+
+        var startRequest = new EngineCommandRequest
+        {
+            Command = "terminal.start",
+            Arguments = startArguments,
+            WorkingDirectory = Environment.CurrentDirectory
+        };
+
+        ConsoleCancelEventHandler cancelHandler = (_, e) =>
+        {
+            e.Cancel = true;
+            if (stopRequested)
+            {
+                return;
+            }
+
+            stopRequested = true;
+            _ = Task.Run(async () => await SendTerminalStopAsync(client, syncId, peer, sessionId));
+        };
+
+        var start = await client.SendAsync(startRequest, TimeSpan.FromSeconds(15));
+        if (!start.Success)
+        {
+            PrintResponse(start, wantsJson);
+            return start.ExitCode;
+        }
+
+        Console.CancelKeyPress += cancelHandler;
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+            while (!completed)
+            {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    timedOut = true;
+                    await SendTerminalStopAsync(client, syncId, peer, sessionId);
+                    exitCode = 124;
+                    break;
+                }
+
+                var readRequest = new EngineCommandRequest
+                {
+                    Command = "terminal.read",
+                    Arguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["session"] = sessionId,
+                        ["cursor"] = cursor.ToString()
+                    },
+                    WorkingDirectory = Environment.CurrentDirectory
+                };
+
+                var read = await client.SendAsync(readRequest, TimeSpan.FromSeconds(15));
+                if (!read.Success)
+                {
+                    PrintResponse(read, wantsJson);
+                    return read.ExitCode;
+                }
+
+                if (read.Data is { } data)
+                {
+                    if (data.TryGetProperty("chunks", out var chunks) && chunks.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var chunk in chunks.EnumerateArray())
+                        {
+                            var text = chunk.TryGetProperty("text", out var textElement)
+                                ? textElement.GetString() ?? string.Empty
+                                : string.Empty;
+                            var isError = chunk.TryGetProperty("isError", out var isErrorElement) &&
+                                isErrorElement.ValueKind == JsonValueKind.True;
+
+                            if (isError)
+                            {
+                                stderr.AppendLine(text);
+                            }
+                            else
+                            {
+                                stdout.AppendLine(text);
+                            }
+
+                            if (!wantsJson)
+                            {
+                                WriteChunk(text, isError);
+                            }
+                        }
+                    }
+
+                    if (data.TryGetProperty("nextCursor", out var nextCursorElement) &&
+                        nextCursorElement.TryGetInt32(out var nextCursor))
+                    {
+                        cursor = nextCursor;
+                    }
+
+                    completed = data.TryGetProperty("isCompleted", out var completedElement) &&
+                        completedElement.ValueKind == JsonValueKind.True;
+
+                    if (data.TryGetProperty("exitCode", out var exitCodeElement) &&
+                        exitCodeElement.TryGetInt32(out var parsedExitCode))
+                    {
+                        exitCode = parsedExitCode;
+                    }
+                }
+
+                if (!completed)
+                {
+                    await Task.Delay(100);
+                }
+            }
+        }
+        finally
+        {
+            Console.CancelKeyPress -= cancelHandler;
+        }
+
+        if (wantsJson)
+        {
+            WriteJson(new
+            {
+                requestId = start.RequestId,
+                success = exitCode == 0,
+                exitCode,
+                mode = string.IsNullOrWhiteSpace(syncId) ? "peer" : "sync",
+                syncId,
+                peer,
+                cwd,
+                sessionId,
+                commandText,
+                timedOut,
+                standardOutput = stdout.ToString(),
+                standardError = stderr.ToString()
+            });
+        }
+        else
+        {
+            Console.WriteLine($"[exit {exitCode}]");
+        }
+
+        return exitCode;
+    }
+
     private static async Task SendRemoteStopAsync(EnginePipeClient client, string syncId, string sessionId)
     {
         var stopRequest = new EngineCommandRequest
@@ -336,6 +625,33 @@ internal static class Program
                 ["sync-id"] = syncId,
                 ["session"] = sessionId
             },
+            WorkingDirectory = Environment.CurrentDirectory
+        };
+
+        await client.SendAsync(stopRequest, TimeSpan.FromSeconds(10));
+    }
+
+    private static async Task SendTerminalStopAsync(EnginePipeClient client, string syncId, string peer, string sessionId)
+    {
+        var arguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["session"] = sessionId
+        };
+
+        if (!string.IsNullOrWhiteSpace(syncId))
+        {
+            arguments["sync-id"] = syncId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(peer))
+        {
+            arguments["peer"] = peer;
+        }
+
+        var stopRequest = new EngineCommandRequest
+        {
+            Command = "terminal.stop",
+            Arguments = arguments,
             WorkingDirectory = Environment.CurrentDirectory
         };
 
@@ -362,6 +678,22 @@ internal static class Program
                 : parsed.Positionals.Count >= 3
                     ? parsed.Positionals[2]
                     : string.Empty;
+
+    private static string ResolvePeer(ParsedArgs parsed) =>
+        parsed.Options.TryGetValue("peer", out var peer)
+            ? peer
+            : parsed.Options.TryGetValue("target", out var target)
+                ? target
+                : parsed.Options.TryGetValue("target-client-id", out var targetClientId)
+                    ? targetClientId
+                    : string.Empty;
+
+    private static string ResolveCwd(ParsedArgs parsed) =>
+        parsed.Options.TryGetValue("cwd", out var cwd)
+            ? cwd
+            : parsed.Options.TryGetValue("directory", out var directory)
+                ? directory
+                : string.Empty;
 
     private static int ResolveTimeout(ParsedArgs parsed)
     {
@@ -402,6 +734,15 @@ internal static class Program
         }
 
         if (!arguments.ContainsKey("sync-id") && command.StartsWith("remote.", StringComparison.OrdinalIgnoreCase) && parsed.Positionals.Count >= 3)
+        {
+            arguments["sync-id"] = parsed.Positionals[2];
+        }
+
+        if (!arguments.ContainsKey("sync-id") &&
+            command.StartsWith("terminal.", StringComparison.OrdinalIgnoreCase) &&
+            parsed.Positionals.Count >= 3 &&
+            !command.Equals("terminal.peers", StringComparison.OrdinalIgnoreCase) &&
+            !command.Equals("terminal.list-peers", StringComparison.OrdinalIgnoreCase))
         {
             arguments["sync-id"] = parsed.Positionals[2];
         }
@@ -477,6 +818,11 @@ internal static class Program
         if (first == "remote" && tokens.Count > 1)
         {
             return "remote." + tokens[1].ToLowerInvariant();
+        }
+
+        if (first == "terminal" && tokens.Count > 1)
+        {
+            return "terminal." + tokens[1].ToLowerInvariant();
         }
 
         if (first == "git" && tokens.Count > 1)
@@ -691,10 +1037,14 @@ internal static class Program
         Console.WriteLine("  mws sync list");
         Console.WriteLine("  mws sync force --id <id>");
         Console.WriteLine("  mws sync logs --id <id> --tail 50");
-        Console.WriteLine("  mws remote exec --sync-id <id> -- <comando>");
-        Console.WriteLine("  mws remote shell --sync-id <id>");
+        Console.WriteLine("  mws terminal peers");
+        Console.WriteLine("  mws terminal exec --sync-id <id> -- <comando>");
+        Console.WriteLine("  mws terminal exec --peer <equipo> --cwd <ruta> -- <comando>");
+        Console.WriteLine("  mws terminal shell [--sync-id <id>|--peer <equipo>] [--cwd <ruta>]");
+        Console.WriteLine("  mws clipboard send --text <texto>");
         Console.WriteLine("  mws git status");
         Console.WriteLine("  mws git status --remote --sync-id <id>");
+        Console.WriteLine("  mws remote exec --sync-id <id> -- <comando>   (compatibilidad)");
         Console.WriteLine("  mws update check");
         Console.WriteLine("  mws alias list");
         Console.WriteLine();

@@ -10,6 +10,7 @@ namespace Elysium.WorkStation.Services
         event EventHandler ConnectionStateChanged;
         Task StartAsync(string hubUrl);
         Task SendCurrentClipboardAsync();
+        Task SendTextAsync(string text);
         Task StopAsync();
     }
 }

@@ -59,7 +59,7 @@
                                 VerticalOptions="Start"
                                 HorizontalOptions="End"
                                 Command="{Binding OpenRemoteToolsCommand}"
-                                ToolTipProperties.Text="Terminal Remota"
+                                ToolTipProperties.Text="Terminal MWS"
                                 CornerRadius="10"
                                 BorderColor="{AppThemeBinding Light=#5E7DB0, Dark=#4A6793}"
                                 BackgroundColor="{AppThemeBinding Light=#6F90C4, Dark=#5877A8}" />

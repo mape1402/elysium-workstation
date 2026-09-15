@@ -21,6 +21,8 @@ namespace Elysium.WorkStation.Services
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
         private const string RemotePermissionStatusAction = "remote.permissions.flag";
         private const string RemoteTerminalInterruptToken = "__codex_terminal_interrupt__";
+        private const string PeerTerminalChannelId = "__mws_peer_terminal__";
+        private static readonly TimeSpan PeerPresenceMaxAge = TimeSpan.FromMinutes(10);
 
         private readonly IFolderSyncRepository _repository;
         private readonly ISettingsService _settingsService;
@@ -43,6 +45,7 @@ namespace Elysium.WorkStation.Services
         private readonly ConcurrentDictionary<string, byte> _interruptedRemoteShellSessions = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, byte> _activeElevatedHelperSessionKeys = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, TaskCompletionSource<RemoteCommandExecutionResult>> _pendingRemoteAdminChecksByRequestId = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, PeerDeviceInfo> _knownPeersByClientId = new(StringComparer.OrdinalIgnoreCase);
 
         private HubConnection _connection;
         private CancellationTokenSource _startRetryCts;
@@ -58,6 +61,7 @@ namespace Elysium.WorkStation.Services
         public ObservableCollection<FolderSyncInvite> PendingInvites { get; } = [];
 
         public bool IsConnected => _connection?.State == HubConnectionState.Connected;
+        public IReadOnlyList<PeerDeviceInfo> KnownPeers => GetFreshKnownPeers();
 
         public event EventHandler StateChanged;
         public event EventHandler<RemoteCommandResultEventArgs> RemoteCommandResultReceived;
@@ -103,6 +107,8 @@ namespace Elysium.WorkStation.Services
             };
             _connection.Reconnected += connectionId =>
             {
+                _ = AnnouncePeerPresenceAsync();
+                _ = RequestPeerPresenceAsync();
                 _ = RebroadcastActiveSyncStatesAsync();
                 RaiseStateChanged();
                 return Task.CompletedTask;
@@ -120,6 +126,8 @@ namespace Elysium.WorkStation.Services
                 try
                 {
                     await _connection.StartAsync(token);
+                    await AnnouncePeerPresenceAsync();
+                    await RequestPeerPresenceAsync();
                     RaiseStateChanged();
                     break;
                 }
@@ -604,9 +612,9 @@ namespace Elysium.WorkStation.Services
                 throw new InvalidOperationException("Sincronizacion no encontrada.");
             }
 
-            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            if (!link.IsAccepted || !link.IsEmitter)
             {
-                throw new InvalidOperationException("Solo el emisor puede usar terminal remota cuando la sincronizacion esta activa.");
+                throw new InvalidOperationException("Solo el emisor puede usar terminal remota cuando la sincronizacion esta aceptada.");
             }
 
             if (_connection?.State != HubConnectionState.Connected)
@@ -643,9 +651,9 @@ namespace Elysium.WorkStation.Services
                 throw new InvalidOperationException("Sincronizacion no encontrada.");
             }
 
-            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            if (!link.IsAccepted || !link.IsEmitter)
             {
-                throw new InvalidOperationException("Solo el emisor puede usar terminal remota cuando la sincronizacion esta activa.");
+                throw new InvalidOperationException("Solo el emisor puede usar terminal remota cuando la sincronizacion esta aceptada.");
             }
 
             if (_connection?.State != HubConnectionState.Connected)
@@ -693,6 +701,76 @@ namespace Elysium.WorkStation.Services
             RaiseStateChanged();
         }
 
+        public IReadOnlyList<PeerDeviceInfo> GetFreshKnownPeers()
+        {
+            var threshold = DateTime.UtcNow.Subtract(PeerPresenceMaxAge);
+            return _knownPeersByClientId.Values
+                .Where(peer => peer.LastSeenUtc >= threshold)
+                .OrderBy(peer => peer.ClientName)
+                .ThenBy(peer => peer.MachineName)
+                .ToList();
+        }
+
+        public async Task RequestPeerPresenceAsync()
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            await _connection.InvokeAsync("RequestPeerPresence", ClientId);
+        }
+
+        public async Task SendPeerTerminalCommandAsync(
+            string sessionId,
+            string targetClientId,
+            string workingDirectory,
+            string commandText)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para terminal de MyWorkStation.");
+            }
+
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                throw new InvalidOperationException("SessionId de terminal invalido.");
+            }
+
+            if (string.IsNullOrWhiteSpace(commandText))
+            {
+                return;
+            }
+
+            await _connection.InvokeAsync(
+                "SendPeerTerminalInput",
+                sessionId,
+                ClientId,
+                targetClientId ?? string.Empty,
+                workingDirectory ?? string.Empty,
+                commandText);
+
+            AddLog(PeerTerminalChannelId, "terminal-peer-send", string.Empty, $"Terminal MyWorkStation enviado: {commandText}", isOutgoing: true);
+            RaiseStateChanged();
+        }
+
+        public async Task SendPeerTerminalInterruptAsync(string sessionId, string targetClientId)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                throw new InvalidOperationException("No hay conexion SignalR para terminal de MyWorkStation.");
+            }
+
+            await _connection.InvokeAsync(
+                "SendPeerTerminalInterrupt",
+                sessionId,
+                ClientId,
+                targetClientId ?? string.Empty);
+
+            AddLog(PeerTerminalChannelId, "terminal-peer-interrupt-send", string.Empty, "Interrupt enviado a terminal MyWorkStation.", isOutgoing: true);
+            RaiseStateChanged();
+        }
+
         public async Task<(bool Received, bool IsElevated, string Details)> QueryRemoteAdminStatusAsync(int linkId, TimeSpan? timeout = null)
         {
             var link = await _repository.GetByIdAsync(linkId);
@@ -701,9 +779,9 @@ namespace Elysium.WorkStation.Services
                 throw new InvalidOperationException("Sincronizacion no encontrada.");
             }
 
-            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            if (!link.IsAccepted || !link.IsEmitter)
             {
-                throw new InvalidOperationException("Solo el emisor puede consultar permisos remotos cuando la sincronizacion esta activa.");
+                throw new InvalidOperationException("Solo el emisor puede consultar permisos remotos cuando la sincronizacion esta aceptada.");
             }
 
             if (_connection?.State != HubConnectionState.Connected)
@@ -894,7 +972,222 @@ namespace Elysium.WorkStation.Services
                 "ReceiveRemoteTerminalOutput",
                 (sessionId, syncId, chunk, isError, isCompleted, exitCode, executorClientId) =>
                     HandleIncomingRemoteTerminalOutput(sessionId, syncId, chunk, isError, isCompleted, exitCode, executorClientId));
+
+            connection.On<string, string, string, string>(
+                "ReceivePeerPresence",
+                (clientId, clientName, machineName, role) =>
+                    HandleIncomingPeerPresence(clientId, clientName, machineName, role));
+
+            connection.On<string>(
+                "ReceivePeerPresenceRequest",
+                requesterClientId => _ = HandleIncomingPeerPresenceRequestAsync(requesterClientId));
+
+            connection.On<string, string, string, string, string>(
+                "ReceivePeerTerminalInput",
+                (sessionId, senderClientId, targetClientId, workingDirectory, commandText) =>
+                    _ = HandleIncomingPeerTerminalInputAsync(sessionId, senderClientId, targetClientId, workingDirectory, commandText));
+
+            connection.On<string, string, string>(
+                "ReceivePeerTerminalInterrupt",
+                (sessionId, senderClientId, targetClientId) =>
+                    _ = HandleIncomingPeerTerminalInterruptAsync(sessionId, senderClientId, targetClientId));
+
+            connection.On<string, string, string, bool, bool, int, string>(
+                "ReceivePeerTerminalOutput",
+                (sessionId, recipientClientId, chunk, isError, isCompleted, exitCode, executorClientId) =>
+                    HandleIncomingPeerTerminalOutput(sessionId, recipientClientId, chunk, isError, isCompleted, exitCode, executorClientId));
         }
+
+        private async Task AnnouncePeerPresenceAsync()
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            await _connection.InvokeAsync(
+                "AnnouncePeer",
+                ClientId,
+                _clientName,
+                Environment.MachineName,
+                ResolveRoleName());
+        }
+
+        private void HandleIncomingPeerPresence(
+            string clientId,
+            string clientName,
+            string machineName,
+            string role)
+        {
+            if (string.IsNullOrWhiteSpace(clientId) ||
+                string.Equals(clientId, ClientId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _knownPeersByClientId[clientId] = new PeerDeviceInfo
+            {
+                ClientId = clientId,
+                ClientName = string.IsNullOrWhiteSpace(clientName) ? clientId : clientName,
+                MachineName = machineName ?? string.Empty,
+                Role = role ?? string.Empty,
+                LastSeenUtc = DateTime.UtcNow
+            };
+
+            RaiseStateChanged();
+        }
+
+        private async Task HandleIncomingPeerPresenceRequestAsync(string requesterClientId)
+        {
+            if (string.Equals(requesterClientId, ClientId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            await AnnouncePeerPresenceAsync();
+        }
+
+        private string ResolveRoleName()
+        {
+            return string.Empty;
+        }
+
+        private async Task HandleIncomingPeerTerminalInputAsync(
+            string sessionId,
+            string senderClientId,
+            string targetClientId,
+            string workingDirectory,
+            string commandText)
+        {
+            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal) ||
+                !IsPeerTerminalMessageForThisClient(targetClientId) ||
+                string.IsNullOrWhiteSpace(commandText))
+            {
+                return;
+            }
+
+            var sessionKey = BuildRemoteShellSessionKey(PeerTerminalChannelId, senderClientId, sessionId);
+            if (string.Equals(commandText.Trim(), RemoteTerminalInterruptToken, StringComparison.Ordinal))
+            {
+                await HandleIncomingPeerTerminalInterruptAsync(sessionId, senderClientId, targetClientId);
+                return;
+            }
+
+            var worker = GetOrCreateRemoteTerminalWorker(sessionKey);
+            var item = new RemoteTerminalWorkItem(
+                sessionId,
+                PeerTerminalChannelId,
+                senderClientId,
+                commandText,
+                sessionKey,
+                workingDirectory ?? string.Empty,
+                true);
+
+            if (!worker.Queue.Writer.TryWrite(item))
+            {
+                await SendPeerTerminalOutputAsync(
+                    sessionId,
+                    senderClientId,
+                    "No se pudo encolar comando de terminal MyWorkStation.",
+                    isError: true,
+                    isCompleted: true,
+                    exitCode: 1);
+            }
+        }
+
+        private async Task HandleIncomingPeerTerminalInterruptAsync(
+            string sessionId,
+            string senderClientId,
+            string targetClientId)
+        {
+            if (string.Equals(senderClientId, ClientId, StringComparison.Ordinal) ||
+                !IsPeerTerminalMessageForThisClient(targetClientId))
+            {
+                return;
+            }
+
+            var sessionKey = BuildRemoteShellSessionKey(PeerTerminalChannelId, senderClientId, sessionId);
+            var interrupted = await TryInterruptWithElevatedHelperAsync(sessionKey);
+            interrupted |= InterruptRemoteShellSession(sessionKey);
+            if (!interrupted)
+            {
+                interrupted = InterruptAnyRemoteShellSession(PeerTerminalChannelId, senderClientId);
+            }
+
+            if (interrupted)
+            {
+                _interruptedRemoteShellSessions[sessionKey] = 1;
+                await SendPeerTerminalOutputAsync(sessionId, senderClientId, "^C", isError: false, isCompleted: false, exitCode: 0);
+                await SendPeerTerminalOutputAsync(sessionId, senderClientId, string.Empty, isError: false, isCompleted: true, exitCode: 130);
+                AddLog(PeerTerminalChannelId, "terminal-peer-interrupt", string.Empty, "Terminal MyWorkStation interrumpida por el emisor.", isOutgoing: false);
+                RaiseStateChanged();
+                return;
+            }
+
+            await SendPeerTerminalOutputAsync(
+                sessionId,
+                senderClientId,
+                "[warn] No se encontro sesion activa para interrumpir.",
+                isError: true,
+                isCompleted: false,
+                exitCode: 0);
+            AddLog(PeerTerminalChannelId, "terminal-peer-interrupt-miss", string.Empty, "No se encontro sesion activa para interrumpir.", isOutgoing: false);
+            RaiseStateChanged();
+        }
+
+        private void HandleIncomingPeerTerminalOutput(
+            string sessionId,
+            string recipientClientId,
+            string chunk,
+            bool isError,
+            bool isCompleted,
+            int exitCode,
+            string executorClientId)
+        {
+            if (!string.Equals(recipientClientId, ClientId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            RemoteTerminalOutputReceived?.Invoke(this, new RemoteTerminalOutputEventArgs
+            {
+                SessionId = sessionId ?? string.Empty,
+                SyncId = PeerTerminalChannelId,
+                Chunk = chunk ?? string.Empty,
+                IsError = isError,
+                IsCompleted = isCompleted,
+                ExitCode = exitCode,
+                ExecutorClientId = executorClientId ?? string.Empty
+            });
+        }
+
+        private async Task SendPeerTerminalOutputAsync(
+            string sessionId,
+            string recipientClientId,
+            string chunk,
+            bool isError,
+            bool isCompleted,
+            int exitCode)
+        {
+            if (_connection?.State != HubConnectionState.Connected)
+            {
+                return;
+            }
+
+            await _connection.InvokeAsync(
+                "SendPeerTerminalOutput",
+                sessionId,
+                recipientClientId ?? string.Empty,
+                chunk ?? string.Empty,
+                isError,
+                isCompleted,
+                exitCode,
+                ClientId);
+        }
+
+        private bool IsPeerTerminalMessageForThisClient(string targetClientId) =>
+            string.IsNullOrWhiteSpace(targetClientId) ||
+            string.Equals(targetClientId, ClientId, StringComparison.OrdinalIgnoreCase);
 
         private async Task SendRemoteGitCommandAsync(int linkId, string action, Dictionary<string, string> args)
         {
@@ -904,9 +1197,9 @@ namespace Elysium.WorkStation.Services
                 throw new InvalidOperationException("Sincronizacion no encontrada.");
             }
 
-            if (!link.IsAccepted || !link.ContinuousSyncEnabled || !link.IsEmitter)
+            if (!link.IsAccepted || !link.IsEmitter)
             {
-                throw new InvalidOperationException("Solo el emisor puede enviar comandos remotos cuando la sincronizacion esta activa.");
+                throw new InvalidOperationException("Solo el emisor puede enviar comandos remotos cuando la sincronizacion esta aceptada.");
             }
 
             if (_connection?.State != HubConnectionState.Connected)
@@ -951,7 +1244,7 @@ namespace Elysium.WorkStation.Services
             string argsJson)
         {
             var link = await _repository.GetBySyncIdAsync(syncId);
-            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            if (link is null || !link.IsAccepted || link.IsEmitter)
             {
                 return;
             }
@@ -1264,7 +1557,7 @@ namespace Elysium.WorkStation.Services
             string commandText)
         {
             var link = await _repository.GetBySyncIdAsync(syncId);
-            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            if (link is null || !link.IsAccepted || link.IsEmitter)
             {
                 return;
             }
@@ -1282,7 +1575,14 @@ namespace Elysium.WorkStation.Services
             }
 
             var worker = GetOrCreateRemoteTerminalWorker(sessionKey);
-            var item = new RemoteTerminalWorkItem(sessionId, syncId, senderClientId, commandText, sessionKey);
+            var item = new RemoteTerminalWorkItem(
+                sessionId,
+                syncId,
+                senderClientId,
+                commandText,
+                sessionKey,
+                string.Empty,
+                false);
             if (!worker.Queue.Writer.TryWrite(item))
             {
                 await SendRemoteTerminalOutputAsync(sessionId, syncId, "No se pudo encolar comando remoto.", isError: true, isCompleted: true, exitCode: 1);
@@ -1318,13 +1618,19 @@ namespace Elysium.WorkStation.Services
                     {
                         try
                         {
-                            await ExecuteQueuedRemoteTerminalCommandAsync(item);
+                            if (item.IsPeerTerminal)
+                            {
+                                await ExecuteQueuedPeerTerminalCommandAsync(item);
+                            }
+                            else
+                            {
+                                await ExecuteQueuedRemoteTerminalCommandAsync(item);
+                            }
                         }
                         catch (Exception ex)
                         {
-                            await SendRemoteTerminalOutputAsync(
-                                item.SessionId,
-                                item.SyncId,
+                            await SendTerminalWorkItemOutputAsync(
+                                item,
                                 $"[error] {ex.Message}",
                                 isError: true,
                                 isCompleted: true,
@@ -1354,12 +1660,12 @@ namespace Elysium.WorkStation.Services
             var sessionKey = item.SessionKey;
 
             var link = await _repository.GetBySyncIdAsync(syncId);
-            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            if (link is null || !link.IsAccepted || link.IsEmitter)
             {
                 await SendRemoteTerminalOutputAsync(
                     sessionId,
                     syncId,
-                    "La sincronizacion no esta activa en el receptor.",
+                    "La sincronizacion no esta aceptada en el receptor.",
                     isError: true,
                     isCompleted: true,
                     exitCode: 1);
@@ -1449,6 +1755,121 @@ namespace Elysium.WorkStation.Services
             }
         }
 
+        private async Task ExecuteQueuedPeerTerminalCommandAsync(RemoteTerminalWorkItem item)
+        {
+            var sessionId = item.SessionId;
+            var senderClientId = item.SenderClientId;
+            var commandText = item.CommandText;
+            var sessionKey = item.SessionKey;
+            var workingDirectory = ResolvePeerTerminalWorkingDirectory(item.WorkingDirectory);
+
+            AddLog(PeerTerminalChannelId, "terminal-peer-recv", string.Empty, $"Terminal MyWorkStation recibido: {commandText}", isOutgoing: false);
+
+            var helperExit = await TryExecuteWithElevatedHelperAsync(
+                sessionKey,
+                workingDirectory,
+                commandText,
+                (line, isError) =>
+                {
+                    _ = SendPeerTerminalOutputAsync(
+                        sessionId,
+                        senderClientId,
+                        line,
+                        isError,
+                        isCompleted: false,
+                        exitCode: 0);
+                    return Task.CompletedTask;
+                });
+
+            if (helperExit.HasValue)
+            {
+                var wasInterrupted = _interruptedRemoteShellSessions.TryRemove(sessionKey, out _);
+                await SendPeerTerminalOutputAsync(sessionId, senderClientId, string.Empty, isError: false, isCompleted: true, helperExit.Value);
+                AddLog(PeerTerminalChannelId, "terminal-peer-exec", string.Empty, $"Terminal MyWorkStation (helper) exit={helperExit.Value} interrupted={wasInterrupted}.", isOutgoing: false);
+                RaiseStateChanged();
+                return;
+            }
+
+            var shellSession = GetOrCreateRemoteShellSession(
+                sessionKey,
+                workingDirectory,
+                PeerTerminalChannelId,
+                senderClientId);
+
+            await shellSession.CommandGate.WaitAsync();
+            try
+            {
+                var exitCode = await ExecuteRemoteShellCommandInSessionAsync(
+                    shellSession,
+                    commandText,
+                    (line, isError) =>
+                    {
+                        _ = SendPeerTerminalOutputAsync(
+                            sessionId,
+                            senderClientId,
+                            line,
+                            isError,
+                            isCompleted: false,
+                            exitCode: 0);
+                        return Task.CompletedTask;
+                    });
+
+                var wasInterrupted = _interruptedRemoteShellSessions.TryRemove(sessionKey, out _);
+                if (wasInterrupted)
+                {
+                    DisposeRemoteShellSession(sessionKey);
+                }
+
+                await SendPeerTerminalOutputAsync(sessionId, senderClientId, string.Empty, isError: false, isCompleted: true, exitCode);
+                AddLog(PeerTerminalChannelId, "terminal-peer-exec", string.Empty, $"Terminal MyWorkStation ejecutado exit={exitCode} interrupted={wasInterrupted}.", isOutgoing: false);
+                RaiseStateChanged();
+            }
+            catch (Exception ex)
+            {
+                var wasInterrupted = _interruptedRemoteShellSessions.TryRemove(sessionKey, out _);
+                if (wasInterrupted)
+                {
+                    DisposeRemoteShellSession(sessionKey);
+                    await SendPeerTerminalOutputAsync(sessionId, senderClientId, string.Empty, isError: false, isCompleted: true, exitCode: 130);
+                    AddLog(PeerTerminalChannelId, "terminal-peer-exec", string.Empty, "Terminal MyWorkStation interrumpido durante excepcion controlada.", isOutgoing: false);
+                    RaiseStateChanged();
+                    return;
+                }
+
+                await SendPeerTerminalOutputAsync(sessionId, senderClientId, ex.Message, isError: true, isCompleted: true, exitCode: 1);
+                DisposeRemoteShellSession(sessionKey);
+            }
+            finally
+            {
+                try { shellSession.CommandGate.Release(); } catch (ObjectDisposedException) { }
+            }
+        }
+
+        private static string ResolvePeerTerminalWorkingDirectory(string workingDirectory)
+        {
+            if (!string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory))
+            {
+                return workingDirectory;
+            }
+
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Directory.Exists(userProfile)
+                ? userProfile
+                : AppContext.BaseDirectory;
+        }
+
+        private Task SendTerminalWorkItemOutputAsync(
+            RemoteTerminalWorkItem item,
+            string chunk,
+            bool isError,
+            bool isCompleted,
+            int exitCode)
+        {
+            return item.IsPeerTerminal
+                ? SendPeerTerminalOutputAsync(item.SessionId, item.SenderClientId, chunk, isError, isCompleted, exitCode)
+                : SendRemoteTerminalOutputAsync(item.SessionId, item.SyncId, chunk, isError, isCompleted, exitCode);
+        }
+
         private async Task HandleIncomingRemoteTerminalInterruptAsync(
             string sessionId,
             string syncId,
@@ -1462,7 +1883,7 @@ namespace Elysium.WorkStation.Services
             }
 
             var link = await _repository.GetBySyncIdAsync(syncId);
-            if (link is null || !link.IsAccepted || !link.ContinuousSyncEnabled || link.IsEmitter)
+            if (link is null || !link.IsAccepted || link.IsEmitter)
             {
                 AddLog(syncId, "remote-shell-interrupt-skip", string.Empty, $"Interrupt ignorado. linkValido={link is not null}, accepted={link?.IsAccepted}, continuous={link?.ContinuousSyncEnabled}, isEmitter={link?.IsEmitter}.", isOutgoing: false);
                 return;
@@ -3539,7 +3960,9 @@ namespace Elysium.WorkStation.Services
             string SyncId,
             string SenderClientId,
             string CommandText,
-            string SessionKey);
+            string SessionKey,
+            string WorkingDirectory,
+            bool IsPeerTerminal);
         private sealed class FolderSyncFileVersion
         {
             public string Hash { get; set; } = string.Empty;

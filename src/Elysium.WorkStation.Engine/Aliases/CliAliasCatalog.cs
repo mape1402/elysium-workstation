@@ -31,7 +31,13 @@ public static class CliAliasCatalog
         try
         {
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<CliAliasStore>(json, AliasJsonOptions) ?? CreateDefaultStore();
+            var store = JsonSerializer.Deserialize<CliAliasStore>(json, AliasJsonOptions) ?? CreateDefaultStore();
+            if (MergeMissingDefaultAliases(store))
+            {
+                Save(store, path);
+            }
+
+            return store;
         }
         catch
         {
@@ -57,13 +63,39 @@ public static class CliAliasCatalog
                 new() { Name = "sinvite", Template = "sync invite --id {0}", Description = "Invita al otro equipo a sincronizar." },
                 new() { Name = "saccept", Template = "sync accept --sync-id {0} --path {1}", Description = "Acepta una invitacion de sincronizacion." },
                 new() { Name = "slogs", Template = "sync logs --id {0} --tail 50", Description = "Muestra ultimos logs de una sincronizacion." },
-                new() { Name = "rexec", Template = "remote exec --sync-id {0} -- {1}", Description = "Ejecuta un comando en la PC remota." },
-                new() { Name = "rstatus", Template = "remote exec --sync-id {0} -- git status", Description = "Ejecuta git status en la PC remota." },
-                new() { Name = "rbuild", Template = "remote exec --sync-id {0} -- dotnet build", Description = "Ejecuta dotnet build en la PC remota." },
-                new() { Name = "rtest", Template = "remote exec --sync-id {0} -- dotnet test", Description = "Ejecuta dotnet test en la PC remota." },
-                new() { Name = "rgit", Template = "remote exec --sync-id {0} -- git {1}", Description = "Ejecuta git remoto con argumentos libres." }
+                new() { Name = "tpeers", Template = "terminal peers", Description = "Lista PCs MyWorkStation disponibles para terminal." },
+                new() { Name = "texec", Template = "terminal exec --sync-id {0} -- {1}", Description = "Ejecuta terminal MWS en la carpeta sincronizada remota." },
+                new() { Name = "tpeer", Template = "terminal exec --peer {0} -- {1}", Description = "Ejecuta terminal MWS por peer, sin carpeta sincronizada." },
+                new() { Name = "tstatus", Template = "terminal exec --sync-id {0} -- git status", Description = "Ejecuta git status en la carpeta sincronizada remota." },
+                new() { Name = "tbuild", Template = "terminal exec --sync-id {0} -- dotnet build", Description = "Ejecuta dotnet build en la carpeta sincronizada remota." },
+                new() { Name = "ttest", Template = "terminal exec --sync-id {0} -- dotnet test", Description = "Ejecuta dotnet test en la carpeta sincronizada remota." },
+                new() { Name = "tgit", Template = "terminal exec --sync-id {0} -- git {1}", Description = "Ejecuta git en la carpeta sincronizada remota." },
+                new() { Name = "cliptext", Template = "clipboard send --text {0}", Description = "Envia texto al clipboard remoto." },
+                new() { Name = "rexec", Template = "remote exec --sync-id {0} -- {1}", Description = "Compatibilidad: usa texec para nuevos flujos." },
+                new() { Name = "rstatus", Template = "remote exec --sync-id {0} -- git status", Description = "Compatibilidad: usa tstatus para nuevos flujos." },
+                new() { Name = "rbuild", Template = "remote exec --sync-id {0} -- dotnet build", Description = "Compatibilidad: usa tbuild para nuevos flujos." },
+                new() { Name = "rtest", Template = "remote exec --sync-id {0} -- dotnet test", Description = "Compatibilidad: usa ttest para nuevos flujos." },
+                new() { Name = "rgit", Template = "remote exec --sync-id {0} -- git {1}", Description = "Compatibilidad: usa tgit para nuevos flujos." }
             ]
         };
+
+    private static bool MergeMissingDefaultAliases(CliAliasStore store)
+    {
+        var changed = false;
+        var defaults = CreateDefaultStore();
+        foreach (var alias in defaults.Aliases)
+        {
+            if (store.Aliases.Any(existing => string.Equals(existing.Name, alias.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            store.Aliases.Add(alias);
+            changed = true;
+        }
+
+        return changed;
+    }
 
     public static string[] ExpandIfAlias(string[] args, CliAliasStore store)
     {

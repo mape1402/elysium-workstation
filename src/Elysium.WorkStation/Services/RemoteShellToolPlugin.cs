@@ -8,8 +8,8 @@ namespace Elysium.WorkStation.Services
             new()
             {
                 Id = "shell",
-                Name = "Terminal remota",
-                Description = "Consola remota en tiempo real (PowerShell receptor)",
+                Name = "Terminal MWS",
+                Description = "Consola MyWorkStation en tiempo real (PowerShell receptor)",
                 SupportsInteractiveTerminal = true
             };
     }
